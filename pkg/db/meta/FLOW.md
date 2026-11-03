@@ -115,7 +115,9 @@ Metadata table 28 stores the one bounded, body-free MQTT storage ledger. Encoded
   Dedicated policy and optional Channel-info mutations return the previous policy
   from atomic same-batch apply for audit, without changing persisted rows; they observe same-batch state;
   ordinary user/channel upserts preserve policy. Permission snapshots return
-  policy-only user projections and point membership facts. Format 2 requires
+  policy-only user projections and point membership facts. Ready person facts also
+  return a complete runtime fence from the same snapshot, only for matching
+  directory generations and no active write fence. No new row format is added. Format 2 requires
   matching binaries; offline transfers preserve exact policy values and versions.
 
 ## Read First

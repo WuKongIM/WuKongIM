@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering.
+summary: Composes product and tooling runtimes and owns their dependency-safe lifecycle ordering.
 ---
 
 # internal/app Flow
@@ -10,7 +10,7 @@ summary: Composes product and Agent runtimes and owns their dependency-safe life
 This package is the only composition root under `internal`. It converts
 validated configuration into product access adapters, use cases, node-local
 runtimes, infrastructure adapters, cluster/gateway services, observability,
-and lifecycle ownership. Agent/Analysis/View roots do not start the product cluster.
+and lifecycle ownership. Analysis/View roots do not start the product cluster.
 
 ## Boundaries
 
@@ -39,7 +39,7 @@ validated Config + build identity -> format guard and fresh-directory provenance
 Start
   -> cluster/control readiness
   -> internal producers and post-commit consumers
-  -> API and Manager
+  -> bounded initial Full Presence preparation, then API and Manager
   -> Prometheus and Gateway admission
 
 Stop or startup rollback
@@ -55,7 +55,7 @@ Stop or startup rollback
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
   Real single-node SEND/SENDACK smoke coverage lives in the integration tier and
-  uses the production-default send deadline; native-package preview runs it explicitly.
+  uses the production-default send deadline; native-package preview runs it explicitly. Default HTTP/WKProto composition waits for person-directory Ready before durable append. The app-owned projector serves bounded source-leader preparation (RPC 109) and periodic recovery; preparation owners stop before cluster dependencies.
 - Synchronous before-send Webhook admission is independent of Webhook workers and plugin enablement; configuration errors fail startup.
 - Gateway feedback uses Online Delivery FeedbackHandler directly; disabled delivery leaves that optional port absent.
 - Optional features require all their ports; unavailable capabilities remain explicit.
@@ -114,8 +114,9 @@ Stop or startup rollback
   edits cannot change the content used to prove a send retry.
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
-- Presence wiring shares one owner boot identity between session activation and
-  recovery replies and owns bounded UID recovery; Stop/rollback joins it before cluster close, and retry rebuilds a drained cohort.
+- Full Presence shares the Node capability boot, monotonic sequence and receipts.
+  Bound RPCs precede finite local-authority preparation; partial coverage is not a global readiness gate. Stop/rollback joins caller and slot
+  ownership before cluster close; reopening atomically replaces stable forwarding.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
 - Backup RPC binds one target-local Controller repository resolver to all four
@@ -123,9 +124,7 @@ Stop or startup rollback
 - Restore maintenance keeps Manager reachable while product traffic is fenced;
   restore-sensitive caches and side-effect runtimes are reactivated before
   Controller clears maintenance.
-- Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain UIDs, Channel IDs, client message IDs, addresses, or secret material. Transport publishes exact bounded-label counter batches and one-in-32 latency samples, separating handler, service-queue and complete client RPC time. Its retained-memory gauge includes queued and executing request owners. Fixed direction/lane payload-byte counters retain Raft versus non-Raft traffic; they exclude wire headers and network overhead and materialize zero series. Channel-create coalescer gauges and closed delivery/post-commit terminal result partitions must materialize true zero series rather than imply them. - A Slot replica match index may exceed commit while replication is pending; its committed-entry lag is zero, not invalid or an unsigned underflow.
-- Issue/Review Agent composition keeps read, verification, signed-state, and
-  publication credentials separated and never joins the product cluster.
+- With Top disabled, metrics-only sampling refreshes resource/storage gauges without retaining Top history, cluster snapshots or alerts. Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain UIDs, Channel IDs, client message IDs, addresses, or secret material. Transport publishes exact bounded-label counter batches and one-in-32 latency samples, separating handler, service-queue and complete client RPC time. Its retained-memory gauge includes queued and executing request owners. Fixed direction/lane payload-byte counters retain Raft versus non-Raft traffic; they exclude wire headers and network overhead and materialize zero series. Channel-create coalescer gauges and closed delivery/post-commit terminal result partitions must materialize true zero series rather than imply them. - A Slot replica match index may exceed commit while replication is pending; its committed-entry lag is zero, not invalid or an unsigned underflow.
 - Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
 - Successful edit commits enqueue body-free identities through a nonblocking callback into that same worker. Its bounded volatile queue accelerates authoritative dispatch; stop/restore clears it and durable pending scans remain the recovery source.
 
@@ -136,15 +135,12 @@ The app configures aggregate MQTT storage on every product node, including when 
 
 Top ACK-binding counts use independent atomic publication while delivery serializes ACK mutations; publication never acquires the shared Top ingestion/control mutex. Sampling and cloning capture the current count, including zero; historical samples remain immutable. Other Top observations keep their existing locks.
 
-- `diagnostics.attempt_link_enable` is separately default-off and requires general diagnostics. It composes the fixed65536 invocation summary rows and two separately bounded indexes only when enabled, leaving ordinary diagnostic retention unchanged. The sink maps existing original forward events through fixed upper TraceID bindings; the API receives detached summary and local RPC read ports. These observations do not alter admission, durability, deadlines or gates.
+- `diagnostics.attempt_link_enable` is separately default-off and requires general diagnostics. It composes the fixed65536 invocation summary rows and two separately bounded indexes only when enabled, retaining two permission RPC references separately from two append references, with separate overflow and unchanged ordinary retention. The sink maps existing original forward events through fixed upper TraceID bindings; the API receives detached summary and local RPC read ports. These observations do not alter admission, durability, deadlines or gates.
 
 ## Read First
-- [app.go](app.go)
-- [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)
+- [app.go](app.go), [Presence wiring](presence_generation.go)
 - [backup.go](backup.go)
-- [issue_agent.go](issue_agent.go)
-- [review_agent.go](review_agent.go)
 ## Update Triggers
 - Dependency ownership or the sole-composition-root boundary changes.
 - Product startup, readiness, rollback, drain, or shutdown ordering changes.
-- Restore maintenance, side-effect fencing, optional wiring, or Agent authority changes.
+- Restore maintenance, side-effect fencing, or optional wiring changes.

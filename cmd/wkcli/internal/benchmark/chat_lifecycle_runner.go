@@ -247,7 +247,7 @@ func (r *productionChatLifecycleRunner) Run(ctx context.Context) (chatLifecycleR
 	defer r.controller.Close()
 	result := r.coordinator.Run(ctx, r.cfg)
 	finalPath := filepath.Join(r.outputDir, "final.json")
-	if report, err := chatlifecycle.ReadReport(finalPath); err == nil {
+	if report, err := chatlifecycle.ReadCurrentReport(finalPath); err == nil {
 		verdict := chatlifecycle.VerdictSnapshot{
 			Outcome: report.Verdict.Outcome, Cause: report.Verdict.Cause, Terminal: report.Verdict.Terminal,
 			CleanupErrorCount: report.Verdict.CleanupErrorCount,
@@ -255,10 +255,10 @@ func (r *productionChatLifecycleRunner) Run(ctx context.Context) (chatLifecycleR
 		}
 		return chatLifecycleRunResult{
 			Verdict: verdict,
-			Summary: chatLifecycleAppendGrantSummary(chatLifecycleAppendFinalizationSummary(
+			Summary: chatLifecycleAppendTickSummary(chatLifecycleAppendGrantSummary(chatLifecycleAppendFinalizationSummary(
 				fmt.Sprintf("chat-lifecycle outcome=%s cause=%s report=%s\n", report.Verdict.Outcome, report.Verdict.Cause, finalPath),
 				result.FinalizationFailure,
-			), result.GrantFailures),
+			), result.GrantFailures), result.GrantTickFailure),
 		}, nil
 	}
 	verdict := chatLifecycleCoordinatorVerdict(result)
@@ -273,10 +273,25 @@ func chatLifecycleCoordinatorSummary(
 	result chatlifecycle.CoordinatorResult,
 	report string,
 ) string {
-	return chatLifecycleAppendGrantSummary(chatLifecycleAppendFinalizationSummary(fmt.Sprintf(
+	return chatLifecycleAppendTickSummary(chatLifecycleAppendGrantSummary(chatLifecycleAppendFinalizationSummary(fmt.Sprintf(
 		"chat-lifecycle outcome=%s cause=%s coordinator_code=%s grant_failure_code=%s worker_runtime_code=%s observer_code=%s preflight_code=%s report=%s\n",
 		verdict.Outcome, verdict.Cause, result.Code, result.GrantFailure, result.WorkerFailure.RuntimeCode, result.ObserverCode, result.Preflight.Code, report,
-	), result.FinalizationFailure), result.GrantFailures)
+	), result.FinalizationFailure), result.GrantFailures), result.GrantTickFailure)
+}
+
+// chatLifecycleAppendTickSummary appends one fixed rejected-clock record without
+// changing the existing report preference, compatibility line or exit code.
+func chatLifecycleAppendTickSummary(summary string, failure chatlifecycle.CoordinatorGrantTickFailure) string {
+	failure = failure.Bounded()
+	if failure.Boundary == "" {
+		return summary
+	}
+	encoded, err := json.Marshal(failure)
+	const prefix = "chat-lifecycle grant_tick="
+	if err != nil || len(encoded) > 512 || len(prefix)+len(encoded)+1 > 1024 {
+		return summary
+	}
+	return summary + prefix + string(encoded) + "\n"
 }
 
 // chatLifecycleAppendGrantSummary preserves the compatibility line and verdict,

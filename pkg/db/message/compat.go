@@ -944,7 +944,11 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	}
 	indexesByEntry := make(map[*channelEntry][]int, len(indexes))
 	checkpointByEntry := make(map[*channelEntry]struct{}, len(indexes))
+	// Preparation ownership includes all admitted group items. Actual cohort
+	// ownership below still selects only prepared writers/dependent replays.
+	var groupObservation rpctrace.CommitObservation
 	for _, index := range indexes {
+		groupObservation = rpctrace.CombineCommitObservations(groupObservation, items[index].CommitObservation)
 		entry := items[index].Store.log.channelEntry
 		indexesByEntry[entry] = append(indexesByEntry[entry], index)
 		if items[index].Committed > 0 || items[index].Proposal.Version == quorumlog.MQTTSourceProposalManifestVersion {
@@ -961,14 +965,20 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
 	sort.Slice(checkpointEntries, func(i, j int) bool { return checkpointEntries[i].key < checkpointEntries[j].key })
+	// This wall interval includes lock retries and scheduling, not just blocking.
+	locksPhase := groupObservation.BeginStage(rpctrace.StageStoreAppendLocks, nil)
 	// Waiting for a busy Channel must not retain an unrelated earlier lock.
 	if err := lockCommitEntriesWithoutHoldAndWait(ctx, entries, checkpointEntries); err != nil {
+		locksPhase.End(rpctrace.ResultFor(err))
 		for _, index := range indexes {
 			results[index].Err = err
 			results[index].Outcome = quorumlog.AppendOutcomeDefinitelyNotWritten
 		}
 		return
 	}
+	locksPhase.End(rpctrace.ResultOK)
+	preparePhase := groupObservation.BeginStage(rpctrace.StageStoreAppendPrepare, nil)
+	prepareDetail := preparePhase.StorePrepareDetail()
 	locked := make(map[*channelEntry]struct{}, len(entries))
 	lockedCheckpoints := make(map[*channelEntry]struct{}, len(checkpointEntries))
 	for _, entry := range entries {
@@ -1008,7 +1018,9 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 			delete(locked, entry)
 			continue
 		}
+		frontierDetail := prepareDetail.BeginFrontier()
 		physicalLEO, err := items[entryIndexes[0]].Store.log.loadLEOLocked(ctx)
+		frontierDetail.End()
 		if err != nil {
 			err = toChannelError(err)
 			for _, index := range entryIndexes {
@@ -1042,6 +1054,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 			}
 			var prepared preparedCommitRows
 			var prepareErr error
+			itemDetail := prepareDetail.BeginItemPrepare()
 			if item.ExactBaseOffset {
 				switch {
 				case item.ExpectedBaseOffset > virtualLEO:
@@ -1066,6 +1079,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 					prepared, prepareErr = item.Store.prepareAppendRecordsLocked(ctx, item.Records, mode)
 				}
 			}
+			itemDetail.End()
 			if prepareErr != nil {
 				results[index].Err = prepareErr
 				results[index].Outcome = appendOutcomeForPreCommitError(prepareErr)
@@ -1123,6 +1137,18 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		}
 		entry.appendMu.Unlock()
 		delete(locked, entry)
+	}
+	// End before ownership/pin/MQTT preparation and Submit. This group-wide
+	// result describes preparation, not the business result of every owner.
+	if !groupObservation.Empty() {
+		prepareResult := rpctrace.ResultOK
+		for _, index := range indexes {
+			if results[index].Err != nil {
+				prepareResult = rpctrace.ResultFor(results[index].Err)
+				break
+			}
+		}
+		preparePhase.End(prepareResult)
 	}
 	if len(preparedRows) > 0 {
 		commitResult := commitPreparedRowsBatchResult(ctx, owner, preparedRows, lane, commitObservation)

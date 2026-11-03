@@ -2,7 +2,7 @@ name: Safety Automation - Propose Web EasySDK Documentation Upgrade
 
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       verify_current:

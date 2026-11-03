@@ -11,6 +11,9 @@ const defaultShardCount = 32
 type Registry struct {
 	shards         []registryShard
 	nextDrainShard atomic.Uint64
+	// slots retains one ordered active index and activation barrier per used hash slot.
+	slots      sync.Map
+	pageBudget slotPageBudget
 }
 
 type registryShard struct {
@@ -30,6 +33,14 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	}
 	reg := &Registry{
 		shards: make([]registryShard, shardCount),
+	}
+	reg.pageBudget.maxRows = opts.SlotPageMaxRows
+	if reg.pageBudget.maxRows <= 0 {
+		reg.pageBudget.maxRows = 196608
+	}
+	reg.pageBudget.maxBytes = opts.SlotPageMaxBytes
+	if reg.pageBudget.maxBytes <= 0 {
+		reg.pageBudget.maxBytes = 128 << 20
 	}
 	for i := range reg.shards {
 		reg.shards[i].bySession = make(map[uint64]LocalSession)
@@ -52,50 +63,77 @@ func (r *Registry) RegisterPending(session LocalSession) error {
 	session.State = RouteStatePending
 
 	shard := r.sessionShard(route.SessionID)
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-
-	if old, ok := shard.bySession[route.SessionID]; ok {
-		shard.removeActiveUID(old)
+	for {
+		shard.mu.RLock()
+		old, existed := shard.bySession[route.SessionID]
+		shard.mu.RUnlock()
+		firstID, secondID := route.HashSlot, route.HashSlot
+		if existed {
+			firstID = min(firstID, old.Route.HashSlot)
+			secondID = max(secondID, old.Route.HashSlot)
+		}
+		first, second := r.slot(firstID), r.slot(secondID)
+		first.mu.Lock()
+		if second != first {
+			second.mu.Lock()
+		}
+		shard.mu.Lock()
+		current, found := shard.bySession[route.SessionID]
+		if found && current.Route.HashSlot != firstID && current.Route.HashSlot != secondID {
+			shard.mu.Unlock()
+			if second != first {
+				second.mu.Unlock()
+			}
+			first.mu.Unlock()
+			continue
+		}
+		if found {
+			shard.removeActiveUID(current)
+			if current.Route.HashSlot == firstID {
+				first.active.Delete(route.SessionID)
+			} else {
+				second.active.Delete(route.SessionID)
+			}
+		}
+		delete(shard.dirtyIDs, route.SessionID)
+		shard.bySession[route.SessionID] = session
+		shard.mu.Unlock()
+		if second != first {
+			second.mu.Unlock()
+		}
+		first.mu.Unlock()
+		return nil
 	}
-	delete(shard.dirtyIDs, route.SessionID)
-	shard.bySession[route.SessionID] = session
-	return nil
 }
 
 // MarkActive promotes a pending session into the active route index.
 func (r *Registry) MarkActive(sessionID uint64) error {
-	shard := r.sessionShard(sessionID)
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-
-	session, ok := shard.bySession[sessionID]
+	slot, shard, session, ok := r.lockSessionSlot(sessionID)
 	if !ok {
 		return ErrConnectionNotFound
 	}
+	defer slot.mu.Unlock()
+	defer shard.mu.Unlock()
 	if session.State == RouteStateActive {
 		return nil
 	}
-	session.State = RouteStateActive
-	if shard.activeByUID[session.Route.UID] == nil {
-		shard.activeByUID[session.Route.UID] = make(map[uint64]struct{})
+	if slot.claim.Generation != 0 {
+		return ErrStaleActivation
 	}
-	shard.activeByUID[session.Route.UID][sessionID] = struct{}{}
-	shard.bySession[sessionID] = session
+	r.activateLocked(slot, shard, session)
 	return nil
 }
 
 // MarkClosingAndUnregister removes a session from local indexes and returns a closing copy.
 func (r *Registry) MarkClosingAndUnregister(sessionID uint64) (OwnerRoute, bool) {
-	shard := r.sessionShard(sessionID)
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-
-	session, ok := shard.bySession[sessionID]
+	slot, shard, session, ok := r.lockSessionSlot(sessionID)
 	if !ok {
 		return OwnerRoute{}, false
 	}
+	defer slot.mu.Unlock()
+	defer shard.mu.Unlock()
 	shard.removeActiveUID(session)
+	slot.active.Delete(sessionID)
 	delete(shard.bySession, sessionID)
 	delete(shard.dirtyIDs, sessionID)
 	session.State = RouteStateClosing
@@ -188,18 +226,20 @@ func (r *Registry) LocalSessions() []LocalSession {
 
 // MarkTouched records owner-observed client activity on an active route.
 func (r *Registry) MarkTouched(sessionID uint64, activityUnix int64) (OwnerRoute, bool) {
-	shard := r.sessionShard(sessionID)
-	shard.mu.Lock()
+	slot, shard, session, ok := r.lockSessionSlot(sessionID)
+	if !ok {
+		return OwnerRoute{}, false
+	}
+	defer slot.mu.Unlock()
 	defer shard.mu.Unlock()
-
-	session, ok := shard.bySession[sessionID]
-	if !ok || session.State != RouteStateActive {
+	if session.State != RouteStateActive {
 		return OwnerRoute{}, false
 	}
 	if activityUnix > session.Route.LastActivityUnix {
 		session.Route.LastActivityUnix = activityUnix
 	}
 	shard.bySession[sessionID] = session
+	slot.active.ReplaceOrInsert(sessionID, session.Route)
 	shard.markDirtyLocked(sessionID)
 	return session.Route, true
 }
@@ -227,17 +267,20 @@ func (r *Registry) DrainTouched(limit int) []OwnerRoute {
 // RequeueTouched marks still-current active routes dirty after a failed authority touch batch.
 func (r *Registry) RequeueTouched(routes []OwnerRoute) {
 	for _, drained := range routes {
-		shard := r.sessionShard(drained.SessionID)
-		shard.mu.Lock()
-		current, ok := shard.bySession[drained.SessionID]
-		if ok && current.State == RouteStateActive && sameRoute(current.Route, drained) {
+		slot, shard, current, ok := r.lockSessionSlot(drained.SessionID)
+		if !ok {
+			continue
+		}
+		if current.State == RouteStateActive && sameRoute(current.Route, drained) {
 			if drained.LastActivityUnix > current.Route.LastActivityUnix {
 				current.Route.LastActivityUnix = drained.LastActivityUnix
 				shard.bySession[current.Route.SessionID] = current
+				slot.active.ReplaceOrInsert(current.Route.SessionID, current.Route)
 			}
 			shard.markDirtyLocked(current.Route.SessionID)
 		}
 		shard.mu.Unlock()
+		slot.mu.Unlock()
 	}
 }
 

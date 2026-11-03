@@ -120,6 +120,8 @@ type CoordinatorResult struct {
 	Code    CoordinatorCode
 	// GrantFailure retains the bounded grant-stage reason when a grant round fails.
 	GrantFailure CoordinatorGrantFailureCode
+	// GrantTickFailure copies only the already rejected clock boundary.
+	GrantTickFailure CoordinatorGrantTickFailure
 	// GrantFailures retains only the terminal attempt of each failed worker;
 	// it is a local diagnostic, not a native report or worker wire extension.
 	GrantFailures CoordinatorGrantFailures
@@ -802,6 +804,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		now := c.clock.Now()
 		if !validCoordinatorGrantTick(now, tickAt, lastGrantTickAt, haveGrantTick) {
 			result.GrantFailure = CoordinatorGrantFailureTick
+			result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "scheduled_grant")
 			return coordinatorRoundStageFailed
 		}
 		if capacityRateReady > 0 && tickAt.After(capacityRateReadyAt) {
@@ -885,6 +888,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				now := c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "pending_status")
 					return joinAfterGrantFailure(coordinatorRoundStageFailed)
 				}
 				if !tickAt.Before(observationDeadline) {
@@ -1120,6 +1124,10 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 					now = c.clock.Now()
 					if tickAt.IsZero() || tickAt.After(now) || tickAt.After(snapshot.PhaseEnd) {
 						result.GrantFailure = CoordinatorGrantFailureTick
+						result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "capacity_phase_end")
+						if !tickAt.IsZero() && !tickAt.After(now) {
+							result.GrantTickFailure.Reason = "phase_end"
+						}
 						failureCode = CoordinatorCodeGrant
 						goto observationFailure
 					}
@@ -1249,6 +1257,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 					now = c.clock.Now()
 					if tickAt.IsZero() || tickAt.After(now) {
 						result.GrantFailure = CoordinatorGrantFailureTick
+						result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "capacity_status_poll")
 						failureCode = CoordinatorCodeGrant
 						goto observationFailure
 					}
@@ -1337,6 +1346,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				now = c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "cutoff_poll")
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1406,6 +1416,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				now = c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "status_poll")
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1452,9 +1463,31 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				goto observationFailure
 			}
 			if c.hooks != nil {
+				// A hook that already finished is not an overlapping round: select
+				// may deliver this status tick before its ready result. Collect it
+				// exactly as the hookResults case does; only a hook still running
+				// fails the checkpoint.
 				if hookResults != nil {
-					failureCode, failureDisposition = CoordinatorCodeCheckpoint, coordinatorRoundStageFailed
-					goto observationFailure
+					select {
+					case hook := <-hookResults:
+						hookResults = nil
+						if hook.disposition != coordinatorRoundSucceeded {
+							failureCode, failureDisposition = CoordinatorCodeCheckpoint, hook.disposition
+							goto observationFailure
+						}
+						if hook.kind == CoordinatorCutQualification {
+							qualificationCaptured = true
+						}
+						if hook.decision != "" {
+							hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
+							finishObservationForCutoff()
+							cutoffOwned = true
+							goto observationComplete
+						}
+					default:
+						failureCode, failureDisposition = CoordinatorCodeCheckpoint, coordinatorRoundStageFailed
+						goto observationFailure
+					}
 				}
 				kind := CoordinatorCutPeriodic
 				if !qualificationCaptured && !statusTickAt.Before(grantBarrierAt.Add(cfg.Thresholds.Timeline.Checkpoint)) {
@@ -1473,6 +1506,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			if !now.Before(observationDeadline) && !tickAt.Before(observationDeadline) {
 				if tickAt.IsZero() || tickAt.After(now) {
 					result.GrantFailure = CoordinatorGrantFailureTick
+					result.GrantTickFailure = coordinatorGrantTickFailure(now, tickAt, lastGrantTickAt, haveGrantTick, "cutoff_wait")
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -2645,9 +2679,14 @@ func (a *CoordinatorSnapshotAggregator) Aggregate(snapshots []WorkerSnapshot) (C
 		}
 	}
 	thresholdSchema := ordered[0].Sync.Thresholds
+	hotSchema := ordered[0].HotSendackThresholds
 	for workerID := 1; workerID < coordinatorWorkerCount; workerID++ {
-		if ordered[workerID].Sync.Thresholds.P99Limit != thresholdSchema.P99Limit ||
+		if ordered[workerID].Sync.Thresholds.P95Limit != thresholdSchema.P95Limit || ordered[workerID].Sync.Thresholds.P99Limit != thresholdSchema.P99Limit ||
 			ordered[workerID].Sync.Thresholds.P999Limit != thresholdSchema.P999Limit {
+			return CoordinatorSnapshot{}, ErrCoordinatorHistogramSchema
+		}
+		if ordered[workerID].HotSendackThresholds.P95Limit != hotSchema.P95Limit || ordered[workerID].HotSendackThresholds.P99Limit != hotSchema.P99Limit ||
+			ordered[workerID].HotSendackThresholds.P999Limit != hotSchema.P999Limit {
 			return CoordinatorSnapshot{}, ErrCoordinatorHistogramSchema
 		}
 	}
@@ -2813,7 +2852,10 @@ func coordinatorSnapshotRegressed(
 			return true
 		}
 	}
-	return coordinatorHistogramRegressed(current.Sync.ConnectLatency, previous.Sync.ConnectLatency) ||
+	return hotThresholdsRegressed(current.HotSendackThresholds, previous.HotSendackThresholds) ||
+		((current.Sync.Thresholds.P95Limit != 0 || previous.Sync.Thresholds.P95Limit != 0) &&
+			hotThresholdsRegressed(current.Sync.Thresholds, previous.Sync.Thresholds)) ||
+		coordinatorHistogramRegressed(current.Sync.ConnectLatency, previous.Sync.ConnectLatency) ||
 		coordinatorHistogramRegressed(current.Sync.Latency, previous.Sync.Latency) ||
 		coordinatorHistogramRegressed(current.HotSendackLatency, previous.HotSendackLatency) ||
 		coordinatorHistogramRegressed(current.ColdFirstCreateSendackLatency, previous.ColdFirstCreateSendackLatency) ||
@@ -3009,14 +3051,15 @@ func addCoordinatorSync(total *WorkerSyncSnapshot, value WorkerSyncSnapshot) err
 }
 
 func addCoordinatorLatencyThresholds(total *LatencyThresholdCounters, value LatencyThresholdCounters) error {
-	if total.P99Limit == 0 && total.P999Limit == 0 {
-		total.P99Limit, total.P999Limit = value.P99Limit, value.P999Limit
+	if total.P95Limit == 0 && total.P99Limit == 0 && total.P999Limit == 0 {
+		total.P95Limit, total.P99Limit, total.P999Limit = value.P95Limit, value.P99Limit, value.P999Limit
 	}
-	if total.P99Limit != value.P99Limit || total.P999Limit != value.P999Limit {
+	if total.P95Limit != value.P95Limit || total.P99Limit != value.P99Limit || total.P999Limit != value.P999Limit {
 		return ErrCoordinatorHistogramSchema
 	}
-	fields := [4]struct{ destination, source *uint64 }{
+	fields := [5]struct{ destination, source *uint64 }{
 		{&total.Count, &value.Count}, {&total.AboveP99, &value.AboveP99},
+		{&total.AboveP95, &value.AboveP95},
 		{&total.AboveP999, &value.AboveP999}, {&total.Above10Seconds, &value.Above10Seconds},
 	}
 	return addCoordinatorUint64Fields(fields[:])

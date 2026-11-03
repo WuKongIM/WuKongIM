@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -110,12 +111,30 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	if !created {
 		return JoinNodeResult{Created: false, Node: node, Revision: st.Revision}, nil
 	}
+
+	var joiningCapability *PresenceCapabilities
+	if st.Presence != nil {
+		if r.cfg.PresenceCapabilityProbe == nil {
+			return JoinNodeResult{}, ErrPresenceGenerationNotReady
+		}
+		probeCtx, cancel := presenceOperationContext(ctx)
+		proof, probeErr := r.cfg.PresenceCapabilityProbe(probeCtx, node.NodeID, node.Addr)
+		cancel()
+		if probeErr != nil {
+			return JoinNodeResult{}, errors.Join(ErrPresenceGenerationNotReady, probeErr)
+		}
+		if proof.NodeID != node.NodeID || proof.BootID == 0 || proof.ControllerStateVersion != PresenceControllerFormatVersion || proof.ControllerCommandVersion != PresenceControllerFormatVersion || proof.PresenceProtocolVersion != PresenceProtocolVersion {
+			return JoinNodeResult{}, ErrPresenceGenerationNotReady
+		}
+		joiningCapability = &proof
+	}
 	expectedRevision := st.Revision
 	proposal, err := service.ProposeResult(ctx, command.Command{
-		Kind:             command.KindUpsertNode,
-		IssuedAt:         r.cfg.Now().UTC(),
-		ExpectedRevision: &expectedRevision,
-		Node:             &node,
+		Kind:                      command.KindUpsertNode,
+		IssuedAt:                  r.cfg.Now().UTC(),
+		ExpectedRevision:          &expectedRevision,
+		Node:                      &node,
+		PresenceJoiningCapability: joiningCapability,
 	})
 	if err != nil {
 		return JoinNodeResult{}, err

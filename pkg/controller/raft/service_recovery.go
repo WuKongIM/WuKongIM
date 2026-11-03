@@ -39,6 +39,7 @@ func (s *Service) newRawNode(store etcdraft.Storage, startup runStartupState) (*
 		MaxCommittedSizePerReady: math.MaxUint64,
 		MaxInflightMsgs:          256,
 		CheckQuorum:              true,
+		ReadOnlyOption:           etcdraft.ReadOnlySafe,
 		PreVote:                  true,
 		Logger:                   logger,
 	})

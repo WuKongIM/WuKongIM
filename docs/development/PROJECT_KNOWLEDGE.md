@@ -1,6 +1,131 @@
 # Project Knowledge
 
-Chat-lifecycle report v7 / threshold contract v2 separates `local_diagnostic`,
+- The operator temporarily suspended `channel-append` in the three-node hosted-runner
+  performance matrix pending a controlled performance environment. Mixed SEND, TCP
+  SENDACK, correctness/race and nightly lifecycle checks remain enabled. Existing
+  failures remain failures; absence of this check is not performance qualification.
+  Baseline reuse still requires all three original seams, so suspended runs cannot
+  establish a new full baseline. Restore the matrix entry and its static contract
+  together when re-enabling channel-append.
+
+- Channel quorum retry receipt maps grow on actual use instead of reserving the
+  configured command allowance for every installed empty Channel. The logical
+  retention limit, oldest-command eviction and durable retry lookup are unchanged.
+  The public sparse-resident integration test compares 10,000 live empty Channels
+  with allowances 1 and 64 in both orders under a fixed 8 MiB excess-heap budget;
+  it samples before Release and joins cleanup. This resource regression proves
+  unused-capacity overhead only, not a live workload's complete heap attribution.
+
+Lifecycle metrics preserve optional block-cache and memtable-reservation byte
+gauges in fixed channel_log/meta/raft order. Missing, duplicate or invalid optional
+values stay unknown and never weaken original required metrics. Only successful,
+complete existing GC observation rounds may emit storage-memory diagnostics:
+16 lines, each at most4KiB, independently of the64 failure-line budget. No extra
+HTTP/GC requests, timers, profiles or gate changes are introduced. Gauge producer
+age, evicted reader pins, flushable-batch backing and total heap attribution remain
+unknown; configured cache capacity and these gauges are not RSS or process limits.
+
+Full Presence recovery failures retain one immutable closed step/kind receipt
+with step elapsed time and the remaining original context budget at entry.
+Parallel Begin freezes its first actual error before joining late owner cuts;
+normalization keeps the historical not-ready family and the original receipt.
+The shared formatter adds four scalar fields to existing activation failure
+logs without new events, identities, retries or deadline resets. Successful
+steps retain no failure receipt. Generic old provider-phase logs cannot be used
+to reconstruct missing Full substep evidence or establish a physical cause.
+
+The diagnostics Store ring is the sole owner of retained Event values. Its ID
+index stores ring slots and validates each slot's exact event ID under the
+existing lock before lookup, so overwritten IDs cannot resolve a replacement
+event. Public Record/Query memory regression covers a 50,000-event ring through
+150,000 writes with an 8 MiB additional retained-heap budget after construction
+and index warm-up. This removes duplicate Event retention; it does not establish
+that all long-run heap growth is a leak or remove bounded storage-cache warm-up.
+
+Lifecycle grant tick failures retain one failure-only record of the actual
+rejected guard, closed predicate, prior-tick presence and signed age/interval.
+Observed flags distinguish missing clocks from measured zero; capacity phase-end
+rejection is not cadence attribution. The CLI exports one bounded sanitized line
+without raw times or identities and preserves its original summary and exit.
+Capture reuses existing clock values; the 10ms cadence tolerance, 1.25s age and
+coverage budgets, grants, latency gates and joined cleanup remain unchanged.
+These observations distinguish clock-boundary hypotheses, not CPU, network or
+product causes; historical missing evidence is never reconstructed.
+
+Chat-lifecycle worker protocol v16 records fixed exact hot-SENDACK threshold
+counters using the same ACK duration as its unchanged sixteen-bucket histogram.
+This supports configured limits such as 600ms without interpolating the
+400ms/1s bucket. Native verdicts and passive logs share checked aggregation;
+wrong limits, sample-count mismatch, regression and overflow fail closed.
+Legacy 400ms evidence may use its exact histogram boundary; absent 600ms
+counters cannot qualify. Report v8 and timeout/correctness gates stay unchanged.
+No extra clock, RPC or retained message history is introduced.
+
+Chat-lifecycle fixed group rosters align their member stride with the worker
+count. Otherwise a 2,000-group/three-worker catalog needs member ordinal three
+before a group owner sees a second member: reducing online users from 10,000 to
+5,000 then strands sampled group work until its unchanged eligibility deadline.
+The aligned layout retains group sizes, traffic shares, UID ownership and bounded
+O(1) membership reconstruction; padding residues are not group members. Fresh
+runs prepare the resulting roster. Old runs and their evidence retain their
+original source/layout and are never resumed or relabeled.
+Driver ownership does not choose a group's product gateway: each member retains
+the original catalog-ordinal gateway projection, avoiding same-node fanout after
+roster alignment. The copied endpoint pool is fixed per generation; route
+selection is O(1) before the existing token upsert, with no added RPC or history.
+
+Lifecycle bootstrap retains its global 100-login/s clock and bounded Starting
+sessions. The production three-worker composition admits four full HTTP syncs
+per generation (twelve total), including all pages and existing endpoint
+fallback, below one node's sixteen active list requests. Waiting remains inside
+the original caller context and native sync latency. No extra goroutine, retry,
+history or product admission change is introduced; cancellation never dispatches
+a queued sync after its permit becomes available. This does not prove the exact
+unrecorded cause of historical CI sync failures.
+
+Tests disable Top history with `WK_TOP_API_ENABLE=false` while retaining
+`WK_METRICS_ENABLE=true`. In this mode the hidden sampler refreshes resource and
+storage gauges without allocating a Top ring, collecting cluster snapshots or
+running Top history alerts. This test policy does not relabel earlier runs or
+change their latency/correctness gates; enabled Top keeps its existing history.
+
+Transport observation flushes reuse one drain-owned event batch rather than
+allocating a new slice every tick. The existing finite aggregate-key population
+bounds its growth; delivery clears references, while duration samples remain
+detached for observers that retain them. Counters arriving during a slow callback
+stay in their shards and Stop joins their final delivery. This reduces one measured
+allocation source; it does not establish full-workload heap or RSS attribution.
+
+`BoundedBatchPool` sizes a new backing array from ready queue depth rather than
+the maximum batch size. This depth is an allocation hint, not an admission or
+batch limit: late arrivals may still grow the batch during collection and
+executor retry. Sparse allocation benchmarks do not certify end-to-end
+throughput or explain every timeout in a shared-host diagnostic run.
+
+WKProto tooling-client pumps reuse transport storage only after synchronous
+write completion or decoded payload detachment. Writer compaction clears old
+request references; reader compaction returns small suffixes to the configured
+read base instead of retaining a large frame's peak allocation. Decoded payloads
+and pending-message ownership remain independent of these reusable buffers.
+The reader fills a single owned buffer directly, growing only for a full
+incomplete frame. Chat-lifecycle sessions use an 8KiB initial buffer rather than
+two 64KiB buffers per connection. Memory-allocation regressions and connected
+factory tests retain fragmented-frame, EOF and payload-ownership controls;
+their heap deltas do not certify full-workload RSS or performance acceptance.
+
+Mixed-SEND boundary evidence retains fixed permission stage/result, admission
+ownership and SENDACK metric families, within the existing 4MiB artifact cap.
+Warmup failures include at most 32 synthetic client sequences. These boundary
+reads add no per-SEND work or retry; a route-not-ready label alone cannot prove
+admission pressure, leader movement or a persistence cause.
+Counter-enabled mixed benchmarks also retain up to 32 existing gateway failure
+logs as synthetic sequences and closed error-chain categories, in a separate
+64KiB sidecar. Their logger stays debug-disabled and discards identity/error text;
+absence of a captured log is not proof of SEND success. Slot read-barrier result
+histograms separate unavailable read causes at the same boundary, while original
+pre-append stage semantics remain unchanged for failed directory admission.
+
+Chat-lifecycle report v8 / threshold contract v2 separates `local_diagnostic`,
 `rehearsal`, and `formal_protocol` scope. A formal-protocol report still requires
 same-source/run/Lease external Linux hardware, independent-host and disk proof;
 configuration names cannot certify the environment. Mac pressure diagnostics do
@@ -20,7 +145,8 @@ run with insufficient evidence, but elapsed rehearsal time alone cannot pass.
 Qualification persists baseline/start/end elapsed positions from one monotonic
 process clock; duration, order and freshness use those positions. Serialized
 wall timestamps are audit fields, not a reconstructed qualification clock.
-Readers reject missing offsets and older schemas without modifying old evidence.
+Current result and capacity consumers require v8 and reject missing offsets;
+historical v7 reports remain available for diagnosis without upgrading old evidence.
 
 Lifecycle driver `SDKAdmission` includes the entire `SessionPool.TrySend`,
 including its online-table read lock. Engine step-lock and owner-queue wait
@@ -57,6 +183,14 @@ gap does not prove all first attempts met their deadline. Retry counts and
 explicit failures cannot substitute for or be summed with this lower bound.
 No new timeout-rate gate is introduced. Fixed attempt slots and bounded late
 receipts retain evidence without an unbounded message history.
+The lifecycle hot attempt wait is configured independently as
+`thresholds.latency.hot_attempt_timeout`: current Formal runs use two seconds
+for each hot attempt, including retries. Cold attempts retain their five-second
+wait. Hot P99 remains 400ms and P999 remains 1s; first-attempt timeout counts and
+latency breaches therefore describe different boundaries. Legacy zero/missing
+budget inherits its original P999 only for diagnosis or custom non-formal profiles;
+it cannot select a current Formal run. Reports retain the explicit budget and
+configuration digest, and archived one-second results keep their original meaning.
 Worker protocol v12 adds closed under-delivery emitter codes 37–46 without
 changing the five evidence-example fields, original numeric units, 100ms dispatch
 or five-minute eligibility semantics. Historical code 27 has unknown emitter;
@@ -65,7 +199,8 @@ Worker-evidence v2 carries the appended vocabulary; terminal readers retain v1's
 original 1–36 range. Full snapshot/status capture is bounded at 256 KiB and
 three-worker terminal evidence at 1 MiB. The earlier 8/16 KiB local capture caps
 could reject legal retained samples; that collection defect alone does not
-explain an engine under-delivery event. Report v7 / threshold v2 remain unchanged.
+explain an engine under-delivery event. Threshold v2 remains unchanged; current
+reports use v8 to retain the native rolling latency gate independently.
 Worker protocol v13 / worker-evidence v3 appends CONNECT codes 47–53: their Value
 is a closed kind (0 unknown, 1–10 fixed kinds), except rejection's recognized
 protocol reason (0 unknown). Legacy code 30 and all previous units stay unchanged;
@@ -84,6 +219,23 @@ Strict Verifier terminal recording returns a direct product TerminalSend
 VerificationError after mutation. Stop cleanup must consume exactly that result
 before release; unknown, wrapped or generator errors remain harness failures.
 This distinction cannot erase a product failure observed before Stop.
+
+The lifecycle Engine retains one generation-owned advance across slices of
+32 total work items and frozen FIFO prefixes of at most 32 commands. Its time
+cut and total maxWork budget remain fixed; SEND-based Gosched accounting is
+independent. Snapshots may observe partial logical progress. A time transaction
+releases stepMu only after caller postprocessing and its accepted logical job
+both finish. Job registration shares the lifecycle admission fence; Stop joins
+these jobs before closing the dispatcher. An ordinary inter-slice owner barrier
+does not prove a logical job has joined.
+
+`WK_CHAT_LIFECYCLE_DRIVER_ADMISSION_DIAGNOSTICS=1` requires the explicit driver
+diagnostic opt-in and retains at most16 anonymous SDK-start/code38 prefixes per
+generation. Queue-offer to executor pickup, pickup to command offer, and offer
+to owner handling use a separate monotonic probe; they are not CPU, pure queue
+time, or additive parts of the native due/fresh clock. Unknown clocks remain
+unknown. The final sidecar keeps its64KiB cap and existing owner/yield evidence;
+enabled diagnostics require same-source v15 peers.
 
 Channel append eligibility partitions must preserve input cardinality and order
 with disjoint active/inactive ownership. A nil active slice cannot indicate
@@ -118,8 +270,10 @@ reader returns. These internal policies do not change CONNECT's configured
 activation deadline or chat-lifecycle correctness/latency gates; they do not
 establish Linux capacity or explain a cloud scheduler stall.
 
-The production presence-recovery provider reads Controller-local snapshots and
-owner-local online indexes; it does not itself invoke a Slot/DB read barrier.
+Legacy presence recovery reads Controller-local snapshots and owner-local
+online indexes. Full mode commits rare G/M claims through Controller Raft and
+checks actual Slot authority; warm lookups and touch forwarding use published
+local gates and add no per-SEND Controller transaction.
 Its owner-call interval includes encoding, RPC and decoding unless separate
 evidence proves a narrower phase. Shared recovery execution has no single
 caller trace parent; a provider failure's physical-round timing cannot be
@@ -460,6 +614,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Message durability and recovery
 
+- Quorum completion does not join every trailing-voter callback. Sequencer
+  Release must retain exact repair authority until admitted peer callbacks and
+  pending follower repairs finish, then remove the retired identity. Peer
+  flight alone is insufficient: terminal callbacks own the item budget until
+  return. Order retirement with reinstall, including the same authority ID.
 - Persistent SENDACK requires the exact proposal to be crash-safe locally and on
   an intersecting voter write quorum. Learners do not vote. Never acknowledge
   before synchronous durability or expose message append `NoSync` as configuration.
@@ -571,10 +730,32 @@ specification, runbook, report, or module documentation; link to them when neede
   messages, not a separate durable conversation row or message-time projection.
   `user_channel_membership` stores join/read/delete boundaries, activation,
   tombstones, and source version; CMD membership uses a separate directory.
-- Steady-state SEND performs no recipient membership writes. The first persistent
-  person SEND durably admits a generation-fenced source projection task; bounded
-  asynchronous work establishes both UID memberships. SENDACK does not guarantee
-  immediate directory or history visibility. Deletion fences delayed projection.
+- Steady-state SEND performs no recipient membership writes or extra directory
+  RPCs: it reads Ready and runtime epochs/route in the same authoritative permission
+  snapshot. The final append revalidates that exact route through the existing
+  fresh metadata barrier; retries, queued batches and node request version 4
+  preserve the proof, and replacement generations require a new invocation. Ordinary
+  persistent person SEND waits for both UID memberships and generation-fenced
+  source Ready before append (issue #1066). Cold tasks dispatch directly to the
+  source leader through bounded RPC 109; its eight executions share a 32-request
+  receiver budget, and queue time consumes the original four-second deadline.
+  This absorbs multi-ingress bursts without unbounded waiters or retrying appends.
+  Origin batches keep collecting to their 32-item target while all eight
+  executions are busy; timer expiry alone must not freeze a sparse backlog.
+  If a source task is already gone, capture its completed generation through
+  a storage snapshot: the Channel cache can still expose Pending across task
+  deletion/cache publication. Only the final fresh Slot snapshot grants Ready.
+  Periodic scans remain recovery. Pending
+  work preserves its original CommittedTail and user visibility/tombstone state.
+  Timeout/overload before preparation completes cannot append that invocation.
+  Peers must support RPC 109 and append request 4. New callers fail closed against
+  unsupported peers; older callers retain their old semantics until upgraded. Ready withdrawal on deletion/restore prevents cross-request reuse.
+  This removes false-empty first-message reads, not legitimate read-route 503s.
+- HTTP 200 alone is not durable message success: inspect reason and message_seq.
+  Ordinary persisted success acknowledges quorum durable append. Effective
+  NoPersist is online-only (including top-level NoPersist overriding header zero),
+  and SyncOnce has separate CMD discovery semantics. Person channels derive their
+  two canonical UIDs automatically; subscriber_add is not a repair mechanism.
 - Member add/remove changes subscribers before UID memberships/tombstones.
   Partial failure is returned for idempotent caller retry. Valid non-tombstoned
   membership authorizes ordinary history without rechecking subscribers; reads
@@ -1414,7 +1595,7 @@ specification, runbook, report, or module documentation; link to them when neede
   routes are volatile, UID-authority-fenced projections; concrete sessions remain
   owner-local. Authority changes require bounded reconstruction before an empty
   route can be treated as offline, never a scan of every session.
-- Cold presence recovery coalesces UID proofs by the five-field distributed
+- Legacy cold presence recovery coalesces UID proofs by the five-field distributed
   identity, excluding local revision/AuthorityEpoch counters. Sixteen caller-owned
   cohorts bound retained keys to 8,192 and owned UID clones to an independent
   128 MiB (32 MiB per new subset), matching the node-wide 16-round owner-read
@@ -1427,9 +1608,77 @@ specification, runbook, report, or module documentation; link to them when neede
   directly propagate their typed failure. Follower cancellation is isolated;
   canceled leaders leave live followers typed not-ready under the existing outer
   retry policy.
+- Presence Controller format 2 commits against a frozen semantic member/voter
+  cut instead of unrelated logical revisions. It includes removed tombstones
+  and exact addresses, join states and roles. First activation alone may start
+  with zero M/stamp, under the existing one-way node lifecycle, non-reusable
+  NodeID/endpoint and external drain contract; it does not certify pre-upgrade
+  removed-owner drain or arbitrary pre-activation raw-state ABA. Once active,
+  every semantic roster mutation advances persisted high water. A stamp newer
+  than M keeps old G closed even when the roster returns to its previous value;
+  Ensure compares observed M/stamp and commits a new M before reactivation.
+  Claims retain per-slot predecessor/mapping CAS. Actual capability format 2,
+  complete owner coverage, snapshot rollback rejection and missing-stamp
+  failure remain required. Health and unrelated slot progress do not change
+  that semantic cut, and no new SEND retry or larger deadline is granted.
+- Rare Presence control reads use leader quorum ReadIndex plus successful durable
+  apply, without appending empty log entries. The 64-token bound includes issued
+  canceled requests until their Raft context retires; requests retain no parent
+  context values. Current-term commit is required before issue, and unsupported
+  peer-forwarded ReadIndex messages are rejected. Stop, known leadership loss and
+  apply failure end pending reads without waiting for unrelated configuration work.
+  An unchanged Ensure may return M from its fresh read cut without another write;
+  owner/roster changes and generation claims still require actual commit receipts.
+  This mechanism does not guarantee the same cold-control latency on every host.
+  Claim mutations instead use the last materialized FSM cut only as a proposal
+  basis. Their full roster/M/boot/mapping/predecessor CAS still runs at apply;
+  success requires that command's own majority-committed durable apply receipt.
+  They do not need a separate ReadIndex before the fenced write. Read-only Get
+  and potentially unchanged Ensure retain their fresh quorum-read proof.
+- Full Presence uses a committed per-Hash-Slot generation G and owner-set epoch
+  M; diagnostic revision/AuthorityEpoch and random boot identities cannot order
+  generations. Begin and receipt promotion share an owner Slot lock. Pending
+  CONNECTs never block scans. All required owners, including non-data nodes,
+  must end bounded pages before Complete can prove an absent UID offline.
+  Unknown/old peer capabilities, missing pages, cancellation and capacity failure
+  stay not-ready; node health does not prove owner fencing. Production activation
+  requires protocol support across Controller participants and ingress owners.
+  Self capability proof binds the configured Join advertisement or static voter
+  endpoint, falling back to the listener only without a configured self endpoint;
+  a relay/NAT membership address need not equal the socket listen address.
+  TTL-expired known identities enter a separate bounded suspect ledger rather
+  than becoming false negatives; only real owner activity refreshes LastSeen.
+  The 8,192-identity / 128 MiB suspect ledger and independent decoded-page credits
+  exclude live Directory/index storage, wire buffers, allocator overhead and RSS.
+  Suspect table structure retains its logical 256-byte-per-identity high-water
+  debit across partial deletion; only live payload/row debits return immediately.
+  Empty or retired generations drop both tables before returning structure credit.
+  This conservative ownership allowance is not an exact Go allocator measurement.
+  Full owner Begin/Page/End/ReadUIDs and Controller Get inherit the original
+  caller budget and cancellation; exact Abort cleanup and durable Ensure/Claim
+  retain independent execution. Forbidden page receipts fail at their flag before
+  identity strings can be decoded outside the result ledger.
+  Independent owner Begin checks overlap through at most four joined workers per
+  scan. Claim and Begin share sixteen node-wide actual-provider permits; waiting
+  workers start no owner timer. Admitted owner deadlines never refresh; valid
+  late cuts retain cleanup ownership until actual provider return and exact Abort.
+  Ordinary backup restore retains Controller G history; replacing every Controller
+  disk with an older image has no external anti-rollback proof in this protocol.
+- SEND permission RPCs compare semantic Slot authority and derived Hash Slot,
+  not another node's diagnostic Controller revision. Receivers retain their own
+  nonzero AuthorityEpoch across the fresh barrier/snapshot to reject observed
+  topology ABA. The epoch comes from the same immutable local publication, stays
+  stable for revision-only updates, never crosses the wire and does not replace G.
 - Every online route, including advisory EVENT hints, must preserve device ID,
   flag and level along with the exact owner/session identity. The final session
   fence rejects a route with missing or stale device fields.
+- Presence Directory snapshots count and fill one call-owned route backing per
+  single-target read (including recovery readback), or one per shard for grouped
+  reads. UID input order, duplicate UID entries and per-UID identity sorting are
+  preserved. Sorting must not allocate one temporary result per online UID;
+  returned snapshots must never alias mutable Directory state. This reduces
+  allocation work without changing proof residency, authority fences or recovery
+  admission limits.
 - Post-commit handoff reserves bounded capacity before append and may reject busy
   work before durability. Once committed, SENDACK completes independently of
   best-effort terminal delivery/plugin/webhook failures. Completion and capacity
@@ -1455,6 +1704,10 @@ specification, runbook, report, or module documentation; link to them when neede
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when
   remotely reachable. Operations MCP uses its own token and read-only tool boundary.
+- Documentation Debug and node-transport inventories follow complete Go registrations
+  and aliases; partial Go test maps do not define the complete catalog. The retained
+  SEND attempt query requires a non-empty `bench.api_token` even when compatibility
+  Debug routes permit an empty token.
 - Gateway token authentication compares the stored UID/device Token exactly;
   Product HTTP credential updates have no expiry field and JWT `exp` is not
   interpreted. Application backends own expiry, rotation, and revocation. Device
@@ -1570,11 +1823,16 @@ specification, runbook, report, or module documentation; link to them when neede
   loss must not degrade into generic text and ordinary HTTP 400; unknown text,
   storage failures and caller cancellation do not acquire retryability.
 - Read [workflow contracts](../../.github/workflows/README.md) before invoking
-  Actions. Issue/Review Agent control files remain protected. Authorization, signed
-  generation identity, and exact source evidence cannot be replaced by event hints
-  or model output. Named checks and path selection are defined only by
-  [Review Agent policy](../../.github/review-agent/policy.json); focused Skill tests
-  are cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+  Actions. `ci.yml` is the only pull-request gate and `ci-ok` its only required
+  check; the Review Agent, Issue Agent and Cloud Simulation workflows were
+  retired in November 2026. Named checks are defined only by
+  [`cmd/wkcicheck`](../../cmd/wkcicheck/main.go); focused Skill tests are
+  cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+- GitHub-hosted runner allocations differ mainly in disk speed: AMD EPYC 9V74
+  runners showed ~3.5x slower writes and a 164 ms median channel-append p99
+  versus 7 ms on EPYC 7763 (388 runs, Oct-Nov 2026). Hosted-runner results
+  detect regressions (tmpfs data, allocations per operation, same-runner A/B);
+  they never certify absolute capacity, which needs fixed hardware.
 - Script integration `repoRoot(t)` also admits top-level tests to the bounded
   parallel scheduler. Resolve it before creating command contexts, starting
   processes, or allocating time-sensitive resources; queue time is not part of
@@ -2230,6 +2488,25 @@ specification, runbook, report, or module documentation; link to them when neede
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
 
+- Script integration smoke cases may share a lazy, process-owned read-only CLI
+  build only for a fixed target, flags and source checkout. Runtime data stays
+  case-local; TestMain joins consumers before deleting the temporary executable.
+  Source-rebuild/worktree probes must continue making their own fresh binaries.
+  This reduces duplicate linking inside the unchanged nine-minute, parallel-two
+  scripts gate; it is not prewarming, skipped coverage or a deadline exception.
+
+- Manual worker ticker readiness joins scheduler advancement, not asynchronous
+  SDK admission. Fake-clock tests must settle public AdmissionPending before
+  reading completed SEND counters or moving to the next tick; otherwise host
+  scheduling can manufacture subsecond underdelivery or dispatch expiry.
+
+- First-grant sender deduplication must account for person/group competition.
+  A sparse active-person endpoint pool can be exhausted by earlier group sends
+  even while other eligible group members remain. When that pool is smaller
+  than the first grant, prefer group members outside it before the original
+  bounded fallbacks. Discard the temporary set at grant end; never advance
+  future activity or reduce the admitted rate to satisfy a distinct-sender check.
+
 - Chat-lifecycle grant cadence is an allocation boundary, not a SEND arrival
   timestamp. The bootstrap grant remains immediate; later external grants use
   deterministic subsecond arrivals and independent due-work advancement while
@@ -2243,11 +2520,17 @@ specification, runbook, report, or module documentation; link to them when neede
   joins the actual getter return before client close. Errors remain errors, not
   zero gauges. Snapshot itself does not hold worker advanceMu; blocking the
   Engine can indirectly stall ticks and later grants that do hold it.
-- Peer callback delivery still occupies the existing bounded target worker after
-  I/O ownership is released. Track that phase separately from in-flight keys so
-  independently ready work can use spare existing target slots. Count callback
-  owners in the unchanged target limit, retire phase on panic, preserve initial
-  single-owner coalescing, and join admitted callbacks during Runtime.Close.
+- Peer exchange and callback delivery use independent bounded pools. Callback
+  workers derive from the existing PeerWorkers count; no per-Channel goroutine
+  is created. The complete admitted envelope remains charged through callback
+  return, including Fetch's declared reply budget. Publishing returned results
+  precedes release of the network key fence; callbacks retain target+Channel
+  order while one-envelope turns yield through a global ready FIFO. Clear moved
+  batch references so one held callback cannot retain siblings after their
+  credit is released. A caller's Close deadline ends only its wait: the same
+  supervised cleanup owner retains results, retry responsibility and dependencies.
+  Node preserves that Runtime and its store on an unfinished join, reports the
+  existing StopIncomplete contract and joins the same owner on a later Stop.
 - A reduced chat-lifecycle SEND rate must still cover the online population's
   mandatory bootstrap relationship activity inside its eligibility window.
   Reducing only the rate can make a local profile intrinsically undeliverable,
@@ -2645,7 +2928,7 @@ completion, installation and provider-reference release.
   Benchmark opt-in is independent, retains the first 16 confirmed-late originals per
   worker generation and publishes detached live/final optional protocol-v15
   diagnostics. Optional malformed evidence cannot alter native counters,
-  Evidence v3, Report v7, deadlines or gates. A successful write callback is not
+  Evidence v3, native report counters, deadlines or gates. A successful write callback is not
   socket flush/client receipt; missing clocks and identity bridges remain unknown.
   Summary stage timestamps project existing monotonic offsets onto ingress wall
   time; they are not independent post-clock-adjustment wall observations.
@@ -2658,11 +2941,34 @@ completion, installation and provider-reference release.
   and checkpoint batches share the same all-or-release acquisition helper.
   Cancellation before commit ownership is definitely-not-written; admitted
   mutation locks and pins remain owned until terminal finalization.
+- Background storage workers use an owner context, not the caller context.
+  Their optional CommitObservation must transport admission, queue and collect
+  timings to sampled request owners even when context tracing is absent. Direct
+  context traces keep their original physical spans; typed owners use the
+  existing cohort for physical work to preserve the 32-span bound. Message
+  append lock/preparation spans cover an engine/class group and may include
+  later-rejected items, while actual cohort membership remains prepared-only.
+  Preparation ends before ownership/pin/MQTT preparation and Submit; remaining
+  gaps are unknown, never automatically RPC queueing, CPU time or fsync.
+  Its optional fixed numeric child totals outer frontier and item-preparation
+  calls on the admitted parent span. Invalid or unfinished categories stay
+  unknown; finished samples and clones are detached. These are shared group
+  wall intervals, not individual request CPU or physical commit durations.
+- Lifecycle report v8 retains the exact native five-minute latency sums,
+  threshold fractions and continuous-breach state for three fixed operations.
+  The first terminal cut freezes this child; later cleanup cannot refresh it.
+  Positive ten-minute qualification remains separate, and no numerical gate
+  changes. Legacy v7 without this child is readable as unknown diagnostic proof;
+  current terminal handoff requires v8. Missing evidence never becomes pass.
 - Chat-lifecycle code38 is a fresh-clock dispatch miss before SDK admission,
   not an accepted product SEND or a delivery-loss proof. Optional driver timing
   retains the first 16 numeric prefixes per generation, stops extra timing at
   saturation, and marks clock regressions unknown. Final-only protocol-v15
   records and their terminal sidecar do not alter five-field Evidence or gates.
+  The opt-in completed-Gosched wall aggregate uses an independent monotonic
+  probe and overlaps unchanged Residual; absence or invalid clocks stay unknown.
+  It proves neither actor CPU nor Runnable time. The named optional JSON child
+  is isolated without weakening native strictness and requires same-source peers.
 - Worker expiry validates cleanup lifecycle and reservation state before using
   a conservative atomic deadline bound to skip the online-table lock and scan.
   The bound includes leased non-anchor sessions; a pinned overdue deadline
@@ -2684,7 +2990,7 @@ completion, installation and provider-reference release.
   Expiry regions include synchronization and scheduling; Go Running intervals
   are wall time and may include OS/VM descheduling. No CPU profiler is enabled,
   so remaining Running time cannot be called pure scan CPU. These artifacts
-  do not change protocol15, Report v7, Evidence v3 or acceptance thresholds.
+  do not change protocol15, native report counters, Evidence v3 or acceptance thresholds.
 - Optional Linux worker CPU bounds require both private driver diagnostics and
   `WK_CHAT_LIFECYCLE_DRIVER_CPU_DIAGNOSTICS=1`. A MONOTONIC / PROCESS_CPUTIME_ID /
   MONOTONIC sample at actual owner entry and the first native code37/38 miss
@@ -2696,3 +3002,56 @@ completion, installation and provider-reference release.
   Post-join detached records cross a nonblocking channel into one private
   asynchronous64KiB CLI sidecar per process. Stop never waits for its IO.
   Neither protocol15 nor native evidence, reports, counters or gates include it.
+
+- Write-readiness proof uses actual hash mapping, replica/config fences, live
+  leader/term and node-local authority epochs, with one internally consistent
+  publication per cut. Presence generation claims may advance Controller logical
+  revision without changing this authority. Such revisions must not revoke or
+  renew the original two-second proof; observed authority ABA still revokes it.
+  This mechanism is regression-tested; the Mac full-scale startup/2h result
+  remains a separate verification, not implied by a passing seam test.
+
+- Controller Raft Store publishes one immutable last-successful durable read cut.
+  Storage reads and empty Ready avoid the writer I/O mutex; fresh quorum and the
+  actual FSM/durable-applied watermark remain required for ReadBarrier success.
+  The view owns entry headers and every ConfState slice, sharing only immutable
+  record/snapshot payload. Applied-only publication reuses headers/payloads.
+  Failed persistence and later no-op returns never publish dirty writer state;
+  this is not a live repair protocol after a fatal storage error.
+
+- Controller Raft coalesces already-waiting local proposals or buffered peer
+  Steps in separate homogeneous turns, up to 128 admissions and a 4MiB
+  accumulated encoded-byte fairness cut. The final received input may cross
+  that cut once; this is not a payload or hard memory limit. A Step turn never
+  admits a local future before its Ready is persisted/bound; the existing
+  FIFO/type tracker must not confuse peer/election entries with local proposals.
+  Every Step still updates role and retires reads on leader loss before I/O.
+  Tick, read/control scheduling and all durability/deadline checks remain.
+  Cold CONNECT and native 2h qualification require independent actual results.
+
+- Full Presence cooperative recovery retains its original FIFO and sixteen
+  physical executors, but a turn may process up to four pages. Cumulative 4,096
+  rows or 4MiB logical route bytes cause earlier yielding; the last received
+  validated page can cross a soft cut once. Save these numeric costs before
+  releasing/clearing the owned page. A full page still yields immediately;
+  empty/small owner pages can finish without repeatedly queueing behind Claim.
+  Resume clears work counters only. The original owner1s/scan2s deadlines,
+  exact owner Ends/final validation and all credits remain, including queue wait.
+
+- Full Presence startup attempts each currently routed local authority once before
+  business HTTP/Gateway admission, sharing the initial 30-second readiness budget.
+  Preparation uses ordinary recovery FIFO/member/key/metadata/result ownership,
+  sixteen physical turns and original scan/owner deadlines, with no synthetic UID.
+  Partial/unknown coverage is not global readiness or offline evidence; seed-join
+  pre-activation and restore maintenance defer this pass. Stop joins late providers.
+
+- Optional invocation summaries retain eight fixed phases: the original five, shared permission-batch/pre-append intervals, and the longest remote service91 origin RPC wrapper per original token. The last slot borrows the existing RPC metric clock (marshal/call/decode), preserves the first equal-duration fact and is independent of the retained RPC identities. Local/no-metric clocks stay unknown. It is not a sum, server time, network time, exclusive CPU or append completion. No new event-ring publication, clock, RPC, command field or UID history is added. The opt-in row ceiling is368bytes (23MiB/65536rows), with the original two fixed indexes separate; default-off construction remains absent. Private same-source capture accepts exact oldfive/seven or neweight typed phases within its unchanged output/request caps.
+- Both legacy and Full Presence RPC registration/commit preserve bounded local activation-phase/provider evidence before encoding route-not-ready or deadline status. Deadline uses a distinct fixed event; canceled and unknown errors add no activation event. Full wire status still drops source details; receiver logs use the same fixed formatter and original register-route digest, never raw identities/cause text. Token-only commit cannot invent a route digest; reads and other mutations add no activation event.
+- Chat-lifecycle attempt-link diagnostics preserve first16 confirmed-late keys and an independent16-record sample of original hot successes strictly above the configured P99 or explicit local P95 duration and before the first deadline. The explicit p999_reserve8/v1 policy reserves8 recent strictly-above-P999 successes against primary-only churn; remaining slots retain recency. Its ordinal gaps and tail limit are validated separately from legacy latest16 evidence, and exporter binding records the policy. This is selected diagnostic evidence, not a population percentile or physical-latency repair. Both borrow SDK clocks and opaque attempt keys; no UID history or native counter is added. Worker protocol19 isolates peers; P99 reportv8 and16hist remain unchanged, and the64KiB v2 optional sidecar omits malformed new children independently. Anchors alone do not prove a product substage or archive server traces. The optional local postload exporter verifies native final fences and exited coordinator before at most18 loopback-only exact queries within8s/4MiB, joining at most16 SID21 references; it never retries or overwrites output. Its owner retains original verdict/cleanup and must invoke it before product teardown. Diagnostic overhead is not ordinary acceptance evidence.
+
+- Shared permission-read diagnostics copy at most64 original value tokens onto the existing execution context, retaining its own cancellation and no caller Trace parent. Only remote service91 envelopes get passive terminal captures: native sampling/recorder state is unchanged and unsampled references stay unknown. Summary rows retain two permission references independently of the two append references, with separate overflow and epoch/wrap fences; the eighth fixed clock slot raises raw opt-in arrays from33 to34MiB/node (oneMiB), while allocator/context overhead and RSS remain separate. The same-source postload reader shares its existing16 identity budget fairly between append21 and permission91 within the unchanged18request/8s/4MiB caps; local calls invent no RPC.
+
+- Custom local shakeout hot SENDACK may explicitly select `p95` instead of `p99`; the two are mutually exclusive and cold/formal policies remain P99; sync can select P95 only with the separately versioned paired local policy described below. Exact scalar ACK counts use denominator20 (at most5% strictly above the duration), independently of P999/1000 and the first-attempt budget. Existing fixed rings, five-minute persistence and ten-minute/1000each/fresh<=5s qualification stay unchanged.
+- Local hot-P95 with independent hot P999 reports use v9/thresholdv3 and P95-named gatev2 evidence; ordinary P99 stays v8/thresholdv2/gatev1, legacy v7 stays diagnostic-only. Strict schema/config/fraction/field matching rejects reheadered or mixed evidence; local v9 cannot enter formal/capacity continuation. Sealed failures never acquire a new policy.
+
+- An explicitly paired local shakeout/soak policy uses `hot_sendack: {p95: 600ms}`, `hot_attempt_timeout: 2s`, and `sync: {p95: 1s, p999: 3s}`. Hot P95<=600ms implies P95<=1s, so its redundant one-second condition is folded and has no active hot P999. Cold P99/P999 remain2s/5s; sync P999 remains0.1%; each P95 permits5% strictly above. Half-configurations and formal/capacity use are rejected. This policy emits reportv10/thresholdv4/gatev3; v7/v8/v9 retain their original meanings. Worker protocol19 isolates live counters, binds sync P95 to actual successful-sync histogram counts and rejects inactive-tail/drifting/regressing evidence. Optional hot samples without an active P999 use latest16 primary recency with no tail-policy label. Default LocalConfig stays unchanged, as do first-deadline/correctness/five-minute persistence/ten-minute duration and1000-per-class/five-second freshness requirements. A new policy never relabels sealed failures or proves a physical performance repair.

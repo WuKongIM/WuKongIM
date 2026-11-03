@@ -367,7 +367,10 @@ func (p *BoundedBatchPool[T]) collectBatch(first boundedBatchPoolTask[T]) []boun
 	if maxItems > p.cfg.QueueSize {
 		maxItems = p.cfg.QueueSize
 	}
-	batch := make([]boundedBatchPoolTask[T], 0, maxItems)
+	// Queue depth is only an allocation hint. Later arrivals can still grow the
+	// batch to maxItems during collection or executor retry.
+	initialCapacity := min(maxItems, len(p.queue)+1)
+	batch := make([]boundedBatchPoolTask[T], 0, initialCapacity)
 	batch = append(batch, first)
 	p.drainReadyInto(&batch, maxItems)
 	if len(batch) >= maxItems || opts.MaxWait <= 0 || p.closed.Load() {

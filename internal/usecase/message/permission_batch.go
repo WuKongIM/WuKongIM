@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+
 	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
@@ -152,6 +154,15 @@ func (a *App) checkSendPermissionsBatch(ctx context.Context, items []SendBatchIt
 	a.permissionCount("facts_before", beforeCount)
 	a.permissionCount("facts", len(reads))
 	a.permissionStage("plan", "ok", planStarted)
+	// Share observation values, never one member's cancellation or parent Trace.
+	var attempts sendtrace.PermissionAttempts
+	attempts.AddContext(ctx)
+	for _, index := range indexes {
+		for _, original := range groups[index].indexes {
+			attempts.AddContext(items[original].Context)
+		}
+	}
+	ctx = attempts.WithContext(ctx)
 	facts.results = a.readPermissionFacts(ctx, reads)
 	if len(facts.results) != len(reads) {
 		err := fmt.Errorf("message: permission batch returned %d facts for %d reads", len(facts.results), len(reads))
@@ -191,7 +202,7 @@ func (a *App) checkSendPermissionsBatch(ctx context.Context, items []SendBatchIt
 		if item.Command.ChannelType == channelTypePerson && sources[i] != "" {
 			r, e := facts.get(PermissionRead{Kind: PermissionReadChannel, ChannelID: sources[i], ChannelType: int64(channelTypePerson)})
 			if e == nil {
-				out[i].personDirectoryFact = &PersonDirectoryChannelFact{Found: r.Found, Channel: r.Channel}
+				out[i].personDirectoryFact = &PersonDirectoryChannelFact{Found: r.Found, Channel: r.Channel, PersonDirectoryFence: r.PersonDirectoryFence}
 			}
 		}
 	}

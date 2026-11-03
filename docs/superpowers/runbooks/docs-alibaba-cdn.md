@@ -367,7 +367,7 @@ configure a full-site directory purge or automatic all-node prefetch.
 ### Edge certificate automation
 
 Install a valid Let's Encrypt certificate for `docs.githubim.com` before
-public DNS cutover. `docs-cdn-certificate.yml` checks twice daily and also
+public DNS cutover. `docs-cdn-certificate.yml` checks daily and also
 supports a manual forced renewal. Normal renewal starts approximately 30 days
 before expiry. Failure fails the Workflow and an isolated issues-only notifier
 creates or updates one deduplicated certificate-rotation Issue. It escalates an

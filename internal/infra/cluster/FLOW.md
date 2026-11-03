@@ -37,22 +37,19 @@ management, plugins, diagnostics, and bounded operations observations.
    Channel append clones payload bytes once and explicitly transfers that
    immutable ownership to the Channel runtime. Mutable recipient metadata is
    reread from the Slot leader per routed batch; only person metadata is cached.
-   First person SENDs commit coalesced Channel directory tasks/runtime metadata;
-   the asynchronous projector later ensures UID memberships and publishes ready.
-2. Presence reconstruction packs up to 16 original calls into complete-call pages
-   with a budget of one second per owner and the existing 16 owner-round gate.
-   Admission and owner reads share a two-second cooperative deadline clipped by the
-   parent; pages/fallback keep one owner deadline, final validation uses the original parent, and ownership waits for real return.
-   Each page and each original call across owners retain separate 4096-row bounds.
-   Boot consistency, membership and target fences guard publication; timeouts reject unfinished calls.
-   Chain expiry never proves a stale member absent; unqueried owners invalidate every viable call.
-   Only the last owner's completed call-prefix survives final validation; all-call failure stops later queries without retries.
-   Only first-page typed unsupported evidence permits legacy per-call fallback.
-   Controlled-allocation local readers enable the domain-owned nonwaiting result
-   budget: pages, exact string copies and old/new accumulator backing stay charged
-   until references are released. Unknown providers retain original-call credits.
-   Input selector maps retain their fixed item bounds outside this decoded-result
-   ledger; wire buffers, Directory, allocator overhead and RSS are also excluded.
+   First ordinary persistent person SENDs coalesce source tasks/runtime metadata and directly dispatch projection to the source leader.
+   UID memberships and generation-fenced Ready commit before append; Pending keeps its original captured tail. Ready/epoch/route proof travels to append without renewal; hot permission reads include it in their existing snapshot.
+2. Full presence maps rare Controller claims to usecase generations; actual Slot
+   checks and locally published serving gates remain cluster responsibilities.
+   Owner calls select local versus independent versioned RPC without a legacy
+   fallback. The usecase owns all-owner coverage, paging and suspect policy.
+   Register/Commit retain their actual authority receipt and pending claim;
+   pending client tokens include G so an identical-fence rebuild cannot alias.
+   Touch/close use the local applied claim, adding no per-flush Controller RPC.
+   Original caller/result credits remain owned through real I/O and publication.
+   Legacy UID reconstruction retains its two-second chain/one-second-per-owner,
+   exact fences, original-call caps and explicit-unsupported compatibility.
+   Decoded/page ownership excludes wire, Directory, allocator overhead and RSS.
 3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
    UID-list endpoint lookup resolves at most 256 inputs per page, groups by the
@@ -110,9 +107,9 @@ management, plugins, diagnostics, and bounded operations observations.
   metadata to routed Channel admission, using the app's message-ID allocator.
   Confirmed runtime absence uses the existing bounded Channel initializer, then
   rereads fresh Slot fences. No business metadata creation, policy retry or authority fallback is allowed.
-- Person-directory batching shares duplicate Channel results, detaches canceled
-  waiters without canceling accepted work. Admission proves a durable task, not
-  committed UID membership; MQTT future-source admission needs a separate barrier.
+- Person-directory preparation shares Channel/generation results and detaches canceled waiters without canceling accepted work.
+  Eight active batches and 4096 mutations/waiters bound cold preparation. A 1 ms timer ends initial collection unless the 32-item target seals the batch first; partial batches keep collecting while execution is busy, avoiding a backlog of sealed tiny batches. Retryable failures precede append.
+  MQTT future-source protection/registration retains its additional barrier; ordinary Ready does not replace it.
 - Mutable request and response payloads crossing runtime ownership boundaries
   are cloned unless the contract explicitly transfers ownership.
 - Node lifecycle, Slot movement, retention, and Controller changes are executed
@@ -138,7 +135,7 @@ The append adapter promotes storage non-submission evidence only with `errors.Is
 ## Read First
 - [Append adapter](channel_append.go)
 - [Metadata adapter](channel_metadata.go)
-- [Presence adapter](presence.go)
+- [Presence generation adapter](presence_generation.go)
 - [Management adapters](management.go)
 - [Operations projection](opsobserve.go)
 

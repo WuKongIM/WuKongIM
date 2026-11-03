@@ -37,7 +37,7 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 
 `GET /manager/nodes/:node_id/config/toml` 返回版本化、脱敏的启动 TOML 文档，使用相同的 `cluster.node:r` 读取权限。
 
-## Node transport：77 个共享编号
+## Node transport：78 个共享编号
 
 受众是 **cluster-internal**。共享 TCP transport 没有逐调用 Bearer 或 TLS 身份；只有加入流程检查 Join Token，其余调用信任集群路由和隔离网络。
 
@@ -67,6 +67,7 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 | `105` | `mqtt_will_dispatch` |
 | `106` | `slot_mqtt_metadata` |
 | `107` | `mqtt_owner` |
+| `108` | `presence_control` |
 
 ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复用。默认 Slot proxy 使用已晋升的 `79/80/83/84/85/87/89`；默认身份处理器仅接受 `get_device`，不开放用户读取或扫描；身份元数据使用 `87`，避免原来的 `4` 与 `channel_pull_hint` 冲突。通用但非默认的 Slot Store 仍声明私有 `47/53`，这些仍不能视为稳定目录。这些协议只能进入“不稳定内部合同”页，不能生成伪 OpenAPI 路径。
 
@@ -76,7 +77,6 @@ ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复�
 | --- | --- | --- |
 | Operations MCP `POST /mcp` | `cluster_health`, `node_inspect`, `slot_inspect`, `channel_runtime_inspect`, `controller_tasks_query`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `config_read_redacted`, `backup_inspect`, `pprof_analyze` | `wko_*` 专用 Bearer；Manager JWT 无效；拒绝非空 Origin；除有界 `pprof_analyze` 外只读 |
 | Cloud Analysis MCP `POST /mcp` | `run_inspect`, `cluster_snapshot`, `workload_inspect`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `task_audits_query`, `trace_start`, `trace_query`, `profile_capture`, `profile_top`, `profile_list`, `config_read_redacted` | 单个 live Run 的不可续期 Analysis Bearer；`trace_start` 和 `profile_capture` 是有界主动诊断 |
-| Review Check stdio MCP | `check_list`, `check_result`, `check_run` | 本机 stdio、无凭据；只执行命名检查，不接受任意命令、参数或路径 |
 
 Cloud Analysis Gateway 另有无认证 `GET /healthz`、无认证 `GET /self-check`，以及可选的 GitHub OIDC `POST /analysis/token`。它们都属于 **agent-internal**，不是业务集成 API。
 
@@ -86,9 +86,7 @@ Cloud View 是 Simulation Viewer 的无认证反向代理：`ANY /cloud-view/sta
 
 ## Agent 与 benchmark 控制面
 
-- `wkissueagent`：`reconcile-github`, `recover-task`, `build-context`, `capture-candidate`, `verify-candidate`, `mint-app-token`, `publish-candidate`。
-- `wkreviewagent`：`normalize-review-result`, `reconcile-github`, `recover-review`, `build-context`, `verify-baseline`, `validate-review-result`, `validate-explanation`, `append-state`, `publish-review`。
-- `wkreviewcheck`：`go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`。
+- `wkcicheck`：`go-vet`, `flow-doc-contracts`, `agent-artifact-contracts`, `skill-focused-contracts`, `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`。
 - Generic benchmark worker：14 条 `/healthz`、`/v1/*` 控制路由；除 Health 外要求 Control Token，或显式启用 insecure control。
 - Chat-lifecycle worker：12 条 `/healthz`、`/v1/info`、`/v1/chat-lifecycle/*` 路由；包括 Health 在内全部要求 Bearer。
 

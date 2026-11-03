@@ -13,8 +13,11 @@ import (
 // requestTrace retains observation ownership, never caller cancellation. Its
 // mutex only joins caller return with at most two coordinator-owned attempts.
 type requestTrace struct {
-	trace       *rpctrace.Trace
-	span        rpctrace.Span
+	trace *rpctrace.Trace
+	span  rpctrace.Span
+	// ownerSpan transports only the three pre-build waits across an owner
+	// context boundary. Shared physical work already has its bounded cohort.
+	ownerSpan   rpctrace.CommitSpan
 	observation rpctrace.CommitObservation
 	mu          sync.Mutex
 	// Submit timing joins caller return and coordinator admission independently.
@@ -42,6 +45,7 @@ func newRequestTrace(ctx context.Context, observation rpctrace.CommitObservation
 	if trace != nil {
 		t.span = trace.Begin(rpctrace.StageCommitAdmission)
 	}
+	t.ownerSpan = observation.BeginStage(rpctrace.StageCommitAdmission, trace)
 	return t
 }
 func (t *requestTrace) advance(stage rpctrace.Stage, result rpctrace.Result) {
@@ -49,14 +53,21 @@ func (t *requestTrace) advance(stage rpctrace.Stage, result rpctrace.Result) {
 		return
 	}
 	t.span.End(result)
+	t.ownerSpan.End(result)
+	t.ownerSpan = rpctrace.CommitSpan{}
 	t.span = t.trace.Begin(stage)
+	if stage == rpctrace.StageCommitQueue || stage == rpctrace.StageCommitCollect {
+		t.ownerSpan = t.observation.BeginStage(stage, t.trace)
+	}
 }
 func (t *requestTrace) finish(result rpctrace.Result) {
 	if t == nil {
 		return
 	}
 	t.span.End(result)
+	t.ownerSpan.End(result)
 	t.span = rpctrace.Span{}
+	t.ownerSpan = rpctrace.CommitSpan{}
 }
 
 // finishSubmit executes in the outer Submit defer, after its synchronous

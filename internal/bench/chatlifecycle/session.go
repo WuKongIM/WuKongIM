@@ -385,7 +385,7 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 	if config.Identity == nil || config.Schedule.identity != config.Identity || config.Catalog.identity != config.Identity || config.Factory == nil ||
 		config.Syncer == nil || config.Verifier == nil || config.Clock == nil || config.DeviceID == "" ||
 		config.StartingCapacity <= 0 || config.StartingCapacity > maxVerifierCapacity ||
-		config.SyncLatency.P99 <= 0 || config.SyncLatency.P999 < config.SyncLatency.P99 || config.SingleAnomaly < config.SyncLatency.P999 ||
+		validateHotLatencyLimit("sync_latency", config.SyncLatency) != nil || config.SyncLatency.P999 <= 0 || config.SingleAnomaly < config.SyncLatency.P999 ||
 		config.HeartbeatInterval <= 0 {
 		return nil, errSessionConfig
 	}
@@ -408,9 +408,7 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		syncLatency:               newWorkerHistogramSnapshot(),
 		sendPendingToWriteLatency: newWorkerHistogramSnapshot(),
 		sendWriteToAckLatency:     newWorkerHistogramSnapshot(),
-		syncThresholds: LatencyThresholdCounters{
-			P99Limit: config.SyncLatency.P99, P999Limit: config.SyncLatency.P999,
-		},
+		syncThresholds:            latencyThresholdCounters(config.SyncLatency),
 	}, nil
 }
 

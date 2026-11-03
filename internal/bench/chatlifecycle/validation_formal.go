@@ -267,6 +267,9 @@ func validateExactThresholds(got, want ThresholdsConfig) error {
 	if err := validateExactLatency("thresholds.latency.hot_sendack", got.Latency.HotSendACK, want.Latency.HotSendACK); err != nil {
 		return err
 	}
+	if got.Latency.HotAttemptTimeout != want.Latency.HotAttemptTimeout {
+		return formalError("thresholds.latency.hot_attempt_timeout")
+	}
 	if err := validateExactLatency("thresholds.latency.cold", got.Latency.Cold, want.Latency.Cold); err != nil {
 		return err
 	}
@@ -353,6 +356,9 @@ func validateExactFailureRate(path string, got, want FailureRateLimit) error {
 }
 
 func validateExactLatency(path string, got, want LatencyLimit) error {
+	if got.P95 != want.P95 {
+		return formalError(path + ".p95")
+	}
 	if got.P99 != want.P99 {
 		return formalError(path + ".p99")
 	}

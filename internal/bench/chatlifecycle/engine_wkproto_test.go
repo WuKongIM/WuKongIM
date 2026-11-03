@@ -161,11 +161,13 @@ func TestEngineRealWKProtoOverlappingAttemptsAcceptEitherAckOrder(t *testing.T) 
 			if _, err := fixture.engine.Advance(now); err != nil {
 				t.Fatalf("attempt zero Advance: %v", err)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 			now = now.Add(time.Millisecond)
 			fixture.clock.Set(now)
 			if _, err := fixture.engine.Advance(now); err != nil {
 				t.Fatalf("attempt zero timeout Advance: %v", err)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 			retry, err := fixture.retry.Attempt(intent.Logical, 1)
 			if err != nil {
 				t.Fatalf("Attempt(1): %v", err)
@@ -175,6 +177,7 @@ func TestEngineRealWKProtoOverlappingAttemptsAcceptEitherAckOrder(t *testing.T) 
 			if _, err := fixture.engine.Advance(now); err != nil {
 				t.Fatalf("attempt one Advance: %v", err)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 
 			var attempts [2]*frame.SendPacket
 			select {
@@ -250,6 +253,7 @@ func TestEngineRealWKProtoDelayedSuccessAfterRetryWindowIsAlreadyTerminal(t *tes
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("initial Advance: %v", err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	for attempt := uint8(0); attempt <= uint8(len(fixedRetryBases)); attempt++ {
 		now = now.Add(time.Millisecond)
 		fixture.clock.Set(now)
@@ -267,6 +271,7 @@ func TestEngineRealWKProtoDelayedSuccessAfterRetryWindowIsAlreadyTerminal(t *tes
 		if _, advanceErr := fixture.engine.Advance(now); advanceErr != nil {
 			t.Fatalf("retry %d Advance: %v", attempt+1, advanceErr)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 	}
 
 	var attempts []*frame.SendPacket

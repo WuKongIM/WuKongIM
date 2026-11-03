@@ -18,10 +18,16 @@ func (s *Store) permissionStart() time.Time {
 	}
 	return time.Time{}
 }
-func (s *Store) permissionStage(stage, result string, start time.Time) {
+
+// permissionStage returns the same clock measurement it publishes so optional
+// invocation summaries add no second clock read. A missing observer reads none.
+func (s *Store) permissionStage(stage, result string, start time.Time) time.Duration {
 	if s.permissionObserver != nil {
-		s.permissionObserver.ObserveSendPermissionStage(stage, result, time.Since(start))
+		duration := time.Since(start)
+		s.permissionObserver.ObserveSendPermissionStage(stage, result, duration)
+		return duration
 	}
+	return 0
 }
 func (s *Store) permissionCount(kind string, n int) {
 	if s.permissionObserver != nil {

@@ -17,6 +17,7 @@ import (
 func TestWorkerEvidenceMaximumRetainedShapeFitsConsumerBudgets(t *testing.T) {
 	var snapshot WorkerSnapshot
 	fillEvidenceBudgetScalars(reflect.ValueOf(&snapshot).Elem())
+	setMaximumWidthHotEvidence(&snapshot)
 	snapshot.RunID = strings.Repeat("\x01", 128) // Maximum escaped valid fence width.
 	snapshot.AssignmentID = snapshot.RunID
 	snapshot.Phase = WorkerPhaseFinal
@@ -105,5 +106,26 @@ func fillEvidenceBudgetScalars(value reflect.Value) {
 		value.SetInt(int64(uint64(1)<<(value.Type().Bits()-1) - 1))
 	case reflect.Bool:
 		value.SetBool(true)
+	}
+}
+
+// setMaximumWidthHotEvidence keeps wide counters while satisfying the exact
+// hot/histogram schema. Blindly setting every bucket to MaxUint64 overflows its
+// total, so it cannot represent a legal native evidence envelope.
+func setMaximumWidthHotEvidence(snapshot *WorkerSnapshot) {
+	// Sync retains its original P99 schema; inactive P95 fields must be zero.
+	snapshot.Sync.Thresholds.P95Limit = 0
+	snapshot.Sync.Thresholds.AboveP95 = 0
+	histogram := newWorkerHistogramSnapshot()
+	for i := range histogram.Buckets {
+		histogram.Buckets[i] = math.MaxUint64 / uint64(len(histogram.Buckets))
+		histogram.Count += histogram.Buckets[i]
+	}
+	histogram.SumNanos, histogram.MaxNanos = math.MaxUint64, math.MaxInt64
+	snapshot.HotSendackLatency = histogram
+	snapshot.HotSendackThresholds = LatencyThresholdCounters{
+		P99Limit: math.MaxInt64 - 1, P999Limit: math.MaxInt64 - 1,
+		Count: histogram.Count, AboveP99: histogram.Buckets[15], AboveP999: histogram.Buckets[15],
+		Above10Seconds: histogram.Buckets[14] + histogram.Buckets[15],
 	}
 }

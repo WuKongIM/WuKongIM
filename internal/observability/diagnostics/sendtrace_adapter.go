@@ -161,3 +161,11 @@ func (s *SendTraceSink) DiscardSendAttempt(token sendtrace.AttemptToken) {
 		s.attempts.DiscardSendAttempt(token)
 	}
 }
+
+// RecordAttemptPermissionRPC keeps permission calls separate from append calls.
+// The original token fence and fixed retention belong to the opt-in store.
+func (s *SendTraceSink) RecordAttemptPermissionRPC(token sendtrace.AttemptToken, ref sendtrace.RPCReference) {
+	if s != nil && s.attempts != nil {
+		s.attempts.RecordAttemptPermissionRPC(token, ref)
+	}
+}

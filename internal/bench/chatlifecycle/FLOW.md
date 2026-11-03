@@ -7,17 +7,12 @@ summary: Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-da
 
 ## Responsibility
 
-This package owns deterministic chat-lifecycle planning, its three-worker
-protocol, bounded session/traffic engine, continuous observation, natural
-Channel lifecycle proof, evidence reduction, and versioned reports. It does
-not provision infrastructure, persist credentials, or bypass public APIs.
+This package owns deterministic chat-lifecycle planning, its three-worker protocol, bounded session/traffic engine, continuous observation, natural Channel lifecycle proof, evidence reduction, and versioned reports. It neither provisions infrastructure nor persists credentials or bypasses public APIs.
 
 ## Boundaries
 
-Production composition injects public HTTP, WKProto, worker-control, metrics,
-host-observation, clock, and report ports; `internal/bench/wkproto` owns transport.
-Cloud orchestration owns paid infrastructure and cleanup; this package consumes
-immutable cost, expiry, topology, and dataset evidence.
+Production composition injects public HTTP, WKProto, worker-control, metrics, host-observation, clock, and report ports; `internal/bench/wkproto` owns transport.
+Cloud orchestration owns paid infrastructure and cleanup; this package consumes immutable cost, expiry, topology, and dataset evidence.
 
 ## Main Flows
 
@@ -51,9 +46,14 @@ passing 72-hour formal generation -> same aged dataset and process proof
   SEND deadlines. Frequent due-work advancement does not advance the one-second
   login or rate-allocation clock; overdue planned SENDs remain explicit underdelivery.
 - Before CONNECT, each login upserts its APP token through the authenticated Bench API within five seconds and the session concurrency bound. Failure blocks CONNECT; Bench secrets stay worker-local and no UID history is kept.
+- Full HTTP sync has four active callers per generation (twelve across the validated three workers). Remaining callers retain bounded Starting ownership and their original context; waiting is included in sync latency. CONNECT/SEND clocks, endpoint fallback, failure evidence and retries stay unchanged.
+- Each workload connection starts with one 8KiB owned read buffer, with incomplete
+  frames growing on demand. Queue capacities and deadline/acceptance gates remain unchanged.
 - The measured clock starts only after all users finish real CONNECT plus a fresh zero-coverage conversation sync and all workers accept the first grant.
 - Repository YAML keeps reviewed stage durations fixed; only the direct repair rehearsal CLI may inject and report a bounded process duration, and formal or shakeout evidence never accepts it.
 - Engine heaps, maps, queues, correlations, samples, and histories are bounded.
+  A fixed executor pool calls the SDK outside owner/control turns with per-sender FIFO; queued tickets retain work/retry credit and original dispatch deadlines. Only actual execution registers SEND and its attempt clock.
+  One generation-owned advance retains its time cut and total budget across slices of32 work and frozen prefixes of at most32 commands; Snapshots may see partial progress. Two-half time leases retain canceled jobs and caller postprocessing; Stop joins logical jobs before executors and clients. AdmissionPending distinguishes queued/executing SDK work.
   Planning is history-independent; no historical user or Channel owns retained work. A returning-login cold revisit never overlaps the active or pending hot set.
   Session expiry skips online-table locking while a conservative atomic deadline bound proves nothing can be due; actual due sets reserve one generation-owned bounded cleanup queue.
   Closing tombstones and per-SEND expiry leases prevent replacement or socket
@@ -63,19 +63,18 @@ passing 72-hour formal generation -> same aged dataset and process proof
   existing ACK settlement while its callback is queued. Missing state proves nothing;
   strict public registration, real terminal errors and correctness budgets remain.
 - Initial SENDs settle a timer-local pending count before revisit leasing, so late successful ACKs advance the fence before cohort selection.
-- The first measured grant reserves distinct senders across person, group, and
-  canary traffic at the formal population. A Channel becomes hot only after
-  its first successful SENDACK; metadata-create vectors and hot/first-create/
-  reheat latency evidence advance from those exact successful boundaries.
-- Worker protocol v15 keeps deadline registration, exact-result coverage and confirmed observed-late first-attempt counts separate.
-  Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown.
-  Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
-  Added clock reads are diagnostic overhead; codes, units, gates, order and drain fairness stay fixed. Optional CPU bounds retain16 failed owner turns, keep invalid clocks unknown, and export once through a nonblocking post-join channel; process-wide CPU is not actor-only attribution.
-  Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A separate strict attempt-link opt-in copies at most16 confirmed-late original keys, connection scopes and reused SDK timings per generation into detached live/final control cuts. Its separately bounded64KiB atomic sidecar uses existing worker fences/sequence/uptime and never enters native evidence, counts or gates; malformed optional data is discarded independently.
+- At formal population first grants reserve distinct person/group/canary senders; first SENDACK starts hot/meta-create/first-create/reheat accounting. When the active person endpoint pool is smaller than the first grant, group routing first prefers eligible members outside that pool, then retains its original bounded fallbacks. The temporary endpoint set is discarded at grant end; later grants and activity due times are unchanged.
+  Worker-aligned rosters keep sampled pairs local; padding has no membership. Per-member gateways retain the original cross-node placement; group sizes and eligibility deadlines stay fixed.
+- Worker protocol v19 keeps deadline coverage and observed-late first attempts separate; exact configured hot counters share ACK durations with the unchanged histogram.
+  Only the original clocked transport result resolves its deadline; missing/unknown/canceled/expired results remain unknown. Fixed attempt slots and the bounded late-receipt map bound retention. Private opt-in retains 16 fresh-dispatch timing prefixes per generation.
+  Added clock reads are diagnostic overhead; codes, units and gates stay fixed.
+  A fixed optional yield count/wall prefix independently brackets completed owner Gosched calls; it overlaps unchanged Residual, is not actor CPU, and keeps invalid clocks unknown. Only the named optional child is sanitized; original driver/native JSON stays strict, with same-source v19 peers required for the added diagnostic field. Default-off paths add no clock reads.
+  Owner timing covers active slices and bounded completion batches; logical Residual/CPU envelopes may include interleaved work. Optional CPU bounds retain16 failed logical turns with unknown clocks preserved, exported post-join; process CPU is not actor CPU. A separate default-off SDK child retains16 exact SDK-start/code38 misses using independent queue-offer/pickup/command-offer/owner clocks; unknown stays unknown, no clock is added to native time, and the final64KiB cap remains.
+  Driver timing records cross only after generation Stop joins, into their bounded terminal sidecar. A strict attempt-link opt-in preserves the first16 confirmed-late keys and independently retains16 original hot successes before firstdeadline, reserving8 recent strict P999 violations against primary-only churn with explicit policy/ordinal gaps when that gate is active; P95-only hot samples instead retain latest16 primary recency without a tail label, using existing SDK clocks and opaque keys. Its v2 sidecar stays64KiB, shares worker fences/sequence/uptime, and never enters native evidence/counts/gates; malformed new children are independently omitted, retaining the original late prefix.
 - A nil-by-default local callback notifies only after an authenticated, current, valid, uncanceled harness-failure Snapshot GET or coordinator Checkpoint POST, including cached final Snapshot GETs, outside the lifecycle mutex.
   The worker CLI owns its independent opt-in recorder and one asynchronous export; Snapshot, Stop and UnexpectedExit never join that diagnostic writer.
   Enabled runtime tracing adds static regions for session expiry, SessionPool lookup/client admission, and an existing anonymous turn when available.
-  These are wall intervals, not pure CPU attribution; absent, partial or evicted capture keeps coverage unknown. Native fields, deadlines, queues, evidence and gates remain unchanged.
+  These are wall intervals, not pure CPU attribution; absent, partial or evicted capture keeps coverage unknown. Hot verdict/log counters share checked sums; legacy histogram fallback requires exact boundaries.
 - Under-delivery retains the five-field redacted evidence shape. Append-only
   codes distinguish sampled/fresh dispatch deadlines, activity/lifecycle eligibility,
   person/group routing, deferred-group/canary eligibility, and both cleanup paths.
@@ -101,11 +100,11 @@ passing 72-hour formal generation -> same aged dataset and process proof
   needs fresh proof by the original deadline; definite early absence and existing
   runtime/watermark/reload gates remain. Approval uses a fresh request cut and
   the worker's strict due-time fence.
-- Observer rounds retain resource source time; only late verdict order rebases, preserving exact-hour evidence.
+- Observer rounds retain source time; only late verdict order rebases. Complete successful existing GC rounds may log fixed storage-memory values (16x4KiB), independently of64 failure lines; no extra requests, clock or gate changes, and producer age stays unknown.
 - Failure cleanup fences new work and independently bounds every worker Stop, preserving the original cause.
   Exact product TerminalSend errors permit release; other terminal mutation errors stay harness failures. Stop preserves earlier failures.
-- Grant failures retain three fixed worker sequence/attempt/closed-boundary entries.
-  Only observed HTTP/context causes enter one bounded CLI line; summary, retries, deadlines, cleanup and reports stay unchanged.
+- Grant delivery failures retain three fixed worker sequence/attempt/closed-boundary entries; rejected ticks retain one clock/presence record without extra clock reads.
+  CLI emits only closed observed fields on bounded lines; original summary, tolerances, retries, cleanup, verdicts and reports stay unchanged.
 - Verdict precedence is product, infrastructure, harness, then operator stop.
   Missing, stale, regressing, partial, overflowing, or unbounded evidence can
   never produce pass.
@@ -114,19 +113,20 @@ passing 72-hour formal generation -> same aged dataset and process proof
   needs a rolling ten-minute interval, 1,000 samples in each hot/cold/full-sync
   class, and a cut at most five seconds old. Counter deltas belong to their end
   cut; a gap over ten minutes resets positive qualification, not negative breaches.
-  The numerical five-minute breach rule and correctness gates remain unchanged.
-- Report v7 / threshold v2 binds local-diagnostic, rehearsal, or formal-protocol
-  scope to validated configuration. Formal-protocol scope still requires external
-  Linux topology/hardware evidence. Elapsed rehearsal time alone cannot pass,
-  and missing/stale latency qualification cannot yield a successful report.
-  Baseline/start/end elapsed positions share one monotonic process clock;
-  duration/order/freshness use them after serialization. Wall times are audit
-  fields; readers never reconstruct missing offsets or upgrade old reports.
+  Five-minute persistence/correctness stay fixed; explicit local P95 uses5% instead of1%; active P999 stays0.1%, hot attempts2s and cold wait5s.
+- P99 reportv8/thresholdv2 retains original semantics; local hotP95 with its independent P999 emits reportv9/thresholdv3.
+  Paired local shakeout/soak hotP95-only and syncP95/P999 emits reportv10/thresholdv4/gatev3: the stricter hot600ms P95 covers1s P95, sync1s uses5% while sync3s P999/cold/first2s stay fixed. Half-configurations are invalid. All use closed numeric limit keys, never formal/capacity.
+  Formal scope still needs external Linux hardware/topology; elapsed rehearsal and missing/stale positive latency evidence cannot pass.
+  Baseline/start/end elapsed positions share one monotonic clock; serialized duration/order/freshness use them. Wall times are audit fields.
+  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 has no hot-budget override and stays original/unknown. Current local P95 results accept their exact v9 or v10 contracts; capacity/formal stay v8 with2s; no historical report is reinterpreted.
+  The fixed three-class native latency_gate copies actual five-minute sums, continuous breach state and declared fractions; local gatev2 names hotP95 with denominator20; paired gatev3 also names syncP95 and omits inactive hotP999 fields. Cold remainsP99/100.
+  Its first terminal cut freezes only the child; captured latency_age/status do not claim publication freshness (report elapsed minus evaluated elapsed).
+  Absent/null proof stays unknown; present proof is strict and bounded, independently of positive ten-minute qualification; no new clock or numerical gate.
 - Reports and control responses use closed reason vocabularies, fixed arrays,
   checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
   payloads, credentials, endpoint bodies, and arbitrary errors are forbidden.
   The running diagnostic file contains only three-worker connection gauges,
-  teardown reasons, message aggregates, and at most 64 recent changes. Worker-cut logs also retain configured hot SENDACK P99 threshold/sample/above-threshold counts for interval diagnosis without altering verdicts.
+  teardown reasons, message aggregates, and at most 64 recent changes. Worker-cut logs also retain configured hot SENDACK primary threshold/sample/above-threshold counts and explicit P95 metadata for interval diagnosis without altering verdicts.
 - Metrics-fetch finalization failures retain a closed three-source mask/kind
   vector in declared service order, with optional fixed parser reasons only at
   parse positions. Older reports keep that vector absent; malformed optional

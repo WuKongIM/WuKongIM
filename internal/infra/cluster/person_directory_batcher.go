@@ -3,31 +3,35 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
+
+// ErrPersonDirectoryBusy rejects excess cold SEND waiters before append.
+var ErrPersonDirectoryBusy = fmt.Errorf("%w: person-directory wait capacity exhausted", channelappend.ErrRouteNotReady)
 
 var errPersonDirectoryBatcherStopped = errors.New("cluster: person-directory batcher stopped")
 
 const (
 	personDirectoryBatchMaxItems = 128
 	personDirectoryQueueMaxItems = 4096
-	// Thirty-two items lets the 50ms window collect roughly one cloud-rehearsal
-	// ingress-node wave and halves Slot proposal amplification. Lower rates
-	// still seal on the collection deadline instead of waiting for this target.
+	// Cold channels collect briefly for Slot-grouped proposals. Ready channels
+	// bypass this owner entirely; low-rate first sends never wait a 50ms window.
 	personDirectoryBatchTargetItems = 32
 	personDirectoryBatchMaxActive   = 8
-	personDirectoryBatchCollectWait = 50 * time.Millisecond
+	personDirectoryBatchCollectWait = time.Millisecond
 	personDirectoryBatchTimeout     = 4 * time.Second
 )
 
 type personDirectoryBatchNode interface {
-	AdmitPersonDirectoryTaskWaves(context.Context, []metadb.PersonDirectoryTask, func(int, error))
+	PreparePersonDirectoryTaskWaves(context.Context, []metadb.PersonDirectoryTask, func(int, metadb.PersonDirectoryAppendFence, error))
 }
 
 type personDirectoryMutation struct {
@@ -40,12 +44,18 @@ type personDirectoryBatchAdmission struct {
 }
 
 type personDirectoryBatchOutcome struct {
+	fence metadb.PersonDirectoryAppendFence
 	index int
 	err   error
 }
 
-func (m personDirectoryMutation) key() metadb.ChannelKey {
-	return metadb.ChannelKey{ChannelID: m.task.ChannelID, ChannelType: m.task.ChannelType}
+type personDirectoryKey struct {
+	metadb.ChannelKey
+	generation uint64
+}
+
+func (m personDirectoryMutation) key() personDirectoryKey {
+	return personDirectoryKey{ChannelKey: metadb.ChannelKey{ChannelID: m.task.ChannelID, ChannelType: m.task.ChannelType}, generation: m.task.Generation}
 }
 
 type personDirectoryBatcher struct {
@@ -59,8 +69,10 @@ type personDirectoryBatcher struct {
 	// inflight owns every admitted Channel until its sealed durable batch
 	// reaches a terminal result. It prevents later callers from starting a
 	// duplicate cross-Slot transaction after current advances to a new batch.
-	inflight    map[metadb.ChannelKey]*personDirectoryEntry
+	inflight    map[personDirectoryKey]*personDirectoryEntry
 	queuedItems int
+	// waiters counts retained callers independently of distinct channel generations.
+	waiters int
 	// maxQueued bounds owned directory mutations independently from active batches.
 	maxQueued int
 	// capacity is closed and replaced whenever queued ownership is released.
@@ -76,7 +88,7 @@ type personDirectoryBatcher struct {
 }
 
 type personDirectoryBatch struct {
-	entries map[metadb.ChannelKey]*personDirectoryEntry
+	entries map[personDirectoryKey]*personDirectoryEntry
 	order   []*personDirectoryEntry
 	trigger chan struct{}
 	once    sync.Once
@@ -91,7 +103,7 @@ type personDirectoryEntry struct {
 
 type personDirectoryWaiter struct {
 	entry  *personDirectoryEntry
-	result chan error
+	result chan personDirectoryBatchOutcome
 }
 
 func newPersonDirectoryBatcher(node personDirectoryBatchNode, goroutines *goruntimeregistry.Registry) *personDirectoryBatcher {
@@ -104,7 +116,7 @@ func newPersonDirectoryBatcher(node personDirectoryBatchNode, goroutines *gorunt
 		collectWait: personDirectoryBatchCollectWait,
 		targetItems: personDirectoryBatchTargetItems, timeout: personDirectoryBatchTimeout,
 		active: make(chan struct{}, personDirectoryBatchMaxActive), capacity: make(chan struct{}),
-		maxQueued: personDirectoryQueueMaxItems, inflight: make(map[metadb.ChannelKey]*personDirectoryEntry), stoppedDone: make(chan struct{}),
+		maxQueued: personDirectoryQueueMaxItems, inflight: make(map[personDirectoryKey]*personDirectoryEntry), stoppedDone: make(chan struct{}),
 	}
 }
 
@@ -239,29 +251,39 @@ func (b *personDirectoryBatcher) completeSelectedDirectoryAdmission(
 	if !ok {
 		return personDirectoryBatchOutcome{index: index, err: metadb.ErrInvalidArgument}
 	}
-	err, _ := value.Interface().(error)
-	return personDirectoryBatchOutcome{index: index, err: err}
+	outcome := value.Interface().(personDirectoryBatchOutcome)
+	outcome.index = index
+	return outcome
 }
 
 func (b *personDirectoryBatcher) admit(ctx context.Context, mutation personDirectoryMutation) (*personDirectoryWaiter, error) {
 	for {
-		waiter := &personDirectoryWaiter{result: make(chan error, 1)}
+		waiter := &personDirectoryWaiter{result: make(chan personDirectoryBatchOutcome, 1)}
 		b.mu.Lock()
 		if b.stopped {
 			b.mu.Unlock()
 			return nil, errPersonDirectoryBatcherStopped
 		}
+		if b.waiters >= personDirectoryQueueMaxItems {
+			b.mu.Unlock()
+			return nil, ErrPersonDirectoryBusy
+		}
 		key := mutation.key()
 		if entry := b.inflight[key]; entry != nil && !entry.canceled {
 			waiter.entry = entry
 			entry.waiters[waiter] = struct{}{}
+			b.waiters++
 			b.mu.Unlock()
 			return waiter, nil
 		}
 		batch := b.current
 		if b.queuedItems < b.maxQueued {
 			if batch == nil || batch.sealed || len(batch.order) >= personDirectoryBatchMaxItems {
-				batch = &personDirectoryBatch{entries: make(map[metadb.ChannelKey]*personDirectoryEntry), trigger: make(chan struct{})}
+				if b.owners >= personDirectoryQueueMaxItems/personDirectoryBatchTargetItems+personDirectoryBatchMaxActive {
+					b.mu.Unlock()
+					return nil, ErrPersonDirectoryBusy
+				}
+				batch = &personDirectoryBatch{entries: make(map[personDirectoryKey]*personDirectoryEntry), trigger: make(chan struct{})}
 				b.current = batch
 				b.owners++
 				goruntimeregistry.SafeGo(b.goroutines, goruntimeregistry.TaskMessageDirectoryBatch, func() {
@@ -275,6 +297,7 @@ func (b *personDirectoryBatcher) admit(ctx context.Context, mutation personDirec
 			batch.order = append(batch.order, entry)
 			b.inflight[key] = entry
 			b.queuedItems++
+			b.waiters++
 			if len(batch.order) >= b.targetItems {
 				// Seal while admission still owns b.mu. Merely waking run lets a
 				// vector caller append the rest of its wave before the owner is
@@ -306,7 +329,10 @@ func (b *personDirectoryBatcher) detach(waiter *personDirectoryWaiter) {
 	}
 	b.mu.Lock()
 	entry := waiter.entry
-	delete(entry.waiters, waiter)
+	if _, ok := entry.waiters[waiter]; ok {
+		delete(entry.waiters, waiter)
+		b.waiters--
+	}
 	if len(entry.waiters) == 0 && !entry.canceled {
 		batch := b.current
 		key := entry.mutation.key()
@@ -343,6 +369,18 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 		}
 	}
 
+	// Keep a partial batch open while all execution slots are occupied. Sealing
+	// on the timer before admission creates an unmergeable backlog of tiny
+	// batches at sustained cold-SEND rates. The target-size admission fence
+	// still seals full batches, and the same bounded owner joins on Stop.
+	acquired := false
+	select {
+	case b.active <- struct{}{}:
+		acquired = true
+		defer func() { <-b.active }()
+	case <-b.ctx.Done():
+	}
+
 	b.mu.Lock()
 	batch.sealed = true
 	if b.current == batch {
@@ -360,7 +398,7 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 	}
 
 	completed := make([]bool, len(entries))
-	complete := func(index int, err error) {
+	complete := func(index int, fence metadb.PersonDirectoryAppendFence, err error) {
 		b.mu.Lock()
 		defer b.mu.Unlock()
 		if index < 0 || index >= len(entries) || completed[index] {
@@ -378,27 +416,26 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 			delete(b.inflight, key)
 		}
 		for waiter := range entry.waiters {
-			waiter.result <- err
+			waiter.result <- personDirectoryBatchOutcome{fence: fence, err: err}
 		}
+		b.waiters -= len(entry.waiters)
 		entry.waiters = nil
 		if released {
 			b.signalCapacityLocked()
 		}
 	}
-	select {
-	case b.active <- struct{}{}:
+	if acquired {
 		ctx, cancel := context.WithTimeout(b.ctx, b.timeout)
 		b.submit(ctx, entries, complete)
 		cancel()
-		<-b.active
-	case <-b.ctx.Done():
+	} else {
 		for i := range entries {
-			complete(i, b.ctx.Err())
+			complete(i, metadb.PersonDirectoryAppendFence{}, b.ctx.Err())
 		}
 	}
 	for i := range entries {
 		if !completed[i] {
-			complete(i, metadb.ErrInvalidArgument)
+			complete(i, metadb.PersonDirectoryAppendFence{}, metadb.ErrInvalidArgument)
 		}
 	}
 }
@@ -417,10 +454,15 @@ func (b *personDirectoryBatcher) signalCapacityLocked() {
 	b.capacity = make(chan struct{})
 }
 
-func (b *personDirectoryBatcher) submit(ctx context.Context, entries []*personDirectoryEntry, complete func(int, error)) {
+func (b *personDirectoryBatcher) submit(ctx context.Context, entries []*personDirectoryEntry, complete func(int, metadb.PersonDirectoryAppendFence, error)) {
 	tasks := make([]metadb.PersonDirectoryTask, 0, len(entries))
 	for _, entry := range entries {
 		tasks = append(tasks, entry.mutation.task)
 	}
-	b.node.AdmitPersonDirectoryTaskWaves(ctx, tasks, complete)
+	b.node.PreparePersonDirectoryTaskWaves(ctx, tasks, func(index int, fence metadb.PersonDirectoryAppendFence, err error) {
+		if err != nil {
+			err = fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
+		}
+		complete(index, fence, err)
+	})
 }

@@ -24,12 +24,14 @@ func TestEngineFirstAttemptTimeoutSurvivesExecutedRetrySuccess(t *testing.T) {
 	if _, err := fixture.engine.Advance(started); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	assertFirstDeadlineCounters(t, fixture.verifier.Snapshot(), 1, 0, 0, 0)
 	now := started.Add(20 * time.Millisecond)
 	fixture.clock.Set(now)
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	retry, err := fixture.retry.Attempt(intent.Logical, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -39,6 +41,7 @@ func TestEngineFirstAttemptTimeoutSurvivesExecutedRetrySuccess(t *testing.T) {
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	packets := fixture.factory.sentPackets()
 	if len(packets) != 2 {
 		t.Fatalf("wire packets = %d, want executed original and retry", len(packets))
@@ -83,6 +86,7 @@ func TestEngineFirstAttemptLateAckBeforeTimeoutWorkCountsDeadline(t *testing.T) 
 	if _, err := fixture.engine.Advance(started); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	ack := firstDeadlineAck(intent.Logical, fixture.factory.sentPackets()[0].ClientSeq)
 	fixture.clock.Set(started.Add(21 * time.Millisecond))
 	verificationErr := fixture.verifier.HandleSendackAt(ack, fixture.clock.Now())
@@ -95,6 +99,7 @@ func TestEngineFirstAttemptLateAckBeforeTimeoutWorkCountsDeadline(t *testing.T) 
 	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	assertFirstDeadlineCounters(t, fixture.verifier.Snapshot(), 1, 1, 1, 0)
 	if got := fixture.verifier.Snapshot().RetryAttempts; got != 0 {
 		t.Fatalf("retry attempts = %d; no timeout work was processed", got)
@@ -119,6 +124,7 @@ func TestEngineFirstAttemptEarlyAsyncErrorPrecedesQueuedLateAck(t *testing.T) {
 	if _, err := fixture.engine.Advance(started); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	ack := firstDeadlineAck(intent.Logical, fixture.factory.sentPackets()[0].ClientSeq)
 	ownerEntered, ownerRelease := make(chan struct{}), make(chan struct{})
 	if err := fixture.engine.enqueue(engineCommand{run: func() {

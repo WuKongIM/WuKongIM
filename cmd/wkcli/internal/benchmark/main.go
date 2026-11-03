@@ -849,6 +849,11 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "chat lifecycle worker driver diagnostic configuration failed")
 			return exitConfig
 		}
+		enableDriverAdmission, err := loadDriverAdmissionDiagnosticsEnvironment(enableDriverDiagnostics)
+		if err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker SDK admission diagnostic configuration failed")
+			return exitConfig
+		}
 		enableAttemptLinkDiagnostics, err := loadAttemptLinkDiagnosticsEnvironment()
 		if err != nil {
 			fmt.Fprintln(stderr, "chat lifecycle worker attempt diagnostic configuration failed")
@@ -871,6 +876,7 @@ func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 		}
 		diagnostics := chatlifecycle.WorkerDiagnosticOptions{
 			Driver: enableDriverDiagnostics, AttemptLink: enableAttemptLinkDiagnostics,
+			Admission: enableDriverAdmission,
 		}
 		if enableDriverCPU {
 			probe, probeErr := newDriverCPUClockProbe()

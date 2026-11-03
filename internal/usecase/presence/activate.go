@@ -1,6 +1,9 @@
 package presence
 
-import "context"
+import (
+	"context"
+	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+)
 
 // Activate registers a local session with the UID authority and promotes it locally after authority success.
 func (a *App) Activate(ctx context.Context, cmd ActivateCommand) (err error) {
@@ -35,11 +38,29 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) (err error) {
 		a.rollbackLocal(cmd.SessionID)
 		return WrapActivationPhase(ActivationPhaseRegister, err)
 	}
-	if err := a.finishPendingRoute(ctx, result); err != nil {
+	strict := false
+	if client, ok := a.authority.(ReceiptAuthorityClient); ok {
+		strict = client.RequiresActivationReceipt()
+	}
+	receipt, err := a.finishPendingRoute(ctx, result, strict)
+	if err != nil {
+		if strict {
+			a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
+		}
 		a.rollbackLocal(cmd.SessionID)
 		return err
 	}
-	if err := a.local.MarkActive(cmd.SessionID); err != nil {
+	if receipt != nil {
+		local, ok := a.local.(ReceiptLocalRegistry)
+		if !ok || !receipt.Valid() || receipt.Identity != route.Identity() || receipt.OwnerSeq != route.OwnerSeq {
+			err = authority.ErrStaleGeneration
+		} else {
+			err = local.MarkActiveWithReceipt(cmd.SessionID, *receipt)
+		}
+	} else {
+		err = a.local.MarkActive(cmd.SessionID)
+	}
+	if err != nil {
 		a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
 		a.rollbackLocal(cmd.SessionID)
 		return WrapActivationPhase(ActivationPhaseLocalRecheck, err)
@@ -48,19 +69,38 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) (err error) {
 	return nil
 }
 
-func (a *App) finishPendingRoute(ctx context.Context, result RegisterResult) error {
+func (a *App) finishPendingRoute(ctx context.Context, result RegisterResult, strict bool) (*ActivationReceipt, error) {
 	if result.PendingToken == "" {
-		return a.applyRouteActions(ctx, result.Actions)
+		if strict && result.Receipt == nil {
+			return nil, WrapActivationPhase(ActivationPhaseRegister, authority.ErrSlotIncomplete)
+		}
+		return result.Receipt, a.applyRouteActions(ctx, result.Actions)
+	}
+	if strict && (result.PendingClaim == nil || !result.PendingClaim.Valid() || result.Receipt != nil) {
+		_ = a.authority.AbortRoute(ctx, result.PendingToken)
+		return nil, WrapActivationPhase(ActivationPhaseRegister, authority.ErrSlotIncomplete)
 	}
 	if err := a.applyRouteActions(ctx, result.Actions); err != nil {
 		_ = a.authority.AbortRoute(ctx, result.PendingToken)
-		return err
+		return nil, err
+	}
+	if strict {
+		client := a.authority.(ReceiptAuthorityClient)
+		receipt, err := client.CommitRouteWithReceipt(ctx, result.PendingToken)
+		if err != nil {
+			_ = a.authority.AbortRoute(ctx, result.PendingToken)
+			return nil, WrapActivationPhase(ActivationPhaseCommit, err)
+		}
+		if !receipt.Claim.Equal(*result.PendingClaim) {
+			return nil, WrapActivationPhase(ActivationPhaseCommit, authority.ErrStaleGeneration)
+		}
+		return &receipt, nil
 	}
 	if err := a.authority.CommitRoute(ctx, result.PendingToken); err != nil {
 		_ = a.authority.AbortRoute(ctx, result.PendingToken)
-		return WrapActivationPhase(ActivationPhaseCommit, err)
+		return nil, WrapActivationPhase(ActivationPhaseCommit, err)
 	}
-	return nil
+	return nil, nil
 }
 
 func (a *App) applyRouteActions(ctx context.Context, actions []RouteAction) error {

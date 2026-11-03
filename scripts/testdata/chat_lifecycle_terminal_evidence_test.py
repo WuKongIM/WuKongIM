@@ -68,7 +68,7 @@ def utf8_boundary_metric_bytes():
 
 
 def report(stage="rehearsal"):
-    return {"schema_version": "wukongim/chat-lifecycle-report/v7", "threshold_version": "wukongim/chat-lifecycle-thresholds/v2",
+    return {"schema_version": "wukongim/chat-lifecycle-report/v8", "threshold_version": "wukongim/chat-lifecycle-thresholds/v2",
             "qualification": {"scope": "rehearsal" if stage=="rehearsal" else "formal_protocol", "external_linux_evidence_required": True},
             "stage": "formal" if stage=="capacity" else stage, "mode": "capacity" if stage=="capacity" else "soak",
             "kind": "final", "final": True, "continue": False, "fence": {"run_hash": "sha256:"+hashlib.sha256(RUN.encode()).hexdigest(), "generation": 1},
@@ -800,6 +800,24 @@ class HelperBoundsTests(unittest.TestCase):
                     value=report();change(value);target.write_text(json.dumps(value))
                     with self.assertRaises((ValueError,KeyError,TypeError)):
                         self.helper.read_report(target,'rehearsal')
+
+    def test_legacy_v7_report_is_archived_not_current_terminal_anchor(self):
+        # Diagnostic ReadReport compatibility does not grant an old report the
+        # current terminal-proof contract. Preserve the exact archived bytes.
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'legacy-v7-final.json'
+            for stage in ('rehearsal', 'formal', 'capacity'):
+                with self.subTest(legacy_stage=stage):
+                    legacy=report(stage)
+                    legacy['schema_version']='wukongim/chat-lifecycle-report/v7'
+                    if stage=='capacity':legacy['capacity']['attempted']=True
+                    archived=json.dumps(legacy,separators=(',',':')).encode()+b'\n'
+                    target.write_bytes(archived)
+                    with self.assertRaises((ValueError,KeyError,TypeError)):
+                        self.helper.read_report(target,stage)
+                    self.assertEqual(target.read_bytes(),archived)
+                    self.assertEqual(json.loads(archived)['schema_version'],
+                                     'wukongim/chat-lifecycle-report/v7')
 
     def test_selector_partition_is_disjoint_and_complete(self):
         h=self.helper

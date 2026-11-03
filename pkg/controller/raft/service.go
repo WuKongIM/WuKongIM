@@ -2,6 +2,7 @@ package raft
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/raft/raftstore"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -59,6 +61,10 @@ type ProposalResult struct {
 	Revision uint64
 	// AppliedRaftIndex is the resulting durable Raft applied index.
 	AppliedRaftIndex uint64
+	// PresenceOwnerSet retains the exact immutable owner-set apply receipt.
+	PresenceOwnerSet *state.PresenceOwnerSet
+	// PresenceGeneration retains the exact immutable generation apply receipt.
+	PresenceGeneration *state.PresenceGeneration
 }
 
 // Service owns one Controller RawNode and applies committed commands to the state machine.
@@ -74,8 +80,14 @@ type Service struct {
 	stepCh   chan raftpb.Message
 	proposal chan proposalRequest
 	compact  chan compactRequest
-	err      error
-	store    *raftstore.Store
+	// Read requests are bounded across their full Raft token lifetime.
+	readRequests chan *readBarrierRequest
+	readPermits  chan struct{}
+	readWake     chan struct{}
+	readStartID  [16]byte
+	readSequence atomic.Uint64
+	err          error
+	store        *raftstore.Store
 
 	statusMu sync.RWMutex
 	status   Status
@@ -159,6 +171,15 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
+	var readStartID [16]byte
+	if _, err := rand.Read(readStartID[:]); err != nil {
+		_ = store.Close()
+		s.store = nil
+		return fmt.Errorf("controller/raft: read start identity: %w", err)
+	}
+	readRequests := make(chan *readBarrierRequest)
+	readWake := make(chan struct{}, 1)
+	readPermits := make(chan struct{}, maxReadBarriers)
 	stopCh := make(chan struct{})
 	doneCh := make(chan struct{})
 	stepCh := make(chan raftpb.Message, 1024)
@@ -166,7 +187,7 @@ func (s *Service) Start(ctx context.Context) error {
 	compactCh := make(chan compactRequest)
 	initCh := make(chan error, 1)
 	goroutine.SafeGo(s.cfg.Goroutines, goroutine.TaskControllerRaftRun, func() {
-		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, compactCh, initCh)
+		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, compactCh, readRequests, readWake, initCh)
 	})
 	if err := <-initCh; err != nil {
 		close(stopCh)
@@ -181,6 +202,10 @@ func (s *Service) Start(ctx context.Context) error {
 	s.stepCh = stepCh
 	s.proposal = proposalCh
 	s.compact = compactCh
+	s.readRequests = readRequests
+	s.readWake = readWake
+	s.readPermits = readPermits
+	s.readStartID = readStartID
 	s.started = true
 	return nil
 }
@@ -217,6 +242,9 @@ func (s *Service) Stop() error {
 	s.stepCh = nil
 	s.proposal = nil
 	s.compact = nil
+	s.readRequests = nil
+	s.readPermits = nil
+	s.readWake = nil
 	s.store = nil
 	s.mu.Unlock()
 
@@ -239,6 +267,35 @@ func (s *Service) Propose(ctx context.Context, cmd command.Command) error {
 // ProposeResult appends a Controller command and returns its FSM apply outcome.
 func (s *Service) ProposeResult(ctx context.Context, cmd command.Command) (ProposalResult, error) {
 	return s.submitProposal(ctx, proposalRequest{cmd: cmd})
+}
+
+// CheckProposalAdmission checks local lifecycle and known leadership only. It
+// performs no I/O, reserves no capacity and proves no current quorum. A later
+// ProposeResult must still recheck admission and obtain its real apply receipt.
+func (s *Service) CheckProposalAdmission(ctx context.Context) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	if s == nil {
+		return ErrNotStarted
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return s.err
+	}
+	if !s.started || s.stopping {
+		if s.stopped || s.stopping {
+			return ErrStopped
+		}
+		return ErrNotStarted
+	}
+	if s.leaderID.Load() != s.cfg.NodeID {
+		return ErrNotLeader
+	}
+	return nil
 }
 
 // ProbePropose appends an empty Raft entry and waits until it is applied.
@@ -377,6 +434,10 @@ func (s *Service) Step(ctx context.Context, msg raftpb.Message) error {
 	}
 	if msg.To != 0 && msg.To != s.cfg.NodeID {
 		return nil
+	}
+	// Peer-forwarded reads would bypass the local token bound and term guard.
+	if msg.Type == raftpb.MsgReadIndex || msg.Type == raftpb.MsgReadIndexResp {
+		return ErrReadBarrierForwardingUnsupported
 	}
 	s.mu.Lock()
 	if !s.started {

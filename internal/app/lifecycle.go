@@ -190,6 +190,9 @@ func (a *App) Start(ctx context.Context) error {
 		a.logLifecycleError("mqtt", "start", err)
 		return errors.Join(err, a.rollbackStarted(ctx))
 	}
+	if err := a.preparePresenceFoundation(ctx, startedAt); err != nil {
+		return errors.Join(err, a.rollbackStarted(ctx))
+	}
 	if a.restoreMaintenance.Load() {
 		if err := a.suspendRestoreSideEffects(ctx); err != nil {
 			a.logLifecycleError("restore_side_effects", "suspend", err)

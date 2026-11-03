@@ -328,7 +328,7 @@ func (r *productionFormalChainRunner) Run(ctx context.Context) (chatLifecycleRun
 	formalOutput := filepath.Join(r.outputDir, "formal")
 	formalPath := filepath.Join(formalOutput, "final.json")
 	formalResult := r.coordinator.Run(ctx, r.cfg)
-	formalReport, err := chatlifecycle.ReadReport(formalPath)
+	formalReport, err := chatlifecycle.ReadCurrentReport(formalPath)
 	if err != nil {
 		return coordinatorRunResult(formalResult, formalPath), errors.New("formal-chain formal report unavailable")
 	}
@@ -371,7 +371,7 @@ func (r *productionFormalChainRunner) Run(ctx context.Context) (chatLifecycleRun
 	}
 	capacityResult := capacityCoordinator.Run(ctx, capacityCfg)
 	capacityReportPath := filepath.Join(capacityOutput, "final.json")
-	capacityReport, err := chatlifecycle.ReadReport(capacityReportPath)
+	capacityReport, err := chatlifecycle.ReadCurrentReport(capacityReportPath)
 	if err != nil {
 		result := coordinatorRunResult(capacityResult, capacityReportPath)
 		result.Summary = formalSummary + result.Summary

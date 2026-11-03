@@ -295,17 +295,35 @@ type FailureRateLimit struct {
 
 // LatencyThresholds bounds hot, cold, and sync operations plus anomaly behavior.
 type LatencyThresholds struct {
-	HotSendACK            LatencyLimit  `json:"hot_sendack" yaml:"hot_sendack"`
+	HotSendACK LatencyLimit `json:"hot_sendack" yaml:"hot_sendack"`
+	// HotAttemptTimeout is the wait budget for each hot SENDACK attempt,
+	// including retries, independently of the P99/P999 latency limits. Current
+	// Formal profiles require two seconds. Zero preserves historical reports
+	// and custom local profiles by inheriting HotSendACK.P999; it is omitted
+	// from JSON so legacy configuration digests are never rewritten.
+	HotAttemptTimeout     time.Duration `json:"hot_attempt_timeout,omitempty" yaml:"hot_attempt_timeout,omitempty"`
 	Cold                  LatencyLimit  `json:"cold" yaml:"cold"`
 	Sync                  LatencyLimit  `json:"sync" yaml:"sync"`
 	SingleAnomaly         time.Duration `json:"single_anomaly" yaml:"single_anomaly"`
 	SustainedBreachWindow time.Duration `json:"sustained_breach_window" yaml:"sustained_breach_window"`
 }
 
-// LatencyLimit bounds p99 and p99.9 latency for one operation class.
+// hotAttemptTimeout selects the explicit per-attempt budget or the historical
+// zero-value fallback. Validation rejects negative overrides rather than hiding them.
+func (t LatencyThresholds) hotAttemptTimeout() time.Duration {
+	if t.HotAttemptTimeout == 0 {
+		return t.HotSendACK.P999
+	}
+	return t.HotAttemptTimeout
+}
+
+// LatencyLimit bounds one primary percentile and an optional P99.9 limit.
+// P95 is local-only. The paired local policy folds the redundant hot1s P95
+// into its stricter600ms P95 and retains the independent sync3s P99.9.
 type LatencyLimit struct {
-	P99  time.Duration `json:"p99" yaml:"p99"`
-	P999 time.Duration `json:"p999" yaml:"p999"`
+	P95  time.Duration `json:"p95,omitempty" yaml:"p95,omitempty"`
+	P99  time.Duration `json:"p99,omitempty" yaml:"p99,omitempty"`
+	P999 time.Duration `json:"p999,omitempty" yaml:"p999,omitempty"`
 }
 
 // ResourceThresholds bounds long-window forced-GC heap and goroutine growth.

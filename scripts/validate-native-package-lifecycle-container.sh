@@ -152,6 +152,12 @@ failure_diagnostic() {
 
 cleanup() {
   status=$?
+  # Only the launcher owns the container. A forked watchdog subshell can still
+  # run this EXIT trap (observed on Linux in about one of five hard-cancel
+  # runs), which removed the live container mid-lifecycle. Subshells leave.
+  if [[ "$BASHPID" != "$$" ]]; then
+    exit "$status"
+  fi
   trap - EXIT HUP INT TERM
   if [[ -n "$active_timeout_marker" ]]; then
     rm -f "$active_timeout_marker"

@@ -174,6 +174,7 @@ type BenchConfig struct {
 // TopConfig controls the node-local top snapshot collector and read-only HTTP API.
 type TopConfig struct {
 	// APIEnabled exposes the read-only /top/v1/snapshot operations endpoint.
+	// When false, metrics may still sample resource/storage gauges without Top history.
 	APIEnabled bool
 	// CollectInterval controls how frequently the top collector samples local runtime state.
 	CollectInterval time.Duration

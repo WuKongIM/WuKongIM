@@ -2,6 +2,7 @@ package presence
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -26,6 +27,8 @@ type Directory struct {
 	touchRoutesTotal atomic.Uint64
 	// expiredRoutesTotal counts routes removed by TTL expiry.
 	expiredRoutesTotal atomic.Uint64
+	// suspects bounds persistent TTL uncertainty independently of request credits.
+	suspects suspectLedger
 }
 
 type directoryShard struct {
@@ -33,6 +36,8 @@ type directoryShard struct {
 	mu sync.RWMutex
 	// slots holds per-hash-slot authority identities installed on this node.
 	slots map[uint16]*authoritySlot
+	// highWater survives LoseAuthority; an aborted/rebuilt G cannot be reused.
+	highWater map[uint16]GenerationClaim
 }
 
 type authoritySlot struct {
@@ -63,6 +68,8 @@ type authoritySlot struct {
 	recovered     map[string]struct{}
 	recoveryOrder []string
 	recoveryNext  int
+	// generation is nonnil only for the explicit complete-slot protocol.
+	generation *slotGeneration
 }
 
 // recoveryGeneration is nonzero-sized so distinct live instances cannot alias.
@@ -99,6 +106,7 @@ func NewDirectory(opts DirectoryOptions) *Directory {
 	}
 	for i := range d.shards {
 		d.shards[i].slots = make(map[uint16]*authoritySlot)
+		d.shards[i].highWater = make(map[uint16]GenerationClaim)
 	}
 	return d
 }
@@ -118,6 +126,9 @@ func (d *Directory) BecomeAuthority(target RouteTarget) {
 			return
 		}
 	}
+	if current != nil {
+		d.dropGenerationLocked(current)
+	}
 	shard.slots[target.HashSlot] = newAuthoritySlot(target)
 }
 
@@ -127,6 +138,7 @@ func (d *Directory) LoseAuthority(hashSlot uint16) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
+	d.dropGenerationLocked(shard.slots[hashSlot])
 	delete(shard.slots, hashSlot)
 }
 
@@ -140,6 +152,9 @@ func (d *Directory) RegisterRoute(target RouteTarget, route Route) (RegisterResu
 	if err != nil {
 		return RegisterResult{}, err
 	}
+	if slot.generation != nil || shard.highWater[target.HashSlot].Generation != 0 {
+		return RegisterResult{}, ErrSlotIncomplete
+	}
 	return slot.registerLocked(route)
 }
 
@@ -152,6 +167,9 @@ func (d *Directory) CommitRoute(target RouteTarget, token PendingRouteToken) err
 	slot, err := d.validateTargetLocked(shard, target)
 	if err != nil {
 		return err
+	}
+	if slot.generation != nil || shard.highWater[target.HashSlot].Generation != 0 {
+		return ErrSlotIncomplete
 	}
 	return slot.commitRouteLocked(token)
 }
@@ -169,6 +187,9 @@ func (d *Directory) AbortRoute(target RouteTarget, token PendingRouteToken) erro
 	if _, ok := slot.pending[token]; !ok {
 		return ErrRouteNotReady
 	}
+	if slot.generation != nil {
+		return ErrSlotIncomplete
+	}
 	delete(slot.pending, token)
 	return nil
 }
@@ -183,7 +204,17 @@ func (d *Directory) UnregisterRoute(target RouteTarget, identity RouteIdentity, 
 	if err != nil {
 		return err
 	}
+	return d.unregisterLocked(slot, identity, ownerSeq)
+}
+
+func (d *Directory) unregisterLocked(slot *authoritySlot, identity RouteIdentity, ownerSeq uint64) error {
 	key := makeIdentityKey(identity)
+	if g := slot.generation; g != nil {
+		if suspect, ok := g.suspects[key]; ok && suspect.OwnerSeq <= ownerSeq {
+			d.removeSuspectLocked(g, key)
+			d.retireEmptySuspectBackingLocked(g)
+		}
+	}
 	if ownerSeq > slot.tombstoneSeq[key] {
 		slot.tombstoneSeq[key] = ownerSeq
 	}
@@ -211,11 +242,32 @@ func (d *Directory) TouchRoutes(target RouteTarget, routes []Route) error {
 	if err != nil {
 		return err
 	}
+	if slot.generation != nil {
+		return ErrSlotIncomplete
+	}
+	d.touchLocked(slot, routes)
+	return nil
+}
+
+func (d *Directory) touchLocked(slot *authoritySlot, routes []Route) {
 	for _, route := range routes {
+		if g := slot.generation; g != nil {
+			cut, ok := g.owners[route.OwnerNodeID]
+			if !ok || cut.cut.BootID != route.OwnerBootID {
+				continue
+			}
+			key := makeRouteIdentityKey(route)
+			if old, ok := g.suspects[key]; ok {
+				if route.OwnerSeq < old.OwnerSeq || route.LastSeenUnix <= old.LastSeenUnix {
+					continue
+				}
+				d.removeSuspectLocked(g, key)
+				d.retireEmptySuspectBackingLocked(g)
+			}
+		}
 		slot.touchLocked(route)
 	}
 	d.touchRoutesTotal.Add(uint64(len(routes)))
-	return nil
 }
 
 // ExpireRoutesDetailed removes due active routes and reports bounded index diagnostics.
@@ -225,7 +277,7 @@ func (d *Directory) ExpireRoutesDetailed(now time.Time, ttl time.Duration) Expir
 		shard := &d.shards[i]
 		shard.mu.Lock()
 		for _, slot := range shard.slots {
-			slotResult := slot.expireLocked(now, ttl)
+			slotResult := slot.expireLocked(now, ttl, func(route Route) { d.expireGenerationLocked(slot, route) })
 			result.Expired += slotResult.Expired
 			result.DueBuckets += slotResult.DueBuckets
 			result.Examined += slotResult.Examined
@@ -282,7 +334,7 @@ func (d *Directory) EndpointsByUID(target RouteTarget, uid string) ([]Route, err
 	if err != nil {
 		return nil, err
 	}
-	if d.requireRecovery && !slot.recoveryReady([]string{uid}) {
+	if (d.requireRecovery || slot.generation != nil) && !slot.recoveryReady([]string{uid}) {
 		return nil, ErrRouteNotReady
 	}
 	return slot.endpointsByUIDLocked(uid), nil
@@ -298,16 +350,35 @@ func (d *Directory) EndpointsByUIDs(target RouteTarget, uids []string) ([]Route,
 	if err != nil {
 		return nil, err
 	}
-	if d.requireRecovery && !slot.recoveryReady(uids) {
+	if (d.requireRecovery || slot.generation != nil) && !slot.recoveryReady(uids) {
 		return nil, ErrRouteNotReady
 	}
 	return slot.endpointsByUIDsLocked(uids), nil
 }
 
 func (s *authoritySlot) endpointsByUIDsLocked(uids []string) []Route {
-	var routes []Route
+	routeCount := 0
 	for _, uid := range uids {
-		routes = append(routes, s.endpointsByUIDLocked(uid)...)
+		routeCount += len(s.byUID[uid])
+	}
+	if routeCount == 0 {
+		return nil
+	}
+	return s.appendEndpointsByUIDsLocked(make([]Route, 0, routeCount), uids)
+}
+
+// appendEndpointsByUIDsLocked fills call-owned backing in UID input order.
+// The caller holds the shard read lock and reserves capacity for all routes;
+// sorting each UID segment needs no per-recipient temporary slice.
+func (s *authoritySlot) appendEndpointsByUIDsLocked(routes []Route, uids []string) []Route {
+	for _, uid := range uids {
+		start := len(routes)
+		for key := range s.byUID[uid] {
+			if route, ok := s.active[key]; ok {
+				routes = append(routes, route)
+			}
+		}
+		sortRoutes(routes[start:])
 	}
 	return routes
 }
@@ -359,7 +430,7 @@ func (d *Directory) EndpointsByTargets(groups []EndpointLookupGroup) []EndpointL
 				results[groupIndex].Err = err
 				continue
 			}
-			if d.requireRecovery && !slot.recoveryReady(group.UIDs) {
+			if (d.requireRecovery || slot.generation != nil) && !slot.recoveryReady(group.UIDs) {
 				results[groupIndex].Err = ErrRouteNotReady
 				continue
 			}
@@ -368,27 +439,17 @@ func (d *Directory) EndpointsByTargets(groups []EndpointLookupGroup) []EndpointL
 			}
 		}
 
-		shardRoutes := make([]Route, routeCount)
-		writeIndex := 0
+		shardRoutes := make([]Route, 0, routeCount)
 		for _, groupIndex := range groupIndexes {
 			if results[groupIndex].Err != nil {
 				continue
 			}
 			group := groups[groupIndex]
 			slot := shard.slots[group.Target.HashSlot]
-			groupStart := writeIndex
-			for _, uid := range group.UIDs {
-				uidStart := writeIndex
-				for key := range slot.byUID[uid] {
-					if route, ok := slot.active[key]; ok {
-						shardRoutes[writeIndex] = route
-						writeIndex++
-					}
-				}
-				sortRoutes(shardRoutes[uidStart:writeIndex])
-			}
-			if writeIndex > groupStart {
-				results[groupIndex].Routes = shardRoutes[groupStart:writeIndex:writeIndex]
+			groupStart := len(shardRoutes)
+			shardRoutes = slot.appendEndpointsByUIDsLocked(shardRoutes, group.UIDs)
+			if groupEnd := len(shardRoutes); groupEnd > groupStart {
+				results[groupIndex].Routes = shardRoutes[groupStart:groupEnd:groupEnd]
 			}
 		}
 		shard.mu.RUnlock()
@@ -397,18 +458,7 @@ func (d *Directory) EndpointsByTargets(groups []EndpointLookupGroup) []EndpointL
 }
 
 func (s *authoritySlot) endpointsByUIDLocked(uid string) []Route {
-	keys := s.byUID[uid]
-	if len(keys) == 0 {
-		return nil
-	}
-	routes := make([]Route, 0, len(keys))
-	for key := range keys {
-		if route, ok := s.active[key]; ok {
-			routes = append(routes, route)
-		}
-	}
-	sortRoutes(routes)
-	return routes
+	return s.endpointsByUIDsLocked([]string{uid})
 }
 
 // Identity returns the immutable identity fields for this route.
@@ -669,10 +719,15 @@ func sortRoutes(routes []Route) {
 	if len(routes) < 2 {
 		return
 	}
-	sort.Slice(routes, func(i, j int) bool {
-		left := makeRouteIdentityKey(routes[i])
-		right := makeRouteIdentityKey(routes[j])
-		return lessIdentityKey(left, right)
+	slices.SortFunc(routes, func(left, right Route) int {
+		leftKey, rightKey := makeRouteIdentityKey(left), makeRouteIdentityKey(right)
+		if lessIdentityKey(leftKey, rightKey) {
+			return -1
+		}
+		if lessIdentityKey(rightKey, leftKey) {
+			return 1
+		}
+		return 0
 	})
 }
 

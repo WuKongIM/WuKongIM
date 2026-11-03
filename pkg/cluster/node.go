@@ -81,6 +81,15 @@ type routeAuthorityReadView struct {
 
 // Node is the cluster lifecycle root and public runtime facade.
 type Node struct {
+	// presenceBoot is equality-only process identity; ordering comes from committed G.
+	presenceBoot uint64
+	// presenceProbeMu bounds unjoined endpoint probes to one owned client.
+	presenceProbeMu      sync.Mutex
+	presenceProbePending *clusternet.TransportClient
+	presenceProtocol     atomic.Uint32
+	presenceRead         atomic.Pointer[presenceReadView]
+	// presenceRetired survives local publication changes; no old G reopens after a claim attempt.
+	presenceRetired  atomic.Pointer[presenceRetiredView]
 	cfg              Config
 	resources        []lifecycle.NamedResource
 	control          control.Controller
@@ -249,6 +258,11 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 		return nil, err
 	}
 	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL), messageEventStreamCache: newMessageEventStreamCache(0), messageEventFinishCoalescer: newMessageEventFinishCoalescer(defaultMessageEventFinishCoalesceWindow)}
+	boot, err := newPresenceBoot()
+	if err != nil {
+		return nil, err
+	}
+	node.presenceBoot = boot
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)

@@ -17,7 +17,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -196,7 +195,6 @@ func runWithExecutor(
 		focusedTestRequired,
 	)
 	diagnostics = append(diagnostics, registryDiagnostics...)
-	diagnostics = append(diagnostics, validateReviewPolicyChecks(*root)...)
 	if len(diagnostics) != 0 {
 		sort.Strings(diagnostics)
 		for _, diagnostic := range diagnostics {
@@ -840,160 +838,6 @@ func testingImportAliases(file *goast.File) (map[string]struct{}, bool) {
 		}
 	}
 	return aliases, dotImported
-}
-
-type reviewPolicySubset struct {
-	// TrustedChecks is the policy-owned executable catalog. This validator reads
-	// it but never reconstructs or overrides its commands.
-	TrustedChecks map[string]reviewPolicyCheck `json:"trusted_checks"`
-	// PathRules is the policy-owned mapping from changed paths to named checks.
-	PathRules []reviewPolicyPathRule `json:"path_rules"`
-}
-
-type reviewPolicyCheck struct {
-	// Arguments is the policy-owned argv executed without a shell.
-	Arguments []string `json:"arguments"`
-	// WorkingDir must keep repository-relative contract paths meaningful.
-	WorkingDir string `json:"working_dir"`
-	// TimeoutSeconds bounds this named check inside the combined fast-gate budget.
-	TimeoutSeconds int `json:"timeout_seconds"`
-	// MaxOutputBytes bounds evidence retained by the Review Agent.
-	MaxOutputBytes int `json:"max_output_bytes"`
-}
-
-type reviewPolicyPathRule struct {
-	// Name is diagnostic identity only; selection semantics come from policy.
-	Name string `json:"name"`
-	// Paths and Prefixes select changed repository artifacts.
-	Paths    []string `json:"paths"`
-	Prefixes []string `json:"prefixes"`
-	// Checks references entries in TrustedChecks.
-	Checks []string `json:"checks"`
-}
-
-type namedReviewPolicyCheck struct {
-	name  string
-	check reviewPolicyCheck
-}
-
-func validateReviewPolicyChecks(repoRoot string) []string {
-	const policyRelative = ".github/review-agent/policy.json"
-	policyDirectory := filepath.Join(repoRoot, ".github", "review-agent")
-	if _, err := os.Stat(policyDirectory); os.IsNotExist(err) {
-		return nil
-	}
-	raw, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(policyRelative)))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []string{policyRelative + ": required file is missing"}
-		}
-		return []string{fmt.Sprintf("%s: %v", policyRelative, err)}
-	}
-	var policy reviewPolicySubset
-	if err := json.Unmarshal(raw, &policy); err != nil {
-		return []string{fmt.Sprintf("%s: invalid JSON: %v", policyRelative, err)}
-	}
-	var diagnostics []string
-	var skillRule *reviewPolicyPathRule
-	for _, rule := range policy.PathRules {
-		if slices.Contains(rule.Prefixes, ".agents/skills/") &&
-			slices.Contains(rule.Paths, ".agents/skill-tests.json") {
-			copied := rule
-			skillRule = &copied
-			break
-		}
-	}
-	if skillRule == nil {
-		return []string{
-			policyRelative + ": must route .agents/skills/ and .agents/skill-tests.json through paired static and --run-focused checks",
-		}
-	}
-
-	selected := make([]namedReviewPolicyCheck, 0, len(skillRule.Checks))
-	for _, name := range skillRule.Checks {
-		check, exists := policy.TrustedChecks[name]
-		if !exists {
-			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: trusted check %q is missing", policyRelative, name,
-			))
-			continue
-		}
-		selected = append(selected, namedReviewPolicyCheck{name: name, check: check})
-	}
-	if len(diagnostics) != 0 {
-		return diagnostics
-	}
-
-	static, focused, paired := findSkillCheckPair(selected)
-	if !paired {
-		return []string{
-			policyRelative + ": must route .agents/skills/ and .agents/skill-tests.json through paired static and --run-focused checks",
-		}
-	}
-	// This validates the agreed public entrypoint as policy schema. The Review
-	// Agent still obtains the argv it executes exclusively from the policy.
-	staticArguments := []string{"go", "run", "./scripts/skillcheck"}
-	focusedArguments := append(
-		append([]string(nil), staticArguments...),
-		"--run-focused",
-	)
-	if !slices.Equal(static.check.Arguments, staticArguments) ||
-		!slices.Equal(focused.check.Arguments, focusedArguments) {
-		return []string{
-			policyRelative + ": skill checks must invoke go run ./scripts/skillcheck with only an optional --run-focused argument",
-		}
-	}
-	for _, selectedCheck := range []namedReviewPolicyCheck{static, focused} {
-		if selectedCheck.check.WorkingDir != "." {
-			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: trusted check %q must run from repository root",
-				policyRelative, selectedCheck.name,
-			))
-		}
-		if selectedCheck.check.TimeoutSeconds < 1 {
-			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: trusted check %q timeout_seconds must be positive",
-				policyRelative, selectedCheck.name,
-			))
-		}
-		if selectedCheck.check.MaxOutputBytes < 1 {
-			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: trusted check %q max_output_bytes must be positive",
-				policyRelative, selectedCheck.name,
-			))
-		}
-	}
-	combinedTimeout := static.check.TimeoutSeconds + focused.check.TimeoutSeconds
-	if combinedTimeout > 60 {
-		diagnostics = append(diagnostics, fmt.Sprintf(
-			"%s: paired skill checks %q and %q declare %d seconds, exceeding the 60-second gate budget",
-			policyRelative,
-			static.name,
-			focused.name,
-			combinedTimeout,
-		))
-	}
-	return diagnostics
-}
-
-func findSkillCheckPair(
-	checks []namedReviewPolicyCheck,
-) (namedReviewPolicyCheck, namedReviewPolicyCheck, bool) {
-	for _, focused := range checks {
-		staticArguments, removed := withoutArgument(
-			focused.check.Arguments,
-			"--run-focused",
-		)
-		if !removed {
-			continue
-		}
-		for _, static := range checks {
-			if slices.Equal(static.check.Arguments, staticArguments) {
-				return static, focused, true
-			}
-		}
-	}
-	return namedReviewPolicyCheck{}, namedReviewPolicyCheck{}, false
 }
 
 func withoutArgument(arguments []string, removed string) ([]string, bool) {

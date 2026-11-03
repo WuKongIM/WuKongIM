@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -18,7 +19,6 @@ import (
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -150,7 +150,7 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedSha
 		stopWarmupCounters()
 		complete := arrival.ReportWarmup(b, warm)
 		if !complete || sink.failures.Load() != 0 || sink.successes.Load() != uint64(warmup) {
-			b.Fatalf("sustained warmup incomplete: sends=%d success_ACKs=%d failed_ACKs=%d reasons=%v observations=%v stages=%v", warmup, sink.successes.Load(), sink.failures.Load(), sink.failureReasons(), threeNodeMixedSendackFailures(b, apps), snapshotThreeNodeMixedStages(b, apps))
+			b.Fatalf("sustained warmup incomplete: sends=%d success_ACKs=%d failed_ACKs=%d reasons=%v client_seqs=%v observations=%v stages=%v", warmup, sink.successes.Load(), sink.failures.Load(), sink.failureReasons(), sink.failureClientSeqs(), threeNodeMixedSendackFailures(b, apps), snapshotThreeNodeMixedStages(b, apps))
 		}
 		sink.successes.Store(0)
 		waitThreeNodeMixedPersonDirectoryDrain(b, nodes, 10*time.Second)
@@ -412,6 +412,16 @@ func threeNodeMixedWarmInput(ordinal int, shape threeNodeMixedShape) threeNodeMi
 
 func newThreeNodeMixedSendApps(b *testing.B) ([]*App, []*clusterpkg.Node) {
 	b.Helper()
+	failurePath := os.Getenv("WK_BENCH_SEND_COUNTERS_DIR")
+	if failurePath != "" {
+		failurePath += ".failures.json"
+	}
+	failures := newMixedSendFailureCapture(failurePath)
+	b.Cleanup(func() {
+		if err := failures.save(); err != nil {
+			b.Errorf("save bounded SEND failure evidence: %v", err)
+		}
+	})
 	addrs := []string{threeNodeMixedFreeAddr(b), threeNodeMixedFreeAddr(b), threeNodeMixedFreeAddr(b)}
 	voters := make([]clusterpkg.ControlVoter, len(addrs))
 	for index, addr := range addrs {
@@ -438,7 +448,7 @@ func newThreeNodeMixedSendApps(b *testing.B) ([]*App, []*clusterpkg.Node) {
 				Timeouts: clusterpkg.TimeoutConfig{Start: 45 * time.Second, Stop: 10 * time.Second},
 			},
 		}
-		app, err := New(cfg, WithLogger(wklog.NewNop()), WithGateway(nil))
+		app, err := New(cfg, WithLogger(failures.logger(voter.NodeID)), WithGateway(nil))
 		if err != nil {
 			b.Fatalf("New(node=%d,index=%d): %v", voter.NodeID, index, err)
 		}

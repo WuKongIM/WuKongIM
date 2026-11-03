@@ -89,6 +89,7 @@ func retryTerminalAckFixture(t *testing.T) (engineTestFixture, TrafficIntent, ti
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	for number := uint8(1); number <= 3; number++ {
 		now = now.Add(20 * time.Millisecond)
 		fixture.clock.Set(now)
@@ -104,6 +105,7 @@ func retryTerminalAckFixture(t *testing.T) (engineTestFixture, TrafficIntent, ti
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatal(err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 	}
 	if got := fixture.factory.sentCount(); got != 4 {
 		t.Fatalf("registered wire attempts = %d, want original + three retries", got)

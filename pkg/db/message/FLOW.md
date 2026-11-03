@@ -24,12 +24,12 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
 ## Main Flows
 
 1. Batch append/apply/checkpoint admission releases earlier locks while a later
-   Channel is busy. Accepted mutations transfer canonical locks/pins through
-   validation and terminal synchronous commit, then publish all rows,
-   indexes, checkpoints, history, and frontiers atomically.
-   Exact quorum proposals persist versioned authority, command, range,
-   predecessor, entry identities, and paired command/range indexes in that same
-   synchronous commit; replica HW may advance atomically with its proposal.
+   Channel is busy. Accepted mutations transfer canonical locks/pins through validation
+   and synchronous commit of rows, indexes, checkpoints, history and frontiers.
+   Exact quorum proposals persist versioned authority, command, range, predecessor,
+   entry identities and paired command/range indexes, with replica HW, atomically.
+   Sampled engine/class groups time lock acquisition and preparation before ownership/pins; a fixed known-mask child on the same span totals outer frontier/item-call wall time without new spans or per-item CPU attribution.
+   Shared wall intervals include retries/scheduling; rejected items gain no physical cohort membership.
 2. Reads scan complete primary rows or verified typed indexes, recover LEO
    lazily after reopen/reclamation, and use bounded durable verification for
    idempotency and newest-message lookup. Newest-first primary reads iterate

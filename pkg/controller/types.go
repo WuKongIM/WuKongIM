@@ -326,6 +326,8 @@ type RuntimeConfig struct {
 	SyncClient *SyncClient
 	// SyncPeers resolves Controller state sync endpoints for mirror nodes.
 	SyncPeers PeerPicker
+	// PresenceCapabilityProbe verifies each exact running member before activating new durable schema.
+	PresenceCapabilityProbe PresenceCapabilityProbe
 	// Now returns timestamps used for Controller commands.
 	Now func() time.Time
 	// Goroutines is the optional goroutine registry for lifecycle tracking.

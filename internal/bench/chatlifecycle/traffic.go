@@ -564,13 +564,22 @@ func NewRetryScheduler(policy RetryPolicy, capacity int) (*RetryScheduler, error
 
 // Schedule plans the next attempt and reuses the original logical identity.
 func (s *RetryScheduler) Schedule(intent TrafficIntent, completedAttempt uint8, now time.Time) (ScheduledRetry, error) {
+	return s.scheduleWithRetained(intent, completedAttempt, now, 0)
+}
+
+// scheduleWithRetained includes due retries transferred to an executor but not
+// yet started. Moving between bounded queues must not mint new retry credit.
+func (s *RetryScheduler) scheduleWithRetained(intent TrafficIntent, completedAttempt uint8, now time.Time, retained int) (ScheduledRetry, error) {
+	if retained < 0 {
+		return ScheduledRetry{}, errRetrySchedulerConfig
+	}
 	if completedAttempt >= 3 {
 		return ScheduledRetry{}, ErrRetryLimitReached
 	}
 	if _, exists := s.byMessage[intent.Logical.ClientMsgNo]; exists {
 		return ScheduledRetry{}, errRetryAlreadyScheduled
 	}
-	if len(s.entries) >= s.capacity {
+	if len(s.entries)+retained >= s.capacity {
 		s.saturation++
 		return ScheduledRetry{}, &RuntimeError{code: RuntimeFailureRetryQueueSaturated}
 	}
@@ -585,8 +594,8 @@ func (s *RetryScheduler) Schedule(intent TrafficIntent, completedAttempt uint8, 
 	s.nextOrder++
 	heap.Push(&s.entries, entry)
 	s.byMessage[intent.Logical.ClientMsgNo] = entry
-	if len(s.entries) > s.peak {
-		s.peak = len(s.entries)
+	if len(s.entries)+retained > s.peak {
+		s.peak = len(s.entries) + retained
 	}
 	return *entry, nil
 }

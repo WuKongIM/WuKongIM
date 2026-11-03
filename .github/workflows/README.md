@@ -1,35 +1,34 @@
-# GitHub Actions tool catalog
+# GitHub Actions workflows
 
-This directory contains:
+Workflows fall into three groups:
 
-- `Agent Tool - ...`: a bounded, on-demand worker;
-- `Safety Automation - ...`: an autonomous controller or safety backstop.
+- **CI** checks code: `ci.yml` on every pull request and push to `main`,
+  `perf.yml` and `compat.yml` nightly or on demand.
+- **CD** publishes releases and documentation.
+- **Ops** tools drive the paid Alibaba Cloud chat-lifecycle lab. Workflows that
+  create cloud resources, change permissions, or spend money require explicit
+  user authorization and the applicable budget.
 
-Use the stable filename when invoking a Workflow. Workflows that create cloud
-resources, change permissions, or spend money still require explicit user
-authorization and the applicable budget.
+Run the same checks locally with `go run ./cmd/wkcicheck <selector>`; the
+selector list in `cmd/wkcicheck/main.go` is the single catalog of named checks.
 
 ## Catalog
 
 | File | Display name | Purpose |
 | --- | --- | --- |
+| `ci.yml` | `CI` | Pull-request and `main` correctness: lint, Go unit, race, scripts integration, E2E, Manager web, demo, documentation and package jobs selected by changed paths, aggregated into the single required check `ci-ok`; nightly full race/integration/E2E |
+| `perf.yml` | `Performance` | 500 QPS seams on tmpfs and runner disk with runner-class summaries, same-runner A/B for pull requests labeled `perf`, the ten-minute three-node qualification, the nightly conversation QPS release gate as early warning, and the fixed SEND diagnosis |
+| `compat.yml` | `Compatibility` | Nightly native deb/rpm build plus four-distribution install and systemd lifecycle, and released EasySDK Android/iOS/Flutter acceptance |
+| `conversation-qps-diagnose.yml` | `Agent Tool - Diagnose Conversation QPS` | Read-only four-CPU AMD64 fixed mixed-load attribution with separate driver/server profiles; never publication evidence |
+| `binary-release-publish.yml` | `Release` | One tag-triggered release: conversation QPS gate once, then the immutable multi-platform Docker image and its mirrors, then archives, unsigned deb/rpm and the immutable GitHub Release |
+| `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies and deploys the exact documentation artifact, then optionally refreshes the pre-provisioned Alibaba Cloud CDN |
+| `docs-cdn-certificate.yml` | `Safety Automation - Renew Documentation CDN Certificate` | While explicitly enabled, checks daily and renews the public CDN certificate through ACME DNS-01 and Alibaba Cloud OIDC |
+| `easy-sdk-web-docs-sync.yml` | `Safety Automation - Propose Web EasySDK Documentation Upgrade` | Checks successful Web npm publications daily, verifies literal tutorials in Chromium, and proposes a bounded documentation PR |
 | `chat-lifecycle-rehearsal.yml` | `Agent Tool - Start Chat Lifecycle Rehearsal` | Builds, quotes, acquires, deploys, and hands a full-scale two-hour rehearsal to remote systemd |
 | `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | While armed, uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
 | `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | While armed, consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
 | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | While armed, collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
 | `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
-| `three-node-chat-lifecycle-regression.yml` | `Safety Automation - Three-Node Chat Lifecycle Regression` | Enforces 400 ms p99 on focused 500 SEND/s PR benchmarks, runs a sealed 500 SEND/s three-node correctness/drain smoke, and runs one fresh nightly ten-minute 500 SEND/s regression directly without the diagnostic rate staircase; 1,000 SEND/s remains a dedicated capacity-environment gate |
-| `v3-candidate-regression.yml` | `Safety Automation - V3 Candidate Regression` | Runs independent frozen `go-unit` and `scripts-integration` named checks, plus serial migration and messaging E2E with one exact server binary on Linux |
-| `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
-| `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
-| `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
-| `issue-agent-pr-signal.yml` | `Safety Automation - Issue Agent PR Signal` | Emits credential-free lifecycle and Review hints for Issue Agent PRs |
-| `issue-agent.yml` | `Safety Automation - GitHub Issue Agent` | Reconciles Issue work and Review Agent repair requests |
-| `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, and clean Verifier chain |
-| `manager-browser-smoke.yml` | `Safety Automation - Manager Browser Smoke` | Builds the production Manager bundle and runs the desktop/mobile Chromium matrix against a real three-node cluster |
-| `easy-sdk-web-docs-sync.yml` | `Safety Automation - Propose Web EasySDK Documentation Upgrade` | Checks successful Web npm publications hourly, verifies literal tutorials in Chromium, and proposes a bounded documentation PR |
-| `easysdk-release-acceptance.yml` | `Safety Automation - EasySDK Released Package Acceptance` | Resolves the pinned Android, iOS, and Flutter registry releases and proves bidirectional messaging against the current Product Gateway on hosted simulators/emulators |
-| `native-package-preview.yml` | `Safety Automation - Validate Native Package Preview` | Builds unsigned amd64 deb/rpm previews and checks non-activating transactions plus the explicit systemd lifecycle on four Linux distributions |
 | `cloud-lease-oidc-setup.yml` | `Agent Tool - Configure Cloud Lease OIDC Roles` | Reconciles and live-verifies the three workflow-conditioned Cloud Lease roles |
 | `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
@@ -37,17 +36,66 @@ authorization and the applicable budget.
 | `cloud-lease-release.yml` | `Safety Automation - Release Cloud Leases` | While armed, releases one exact Lease and runs the protected 15-minute expired/cleanup-pending repository sweep |
 | `cloud-deployment-bundle.yml` | `Agent Tool - Build Cloud Deployment Bundle` | Builds and seals one procurement-independent offline Ubuntu four-host payload |
 | `cloud-deployment-activate.yml` | `Agent Tool - Activate Cloud Deployment` | Installs and gates one exact offline bundle on an active four-host Lease |
-| `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
-| `cloud-sim-analyze.yml` | `Agent Tool - Analyze Cloud Simulation` | Operates one bounded cloud analysis session |
-| `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
-| `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
-| `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
-| `conversation-qps-diagnose.yml` | `Agent Tool - Diagnose Conversation QPS` | Read-only four-CPU AMD64 fixed mixed-load attribution with separate driver/server profiles; never publication evidence |
-| `conversation-qps-gate.yml` | `Safety Automation - Conversation QPS Release Gate` | Credential-free fixed HTTP load matrix; required by both publishers before release writes |
-| `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
-| `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies and deploys the exact documentation artifact, then optionally refreshes the pre-provisioned Alibaba Cloud CDN |
-| `docs-cdn-certificate.yml` | `Safety Automation - Renew Documentation CDN Certificate` | While explicitly enabled, renews and deploys the public CDN certificate through ACME DNS-01 and Alibaba Cloud OIDC |
-| `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS archives plus unsigned Linux amd64 DEB/RPM assets and publishes the exact set to the tag's GitHub Release |
+
+## CI
+
+`ci.yml` is the only pull-request gate. Branch protection requires exactly one
+check, `ci-ok`; it fails when any job fails or is cancelled and treats skipped
+jobs as passing. `scripts/ci/changes.sh` maps changed paths to areas:
+
+| Job | Runs when | Content |
+| --- | --- | --- |
+| Lint | always | gofmt, go vet, `go mod tidy -diff`, FLOW and Skill contracts, actionlint |
+| Go unit | Go changed | `go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/...` |
+| Go race | Go changed | messaging hot-path race tests |
+| Scripts integration | Go changed | `go test -tags=integration ./scripts/...` |
+| E2E | Go changed | one `e2e` server binary: ordinary-history migration, cross-node delivery, self chat, and the three-node 500 SEND/s correctness/drain smoke |
+| Manager web | Manager front end or back end changed | `wkcicheck web` plus the real three-node Chromium smoke |
+| Chat demo | `demo/` changed | `wkcicheck demo` |
+| Documentation | docs, Changelog or any Go changed | `wkcicheck docs`; golden-path paths add `wkcicheck docs-integration` |
+| Native package | packaging, goreleaser or CLI entrypoints changed | deb/rpm snapshot build, metadata inspection, Ubuntu install |
+
+Documentation contracts compare the site with server routes, so every Go
+change runs them. Without this, a route change once broke documentation
+publishing on `main` for six days.
+
+The nightly schedule additionally runs race on every listed package,
+`-tags=integration ./internal/... ./pkg/...` and every E2E suite. A nightly
+failure opens or updates one `[nightly] ... failing` Issue.
+
+## Performance
+
+GitHub-hosted runners differ between allocations. Fourteen days of 500 QPS
+evidence (388 runs) showed failures concentrated on AMD EPYC 9V74 runners,
+whose disk writes were about 3.5 times slower (median channel-append p99
+164 ms versus 7 ms on AMD EPYC 7763), while CPU pressure was not higher.
+`perf.yml` therefore detects regressions instead of certifying capacity:
+
+- `scripts/run-500qps-seam.sh` accepts `WK_PERF_DATA=tmpfs` to keep fixture
+  data in `/dev/shm`, removing disk variance; `disk` keeps the old behavior.
+- `scripts/perf/summarize_seam.py` records allocations and bytes per
+  operation (hardware-independent), window p99, CPU model, disk write latency,
+  IO pressure and data footprint in each job summary.
+- A pull request labeled `perf` runs `scripts/perf/ab.sh`: base and head
+  alternate three times on one runner and `compare_ab.py` reports ratios.
+- Observation mode: A/B regressions are reported but do not fail, and runner
+  disk runs and the ten-minute qualification never fail the workflow. Enable
+  enforcement (`WK_PERF_ENFORCE=1`) after nightly data calibrates limits.
+
+Capacity (sustaining 500 QPS within 400 ms p99 on real disks) needs fixed
+hardware, such as a rented fixed-specification instance, and is not claimed
+by hosted-runner results.
+
+## Compatibility
+
+`compat.yml` runs nightly, on demand, and for pull requests that change its
+own suites. The native package job builds unsigned deb/rpm previews with
+GoReleaser, validates temporary signed repository metadata, installs on
+Ubuntu 24.04, Debian 12, Rocky Linux 9 and AlmaLinux 9, then a matrix boots
+each distribution with real systemd and exercises the operator-owned
+lifecycle. EasySDK jobs install the pinned released Android, iOS and Flutter
+packages and prove bidirectional messaging against the current server. The
+signed public package channel remains owned by `WuKongIM/packages`.
 
 ## Documentation Pages
 
@@ -173,267 +221,6 @@ approve their execution. Human merge invokes the existing `docs-pages.yml`.
 See [the maintenance runbook](../../docs-site/scripts/easy-sdk-sync/README.md)
 for local reproduction, duplicate handling and the scope of the receipt.
 
-## Native package preview
-
-`native-package-preview.yml` is a credential-free validation workflow, not a
-publisher. Before packaging it runs unit/CLI contracts and an explicit integration
-step for real single-node cluster SEND/SENDACK, using the production-default
-send deadline while retaining first/second-message identity and sequence checks. It builds unsigned Linux amd64 `.deb` and `.rpm` files from
-`.goreleaser.packages.yaml`. After the build, an integration test creates
-one-run, one-day `TEST ONLY` APT and RPM signing keys outside the repository,
-signs temporary repositories, and verifies both signatures and the exact APT
-`Release -> Packages -> .deb` and RPM `repomd.xml -> primary metadata -> .rpm`
-closures in clean containers. The temporary keys and signed repositories are
-never uploaded or published.
-
-The workflow also inspects package payloads and installs, reinstalls through
-the package-manager upgrade path, and removes them inside Ubuntu 24.04, Debian
-12, Rocky Linux 9, and AlmaLinux 9 containers. The package creates the
-`wukongim` service account and persistent directories but does not create
-`/etc/wukongim/wukongim.toml`, enable the unit, start it, or restart it during
-upgrade. The upgrade check records every `systemctl` request and verifies that
-the operator-owned configuration and data remain byte-identical. Only the
-unsigned preview packages and checksums are retained as Actions artifacts for
-14 days; this workflow still publishes no APT/YUM repository.
-
-A separate checksum-bound matrix downloads that exact run Artifact and boots
-each distribution with a real systemd PID 1. The container mounts only its one
-candidate package read-only; it receives no credential, Docker socket, or
-writable repository checkout. Bootstrap installs the candidate package before
-executing systemd because the minimal base images do not contain PID 1; every
-live service action, package-manager reinstall, active removal, and subsequent
-install then runs against that real systemd instance. The test follows the
-operator-owned boundary:
-initialize and validate configuration, explicitly enable and start the unit,
-require `/healthz` and `/readyz`, prove a package-manager reinstall does not
-replace the live process, explicitly restart and stop it, remove the active
-package while retaining configuration/data/log state, reinstall without
-implicit activation, and explicitly start it again. Every bootstrap,
-readiness, and cleanup wait is bounded. Failure cleanup emits bounded available
-Docker logs and, when the live container exposes systemctl, attempts bounded
-unit status and journal evidence.
-
-Debian 12 is deliberately retained as the source-preview compatibility target
-already used by this workflow. The public repository publisher owns its
-separate clean-client publication matrix, so this source gate does not redefine
-that downstream support policy.
-
-The separate public `WuKongIM/packages` repository owns the signed Preview
-channel at the verified HTTPS endpoint `packages.githubim.com`. Its production
-publisher independently verifies one immutable tag-bound source Release,
-applies separate protected APT and RPM signatures, seals the complete snapshot
-and receipt in an immutable audit Release, and only then deploys the `preview`
-APT suite and EL9 RPM repository to GitHub Pages. Every deployed snapshot is
-download-validated on clean Ubuntu, Debian, Rocky Linux, and AlmaLinux clients.
-New-release publication then requires installed `wkcli` functional acceptance
-in separate credential-free containers on those four distributions. Exact
-snapshot identities, valid and invalid offline command behavior, and unchanged
-fixture data must all pass; a deployed snapshot alone is not release completion.
-The package repository's `native-package-cli-acceptance.yml` can repeat this
-public check without signing or deployment, using its exact current control SHA.
-Both repositories enforce immutable Releases, and the custom-domain DNS and
-certificate are provisioned. Exact unsigned source package assets still come
-only from the tag-bound binary Release described below; this credential-free
-source workflow never receives production signing or package-publisher access.
-
-## V3 candidate regression
-
-`v3-candidate-regression.yml` validates pull requests targeting `main` when Go
-source, the selected process E2E scenarios, their shared harness, or workflow
-contracts change. Manual dispatch runs the selected ref once with no command
-inputs. Both paths have only `contents: read`, credential-free exact-SHA
-checkouts, no persistent Go cache, and no cloud or publication authority.
-The named jobs are `Candidate default suite (go-unit)`, `Candidate scripts integration`,
-and `Candidate migration and messaging E2E`. The default suite and E2E each have
-a 35-minute bound; E2E starts only after the default suite passes. The independent
-scripts job has a 20-minute job bound and runs even when the default suite or E2E
-fails, so either result cannot suppress the other check's evidence.
-
-Each named-check job freezes the PR event's exact base SHA, or the fetched `origin/main`
-SHA for a manual run, and requires that revision to be an ancestor of the tested
-commit. Its `go-unit` or `scripts-integration` named check is read from that revision's
-`.github/review-agent/policy.json`. The Workflow consumes the command arguments,
-working directory, timeout and combined output limit directly from that policy;
-it does not redefine the check or its path selector. `GOFLAGS=-p=2` bounds package
-build/test concurrency. Exceeding either policy limit fails the job. The shared
-candidate command runner starts each command in its own session, then cleans all
-live members of that SID, including server nodes with separate process groups.
-The retained receipt binds source SHA, policy SHA and
-digest, command, environment, duration, exit status and bounded combined
-stdout/stderr. The workflow's Python static contracts run before each named check.
-The scripts job runs the complete policy command once on Linux with its original
-test, parallelism and outer limits; it adds no retry, test filter or deadline
-override. A local timeout remains retained evidence even if this Linux check passes.
-
-Only the scripts job adds `-json` through `GOFLAGS=-p=2 -json` to retain
-streamed Go test events, including test names, scheduling actions and elapsed
-times, before an outer timeout. With multiple packages and `-p=2`, `-v` alone
-can remain buffered inside Go until a package finishes. The exact GOFLAGS value
-is recorded in `command.json`; the frozen policy arguments and all policy limits
-remain unchanged. Combined stdout/stderr can also contain build diagnostics;
-Go build JSON events do not provide per-compiler timings. This observation
-change adds no prewarming, retry or passing evidence by itself.
-
-The process E2E job builds one `e2e`-tagged server from the same exact source SHA.
-Every scenario uses that frozen `WK_E2E_BINARY`, with its SHA256 checked before
-each scenario and after the last. It runs the complete default package tests
-for `ordinary_history` (all five migration topologies, serial subtests),
-`cross_node_delivery`, and `self_chat`, in that order. The existing per-package
-test deadlines remain unchanged; outer command deadlines bound build and test
-processes. A 64 MiB combined output limit bounds each E2E/build command's
-stdout and stderr, retained in separate files. There is no
-automatic retry or test-name filter. A failed scenario prevents later scenarios
-from running and preserves their explicit `not_run` state. The artifact includes
-commands, case results, JSONL logs, the self-chat report when produced, binary
-digest and build metadata, but excludes the server executable.
-
-For normal exit, test failure, deadline, output-limit refusal and handled
-SIGINT/SIGTERM, the runner rechecks each process SID before TERM/KILL, excludes
-zombies, and records the original command outcome plus a separate cleanup
-receipt. The cleanup attempt allows two seconds for TERM and two for KILL;
-repeated cancellation signals cannot interrupt that attempt. Failed process
-enumeration remains unverified, and nonzero survivors or unverified cleanup
-prevent a passing result. There is no host-wide process-name kill.
-
-All three jobs reject tracked-source mutation and attempt evidence upload after
-success, failure, or cancellation, retaining each exact run/attempt for 14 days.
-SIGKILL, hard job cancellation or runner loss can prevent cleanup or upload;
-missing or incomplete cleanup/artifacts are inconclusive, never zero-survivor
-proof. A new PR revision cancels the older PR run; cancellation is never
-passing evidence. Inspect the exact source SHA, run attempt, all three job results,
-and receipts before reusing a result. Preserve a failure and diagnose its cause
-before any deliberate rerun. A pass covers this candidate regression scope;
-performance gates, released SDK acceptance, long-duration stability and signed
-native-package publication remain separate release requirements.
-
-## Fixed Linux SEND diagnosis
-
-PR messaging unit/race checks, three-node correctness, and the three 500-QPS
-seams run in independent jobs. The performance matrix uses `fail-fast: false`;
-one rejected seam cannot suppress another seam or correctness evidence. The
-existing `PR three-node regression` check remains an always-running aggregate
-that requires unit/correctness success and either fresh performance success or
-explicit verified baseline reuse. The bounded baseline job uses only public
-GitHub metadata, with no token or extra permission. For documentation/Demo-only
-changes it may reuse three consecutive clean, first-attempt main qualifications
-from the last seven days, all with identical tracked server/dependency/config/
-script/workflow inputs and all three performance seams plus ten-minute
-qualification successful. Every source must be an ancestor of the PR base.
-A newer matching failure, incomplete run, retry, or missing job forbids reuse;
-it never searches past one for a green result. Missing metadata, API rate
-limits, timeouts or other uncertainty fall back to fresh performance jobs.
-The allowed unrelated paths are explicit in `scripts/ci-500qps-baseline.py`.
-Correctness/unit/race always run, and scheduled/manual qualifications always
-run all performance seams to establish fresh baselines.
-GitHub-hosted Ubuntu 24.04 remains the execution environment. Performance jobs
-pin Go 1.25.11 and four visible AMD64 CPUs/GOMAXPROCS, and record CPU model,
-kernel, source/binary hashes and the actual data filesystem. CPU model and disk
-performance are observations, not a claim of dedicated hardware. Load-induced
-host pressure never automatically invalidates or excuses a failed result.
-
-`scripts/run-500qps-seam.sh` builds once before measurement and runs exactly one
-fresh fixture with 60 seconds of sustained 500-QPS warmup followed by three
-consecutive 60-second measurement windows. All windows must pass the unchanged
-400ms budget, at least 95% of scheduled start rate, zero errors/drops, and exact
-completion counts. It never selects the best window or retries a failure.
-`scheduled-arrival/v1` reports scheduled-arrival-to-completion, arrival queue,
-and service P99 separately, with each 60-second and one-second cohort retained.
-The finite open-loop driver bounds queue length to 400ms of arrivals; a full
-queue records a rejection instead of slowing arrivals invisibly. Request
-identity remains unique across warmup and measurement. The legacy service
-metrics remain visible but cannot hide scheduling or worker queue delay.
-
-The append and mixed SEND seams retain before/after counter snapshots from the
-same measured window before asserting latency, excluding setup and warmup.
-The `channel-append-counters/v1` and `mixed-send-counters/v1` schemas bind the
-actual operation count (90,000 for qualification, 3,000 for short diagnostics).
-Snapshots include fixed Linux CPU/disk/pressure/cgroup files, Go scheduler/GC
-counters and bounded storage/replication histograms. They are capped at 4 MiB
-each. Append replication observations remain sampled 1/32; physical batches
-are unsampled. Different populations' percentile bounds must not be added.
-Counter-only collection has no profiler, trace or sampling goroutine. Incomplete
-windows remain explicit and never pass. Each matrix artifact retains its own
-source, binary identity, arrival report, counters, host facts and exit result.
-
-The mixed SEND qualification additionally enables one measured-phase Go flight
-recorder in that same fixture and process (all three nodes plus the driver).
-Its first one-second planned cohort with six completions above 400 ms of
-scheduled-to-completion latency reserves one trace export after two more seconds.
-This early P99 signal does not replace the three 60-second qualification gates;
-drops, errors and underload still fail the original report. Trace/sampler overhead
-is part of this instrumented run, and boundary metadata marks profiles enabled.
-The recorder targets 15 seconds of history and 32 MiB retention; Go treats this
-as a hint, not a hard memory bound or a guarantee of 15 seconds under pressure.
-Export is hard-capped at 64 MiB in verified tmpfs. A single sampler retains the
-latest 16 fixed counter cuts at one-second intervals, each at most 1 MiB, with
-read start/end times and explicit missing signals. The sampler checks a 210-second
-budget between synchronous reads/exports; the existing 12-minute process timeout
-is the outer bound if a collector stalls. Normal stop consumes any last-arrival
-trigger and joins the sampler. Atomic tmpfs receipts are checkpointed on start,
-trigger and recorder stop, independently of measured-handler completion. The
-launcher retains the last receipt and trace after process exit, including fatal
-Go test timeouts that skip cleanup, before removing its exact tmpfs directory.
-No trigger, interrupted measurement, collection errors and truncated trace are
-explicit in `flight/window.json` (or missing-file retention status); only an actual complete export is marked as
-captured. The same artifact retains trace-derived scheduler, synchronization,
-syscall and network wait views with bounded extraction time; analysis failure
-never replaces the original benchmark verdict. No fresh diagnostic fixture or
-retry is used to explain away a failed qualification.
-
-Nightly keeps its ten-minute three-node workload and 400ms budget. For an exact
-main-descended repair candidate, manual `qualify_candidate=true` runs that same
-bounded workload before merge; the default remains protected main. Checkout
-identity, a clean tree and main ancestry are checked before execution. This
-read-only candidate run publishes no release and acquires no cloud resources. A confirmed
-product failure may close the measured timeline early. The local step classifier
-checks exact report identity, ordered closed timeline, process continuity and
-profile evidence before retaining that product failure; it leaves full-duration
-evidence false and never invents a throughput result for the short run.
-At terminal shutdown, `report/worker-evidence.json` retains the existing
-per-worker first/last redacted failure samples, generation and snapshot sequence.
-The separate document is capped at 1 MiB and written once after traffic joins;
-ordinary observation cuts add no new file writes. It contains no UID, Channel
-ID, message payload or raw error, and never changes the qualification verdict.
-
-The five-second worker-cut log includes cumulative hot SENDACK sample and
-above-P99-threshold counts using the configured limit. A measured periodic cut
-with more than 1% above the limit reserves one independent `hot-latency-pprof`
-capture, even if an earlier throughput dip used `threshold-pprof`. Both captures
-serialize because Go allows one CPU profile per process. Required first-breach
-evidence cancels and joins an active optional hot capture before starting; the
-interrupted hot capture stays explicit. The first hot trigger bracket is
-retained, and an uncollected trigger is explicitly marked if
-measurement closes while it waits. Neither capture changes the verdict.
-The hot capture requests 10-second CPU profiles plus heap/goroutine snapshots
-from three loopback authenticated APIs. Each request has a byte cap (CPU 8 MiB,
-heap 16 MiB, goroutine 4 MiB). Opt-in `--capture-context` adds two fixed host
-counter cuts (seven CPU/disk/pressure/cgroup files, at most 64 KiB each) and two
-metrics requests per node (4 MiB and five seconds each). The first metrics
-requests start before profiles; all complete before the second context cut.
-Request start/join timestamps expose collection uncertainty. Missing or oversized
-context is explicit; diagnostic collection adds bounded measurement overhead.
-
-For a bounded SEND investigation, dispatch
-`three-node-chat-lifecycle-regression.yml` with `diagnose_send=true` on the
-exact reviewed candidate ref. This manual-only job replaces neither the PR
-gates nor nightly qualification, and has no publishing or cloud permissions.
-It pins Go 1.25.11 on Ubuntu 24.04 with four visible AMD64 CPUs, builds one clean
-benchmark binary, then runs exactly one unprofiled and one profiled 500-QPS,
-3,000-operation mixed SEND benchmark on that same runner. Each run has its own
-fresh three-node cluster; ordering and host variation remain limitations.
-No failed window is retried. The first run's unchanged 400 ms verdict stays in
-the report even when profiling succeeds. Completion means collected evidence,
-never release qualification. CPU and execution trace collection is limited to
-the measured phase, capped at 8/64 MiB in tmpfs and copied to the artifact after
-sampling so profiler writes do not load the data disk; fixed storage/replication histogram and
-Linux counter snapshots exclude setup/warmup but include profiler boundary
-overhead. Trace analysis separates scheduler, synchronization, syscall and
-network waits. CPU covers all three nodes and the driver in one process;
-disk/cgroup counters are scoped as reported, missing data stays explicit.
-Artifacts include source/binary identity and remain for 90 days. The job is
-bounded to 20 minutes and is opt-in; ordinary PR/scheduled/manual qualification
-behavior stays unchanged when `diagnose_send` is false.
-
 ## Conversation QPS diagnosis
 
 `conversation-qps-diagnose.yml` takes an exact product SHA on main history or a
@@ -464,257 +251,71 @@ authority. The job deadline is 40 minutes; each diagnostic and gate test keeps
 its original 12/18-minute deadline. Actual publishers still require their own
 exact-tag gate.
 
-## Conversation QPS release gate
+## Release
 
-Both Docker and binary publication require `conversation-qps-gate.yml` to pass
-for the requested immutable tag. This reusable Workflow has read-only access,
-no protected Environment or inherited secrets, and a 24-minute job deadline.
-It runs on `ubuntu-24.04`, builds the tagged server, and tests real single-node
-and three-node clusters with 256 hash slots and `GOMAXPROCS=2` per node. The
-publisher compares its checkout SHA with the gate output before proceeding;
-a changed tag cannot reuse evidence for another commit.
-
-The fixed workload and acceptance thresholds live in
-[`profile.json`](../../test/e2e/message/conversation_qps/profile.json).
-Each endpoint runs pages of 25, 100 and 200 conversations against 600 persisted
-groups, 24 readers and three messages per channel. The existing authenticated
-benchmark eviction endpoint safely unloads only these generated channels on
-every node before reading, respecting busy-runtime guards. The fixture verifies
-zero active runtimes across all roles, then runs explicit cache warmup. Warmup
-and measurement must add zero loads and leave all residency at zero. This is
-cold-runtime storage access with warm disk caches, without process-recovery
-traffic mixed into the read workload. Each measured phase has 15 seconds of scheduled arrivals and eight
-bounded workers. The arrival queue is bounded by the number of requests
-offered within the P99 budget (at least the worker count); scheduler/queue delay
-counts toward P99. Reports bind both actual worker and queue limits. Every response must contain complete, correct message
-identities; measured requests never retry. Require at least 95% of offered QPS,
-P99 at most 500 ms, zero errors/drops, zero Channel loads, and zero membership
-writes. Missing metrics fail. Topology-specific allocated-byte ceilings per
-completed request additionally catch allocation regressions below saturation.
-CPU, heap and allocation totals accompany the results. These fixed regression floors are not peak-capacity claims or a
-100,000-member group throughput qualification.
-
-The three-node matrix also runs list 200 QPS and sync 60 QPS simultaneously
-for 60 seconds, with eight workers per endpoint. Six additional 15-second sync
-windows at 20 QPS and eight workers verify 50% hidden, 90% hidden, and the
-99-visible/100-hidden/one-visible layout, each on page 1 (size 100) and page 2
-(size 50). Exact ordered response IDs and recent messages are checked. Shared
-CPU/allocations belong to the window, never to both mixed endpoint results.
-The `stress_gate` profile pins window allocation ceilings. The v2 receipt filter
-in `scripts/validate-conversation-qps-report.jq` requires all seven windows,
-both simultaneous endpoints, exact settings and the same zero-error, 500-ms P99
-rules. The separate ten-minute 600/200-QPS diagnosis cannot qualify publication.
-
-Missing/skipped tests, partial matrices, dirty source, identity mismatches and
-failed performance limits block publication. The exact source/profile/binary
-hashes, all 12 base results and seven stress windows are retained with the log for 90 days, even on failure.
-There is no threshold override or bypass input. Diagnose a failing runner from
-its evidence; do not lower floors automatically or rerun until green. A tag
-that lacks this test cannot use the new gate and needs a new source release.
-The separate signed APT/RPM publication and public client checks remain required.
-
-## Docker image publishing
-
-`docker-image-publish.yml` is the sole official container-image publisher. A
-new `v*` tag starts an automatic release, while `workflow_dispatch` accepts one
-existing tag for a first publication or incomplete-release recovery. The tag
-must be strict SemVer without `+build` metadata, resolve to a commit reachable
-from `origin/main`, and remain the immutable source identity. Before checking
-credentials or publishing an image, the Workflow validates that the tagged
-`CHANGELOG.md` contains one non-empty, correctly formatted section for the
-exact tag. It never derives release notes from commits or GitHub-generated
-notes.
-
-Hosted release builds use the official Go module proxy for both the product
-and embedded Prometheus; the Dockerfile default remains available for local builds.
-All three release image builds pass the validated version (without the Git `v`
-prefix), source commit, and `release` build source into the server and CLI.
-Both platform candidates must report that exact identity through their version
-commands before publication. Source builds default to `dev`/`unknown`/`source`
-unless `BUILD_VERSION`, `BUILD_COMMIT`, and `BUILD_SOURCE` are supplied.
-
-GHCR is the canonical build target. The Workflow builds
-`linux/amd64,linux/arm64` security candidates and blocks publication when
-Trivy reports any Critical or High vulnerability. A recovery run applies the
-same per-platform scan to the existing canonical digest before it can fill a
-missing mirror. Each candidate must also pass the bounded
-`scripts/verify-docker-prometheus.sh` probe: offline non-root startup with
-managed Prometheus enabled, an actual scrape, historical queries after container
-recreation on the same volume, and graceful stop. The canonical digest passes
-that probe again before mirroring, including recovery runs. Each platform is
-pulled by its unique child manifest from the verified canonical index, so classic
-Docker stores never load both architectures under one index reference. Extracted Prometheus
-executables pass a separate Trivy `rootfs` scan that requires exactly one
-`gobinary` result, preventing an empty scan from passing. Their components and
-dependency edges are included in the corresponding platform SBOM. After the
-scan passes, the Workflow builds the canonical
-multi-platform image, creates signed GitHub build provenance plus a CycloneDX
-SBOM attestation for each platform, and copies the exact runtime manifest
-digest to all three public repositories:
-
-- `ghcr.io/wukongim/wukongim`;
-- `docker.io/wukongim/wukongim`;
-- `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`.
-
-The mirror-copy step uses checksum-pinned [Crane v0.22.1](https://github.com/google/go-containerregistry/releases/tag/v0.22.1)
-with one concurrent layer transfer and `--no-clobber`. It copies the canonical
-runtime index and both platform manifests over HTTPS with HTTP/1.1
-(`GODEBUG=http2client=0`), after HTTP/2 peer stream failures and stalled bulk
-copies. For Alibaba Cloud, checksum-pinned [regctl v0.11.6](https://github.com/regclient/regclient/releases/tag/v0.11.6)
-first prepares that same index by digest with 1 MiB upload chunks and one
-concurrent target request. This preparation creates no tag; Crane then creates
-the absent exact tag with its no-clobber guard. Chunking prevents repeated
-whole-layer uploads when a long request is interrupted. Detached attestations
-remain on canonical GHCR. Registry authentication and exact digest, source,
-and platform verification remain required.
-
-The exact Docker tag removes the Git `v` prefix. A stable `v3.1.2` may advance
-`3.1`, `3`, and `latest` only when it is the highest stable repository SemVer
-in each corresponding range. Pre-release tags, including date suffixes such as
-`v3.1.2-20260831`, publish only their exact tag. Exact tags are never
-overwritten. A manual recovery reuses an existing canonical GHCR digest, fills
-only absent exact mirrors, verifies identical digests and the two required
-platforms, and advances aliases only after that verification. BuildKit's inline
-provenance and SBOM manifests stay disabled because Alibaba Cloud Registry
-rejects their OCI empty-config media type; the detached signed GitHub
-attestations preserve this evidence without changing the portable runtime
-digest. Every successful run uploads a 90-day JSON release receipt and both
-per-platform SBOMs, and writes the same source, builder, digest, platform, and
-image facts to the Job Summary.
-
-Repository administrators must pre-create all three repositories with public
-pull visibility and configure a `docker-publish` Environment. Limit that
-Environment to protected `main` for manual recovery and trusted version tags
-for automatic publication, do not require a reviewer, and configure:
-
-- Variable `DOCKERHUB_USERNAME`;
-- Secret `DOCKERHUB_TOKEN`;
-- Variable `ALIYUNHUB_USERNAME`;
-- Secret `ALIYUNHUB_TOKEN`.
-
-GHCR uses the job-scoped `GITHUB_TOKEN`; no standing GHCR credential is
-required. Missing credentials, a conflicting exact tag, a registry copy
-failure, a digest mismatch, or a missing platform fails the complete release.
-
-## Binary release publishing
-
-Release delivery also includes the independently signed APT/RPM publication
-and public exact-version client checks in
-[`RELEASING.md`](../../docs/development/RELEASING.md). A successful binary,
-container, or documentation Workflow does not complete that downstream stage.
-The native package publisher remains in `WuKongIM/packages`; source tag
-Workflows do not automatically dispatch it or receive its signing credentials.
-
-`binary-release-publish.yml` publishes downloadable WuKongIM executables from
-the same strict SemVer `v*` source identity used by the container publisher. A
-new tag starts the workflow automatically; the manual `version` input accepts
-one existing tag for first publication or incomplete-draft recovery. A manual
-run must itself be dispatched from that exact tag, for example
-`gh workflow run binary-release-publish.yml --repo WuKongIM/WuKongIM --ref "$tag" -f version="$tag"`;
-a run dispatched from `main` fails before building because GitHub provenance
-inherits the run ref and Workflow commit. The tag must contain this Workflow,
-resolve to a commit reachable from `origin/main`, and may not contain SemVer
-build metadata. A historical tag without the Workflow needs a new SemVer tag
-rather than provenance synthesized from current `main`.
-
-Each run builds deterministic `.tar.gz` archives for `linux/amd64`,
-`linux/arm64`, `darwin/amd64`, and `darwin/arm64`. Windows is not advertised
-because the server currently contains Unix-only runtime and filesystem paths.
-Every archive includes `wukongim` and `wkcli`, English and Chinese readmes, and
-`wukongim.toml.example`. When the tagged source contains
-`.goreleaser.packages.yaml`, the same run also uses the commit-pinned
-GoReleaser action with GoReleaser `v2.18.0` to build unsigned Linux amd64
-packages containing both version-matched executables, normalized to exactly:
-
-- `wukongim_<version>_linux_amd64.deb`;
-- `wukongim_<version>_linux_amd64.rpm`.
-
-All archives and native packages share one SHA-256 checksum file and one signed
-GitHub build-provenance statement. The workflow verifies Linux binaries under
-amd64 and arm64 and retains the complete asset set plus a JSON receipt as
-Actions evidence for 90 days. Native packages remain unsigned source assets;
-the separate package repository must apply and verify its production package
-and repository signatures before publication. Tags containing the version
-command also prove the embedded version, full source commit, and `release`
-build source. Older tags that predate `.goreleaser.packages.yaml` retain their
-original five-asset recovery contract and remain bound by the immutable tag,
-checksums, and attestation.
-
-The workflow creates a draft Release without publishing it, uploads every
-expected archive, native package, and checksum, downloads and byte-compares the
-complete exact asset set, and only then publishes the verified draft once.
-Recovery may compare existing
-assets and fill missing files only in that same draft. Draft discovery scans
-all Releases for one exact tag match, then binds creation, upload, verification,
-and publication to the resulting numeric Release ID; it never relies on the
-published-by-tag endpoint to find a draft. Asset upload accepts only the exact
-numeric-ID `uploads.github.com` URL returned by GitHub and checks each upload
-response against the local size and SHA-256. Immediately before publication it
-rechecks that the remote tag still peels to the validated source commit, that
-repository-level immutable Releases remain enabled, and that the draft still
-has the exact asset names, sizes, and digests verified earlier. Any existing
-published Release fails closed: a complete one is already final, while an
-incomplete one must never be reused and requires a new SemVer tag. A
-pre-release SemVer tag must correspond to a GitHub pre-release; stable tags
-must correspond to a normal Release. After publication, the workflow verifies
-that GitHub sealed the same numeric Release ID as immutable, checks every
-asset's API size and any available SHA-256 digest against the local file, and
-always performs an ID-bound download and byte comparison. The same ID-bound
-byte comparison is repeated immediately before publication.
-
-The human-authored part of every new Release comes only from the exact tagged
-section in the root `CHANGELOG.md`. The file keeps `Unreleased` first and uses
-`## [vMAJOR.MINOR.PATCH[-PRERELEASE]] - YYYY-MM-DD` version boundaries with the
-fixed bilingual categories documented in that file. The Workflow rejects a
-missing, duplicate, empty, or malformed target section before building. It
-preserves the extracted Markdown verbatim and appends only machine-derived
-source, binary, checksum, image, digest, platform, Docker Workflow, and compare
-facts. It never falls back to GitHub-generated notes, a commit log, or an empty
-body. Every discovered, created, pre-publication, and published numeric Release
-ID must carry the exact rendered body.
-
-For manual recovery, the release-note extractor may come only from the exact
-`github.workflow_sha` commit, which the identity gate requires to resolve to
-the tagged source. It can never be borrowed from current `main`. A historical
-tag missing either this Workflow or the extractor needs a new SemVer tag;
-automatic tag publication likewise fails when the tagged source omits the
-extractor.
-
-The binary publisher waits for a successful Docker publisher run for the same
-tag, then verifies that GHCR, Docker Hub, and Alibaba Cloud expose one identical
-`linux/amd64,linux/arm64` digest whose per-platform labels match the exact tag
-source. A Docker failure or bounded wait timeout leaves any matching draft
-unpublished. After repair, manual dispatch resumes only when the draft body and
-assets still exactly match the tagged source. Pre-release Changelog entries are
-incremental from the previous pre-release in the same version line; stable
-entries summarize user-visible changes since the previous stable release.
-
-Repository administrators must configure a `binary-publish` Environment,
-allow only trusted version tags for both automatic publication and manual
-recovery, and avoid a reviewer gate for tag-triggered runs. The workflow uses
-only its job-scoped `GITHUB_TOKEN`; it requires no standing release credential.
-Until those Environment deployment restrictions have been configured and
-verified remotely, administrators must not push a release tag or manually
-dispatch this workflow.
-
-Immediately before pushing a release tag or starting manual recovery, an
-administrator must also verify that repository-level immutable Releases remain
-enabled in repository settings or through the administrator-only
-`GET /repos/{owner}/{repo}/immutable-releases` endpoint. The Actions
-`GITHUB_TOKEN` cannot read that administration endpoint, so the Workflow does
-not request or store an administrator token. It instead verifies after
-publication that GitHub sealed the exact numeric Release as immutable.
-
-For a user-visible pull request, add the release note under `Unreleased` when
-the change is made. A PR with no user-visible behavior must explain the reason
-in the repository PR template and receive the maintainer-applied
-`skip-changelog` label. The existing Review Agent checks the repository rule;
-the tag Workflows remain the final fail-closed publication gate. Before tagging,
-run:
+`binary-release-publish.yml` (display name `Release`) is the only publisher.
+A new strict SemVer `v*` tag starts it; manual recovery must be dispatched from
+that same tag ref:
 
 ```bash
-awk -v version=v3.0.0-beta.5 \
-  -f scripts/extract-release-notes.awk CHANGELOG.md >/dev/null
+gh workflow run binary-release-publish.yml --repo WuKongIM/WuKongIM --ref "$tag" -f version="$tag"
+```
+
+The file name is part of the release identity: `WuKongIM/packages` verifies
+binary build provenance against `.github/workflows/binary-release-publish.yml`,
+so do not rename it without changing that repository first. Release delivery
+also requires the independently signed APT/RPM publication and public
+exact-version client checks in
+[`RELEASING.md`](../../docs/development/RELEASING.md); this workflow does not
+complete that stage and receives no signing credential.
+
+One run executes three jobs in order:
+
+1. **`conversation-qps`** runs `scripts/release/conversation-qps-gate.sh` once
+   on the exact tag, with cluster data on tmpfs so hosted-runner disk speed
+   does not decide the result. Thresholds live in
+   [`profile.json`](../../test/e2e/message/conversation_qps/profile.json) and the
+   report must pass `scripts/validate-conversation-qps-report.jq`. The
+   three-node mixed stress window saturates a 4-vCPU hosted runner, so only its
+   errors, fences and allocation ceiling gate; its throughput, drops and P99
+   are recorded (nightly in `perf.yml`). There is no bypass input; diagnose a failure from its 90-day evidence instead of
+   rerunning until green. `perf.yml` runs the same gate nightly on `main`.
+2. **`docker`** (Environment `docker-publish`) validates the tag (strict SemVer,
+   reachable from `origin/main`, valid `CHANGELOG.md` section), builds
+   `linux/amd64,linux/arm64` candidates, blocks on any Critical/High Trivy
+   finding and on the embedded-Prometheus probe, pushes the canonical
+   `ghcr.io/wukongim/wukongim` image, attests provenance and per-platform
+   CycloneDX SBOMs, and copies the exact digest to `docker.io/wukongim/wukongim`
+   and `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`. Exact tags are
+   never overwritten; a stable tag advances `MAJOR.MINOR`, `MAJOR` and `latest`
+   only when it is the highest stable version in that range. In recovery it
+   reuses the canonical digest and fills only missing mirrors; when every
+   registry is already complete it verifies and succeeds, so a binary-only
+   recovery can rerun the whole workflow.
+3. **`binaries`** (Environment `binary-publish`) builds deterministic
+   Linux/macOS archives (both `wukongim` and `wkcli`) and unsigned Linux amd64
+   `.deb`/`.rpm`, one checksum file and one signed provenance statement, checks
+   that all three registries serve the Docker job's digest, and renders the
+   Release body from the exact `CHANGELOG.md` section plus machine facts. It
+   creates a draft, uploads and byte-verifies every asset, publishes the draft
+   once, then verifies GitHub sealed it as an immutable Release. Any existing
+   published Release fails closed; an incomplete one needs a new tag.
+
+Repository administrators configure:
+
+- Environment `docker-publish`: Variables `DOCKERHUB_USERNAME`,
+  `ALIYUNHUB_USERNAME`; Secrets `DOCKERHUB_TOKEN`, `ALIYUNHUB_TOKEN`; deployment
+  limited to trusted version tags; no reviewer.
+- Environment `binary-publish`: deployment limited to trusted version tags; no
+  reviewer.
+- Repository-level immutable Releases enabled. The Actions token cannot read
+  that setting, so verify it before pushing a release tag.
+
+For a user-visible pull request, add the release note under `Unreleased` in
+`CHANGELOG.md`; before tagging, check the exact section:
+
+```bash
+awk -v version=v3.0.0-beta.5 -f scripts/extract-release-notes.awk CHANGELOG.md >/dev/null
 ```
 
 ## Direct local chat-lifecycle repair
@@ -729,211 +330,9 @@ command accepts cleanup, and only after it stores an exact selector-bound
 zero-inventory proof. The generic expired-Lease sweep remains an independent
 safety backstop; it is not the repair control plane.
 
-## Review Agent
-
-Every pull request defaults to human handling. A model review starts only after
-a repository administrator posts the exact `@review-agent review` command:
-
-```text
-administrator @review-agent review
-  -> zero-permission Signal
-  -> protected-default-branch Controller
-  -> fresh GitHub facts + signed PR state + signed scheduler
-  -> exact context + deterministic checks + one ephemeral model session
-  -> evidence validation + signed terminal state
-  -> status comment + formal Review + Review Agent Verdict
-  -> exact-head auto-merge for a repository admin or organization member
-     | otherwise wait for a human merge
-```
-
-Other PR and Review events may close state, cancel stale work, or repair a
-projection, but cannot create a review generation. A new commit invalidates
-and cancels any old work; an administrator must explicitly review the new head.
-
-The Signal is a hint, not authority. It has no token permission, Secret,
-checkout, Artifact, cache, network command, or candidate execution. The
-Controller always re-reads the pull request and never checks out candidate
-code.
-
-`review-agent-run.yml` separates these authorities:
-
-- candidate checkout and trusted checks use credential-free jobs;
-- `review-agent-model` exposes only `OPENAI_API_KEY`;
-- `review-agent-state-writer` exposes only the State Writer App key;
-- `review-agent-publisher` exposes only the Review Agent App key;
-- the isolated dispatcher has only `actions: write`.
-
-The Worker validates and checks out the exact protected control revision once,
-builds `wkreviewagent`, `wkreviewcheck`, and `wkreviewcheckmcp` in one job, and
-publishes one run-scoped Artifact. Every consuming job verifies the embedded
-control SHA and complete SHA-256 manifest, installs only its allowlisted
-binaries, and removes the downloaded bundle before continuing. Candidate code
-cannot build, replace, or upload this bundle, and no shared build cache crosses
-Worker runs.
-
-The Controller also compiles `wkreviewagent` only once per run. When a plan
-requires a state write or projection, credentialed jobs consume a run-scoped,
-control-SHA-bound manifest Artifact instead of rebuilding it. A true no-op
-uploads only its bounded plan; State Writer, Publisher, and Dispatcher jobs are
-skipped.
-
-The model can review and invoke only protected named checks. It cannot edit the
-PR, commit, push, merge, resolve threads, dismiss Reviews, or publish its own
-verdict. A trusted validator maps signed state to the sole required Check
-`Review Agent Verdict`. Only `approved` maps to success. `changes_required`
-maps to failure, and `inconclusive` maps to `action_required`. A human
-`REQUEST_CHANGES` Review remains independently blocking.
-
-Repository Skills use the protected `agent-artifact-contracts` and
-`skill-focused-contracts` checks. Their Review Agent command definitions live
-only in `.github/review-agent/policy.json`; focused Skill test commands live
-only in `.agents/skill-tests.json`. The structural check never discovers or
-executes files from a Skill's `scripts/` directory.
-
-FLOW navigation uses the protected `flow-doc-contracts` check. Its command and
-path selection live only in `.github/review-agent/policy.json`; it enforces the
-strict schema, 150-line limit, local navigation references, and canonical
-generated index.
-
-The model request passes through one root-owned loopback proxy that clamps
-`max_output_tokens` to the protected policy and injects the OpenRouter
-credential. The root-only credential handoff file is deleted before the
-listener is published. Codex and candidate checks cannot read the credential,
-replace the proxy, or reach an unclamped transport path.
-
-After publishing an `approved` verdict, the protected Publisher re-reads the
-exact PR head, mergeability, human Reviews, author association, and author
-repository permission. It merges only when the author is an organization
-`MEMBER`/`OWNER` or currently has repository `admin` permission. Every other
-approved PR remains open and is marked as requiring a human merge. The merge
-request is fenced to the reviewed head SHA and still obeys repository rules.
-Repository administrators retain GitHub's manual merge authority for every PR
-whether or not Review Agent was invoked or produced a verdict.
-
-Each review infrastructure attempt has a signed 90-minute deadline.
-Infrastructure failure is retried once inside the same generation with a fresh
-signed attempt deadline, so the complete generation remains bounded to at most
-180 minutes. A result that is late for its active attempt is forced to
-`inconclusive`. A merge conflict bypasses the model and publishes
-`changes_required`. Candidate baseline commands run only after the shared
-network fence disables both Docker access and `sudo`. Candidate checks receive
-isolated loopback inside a rootless network namespace whose host loopback is
-disabled. The trusted baseline host keeps runner transport available only so
-pinned post-job Actions can upload evidence; candidate code never runs there.
-The model host keeps GitHub runner transport intact. The pinned Codex Action
-installs the exact CLI, then the Workflow invokes
-`codex exec --dangerously-bypass-approvals-and-sandbox` under model-only CPU,
-address-space, and process limits. This gives Codex full runner-user filesystem
-and public-network access without its internal Bubblewrap sandbox. The model
-receives no GitHub or App credential, inherits no host environment, and starts
-only after Docker and `sudo` are disabled. Candidate check commands still run
-inside the rootless network namespace and their Bubblewrap sandboxes. The
-trusted validator rejects any tracked candidate-tree mutation.
-
-Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
-Each candidate runner installs one root-owned Review Agent `unshare` copy and
-loads a path-specific profile granting only `userns`; the global restriction
-is never disabled. After the namespace and its network rules are ready, the
-job unloads the temporary profile and removes both the copied binary and its
-directory before any candidate command can run. Private-CIDR, quota, and
-connection fences live inside the candidate namespace; Docker and `sudo` are
-disabled on the trusted baseline host without blocking its Artifact transport.
-Explanation-only sessions do not install that profile or create a candidate
-network namespace because they never execute candidate checks. The Check MCP
-is a required Codex dependency. Its credential-free stdio server completes the
-Codex handshake on the trusted model host, while each resolved protected check
-enters the pre-built private-network namespace before its disposable checkout
-and bubblewrap sandbox start.
-Failure to initialize the MCP stops the model session instead of silently
-removing the protected check tools.
-
-The exclusive documentation fast path covers `docs/`, `docs-site/`,
-`README.md`, and `README_CN.md`. It runs `docs-contracts` without falling
-through to repository-default Go checks. That protected check includes the
-documentation source contracts, the complete `docs-site` verification and
-static export, broken-link and metadata gates, and the buildable JavaScript Web
-sample. Changes to the sample, its published SDK/API contract pages and machine
-artifacts, shared developer-page presentation sources, the Product
-HTTP/use-case/cluster-read path used by it, Gateway authentication or
-WKProto/WebSocket transport, the E2E harness, or the wire ReasonCode enum also
-run the protected `docs-integration` check against a real single-node cluster
-and Chromium. Any mixed or non-allowlisted change still receives the union of
-its applicable checks.
-
-The `docs-integration` check pins Bun 1.3.11 and Node.js 22.12.0. It installs
-the frozen docs tree and locked JavaScript sample before any typechecked build,
-reruns the source-alignment contract tests, and completes an initial unverified
-build/output gate before the browser smoke, so the same static export is
-available to the accessibility checks. It then installs locked Chromium, runs
-the focused real-process E2E against a 256-Hash-Slot single-node cluster, and
-accepts a verification receipt only from a clean committed HEAD. The helper
-strictly validates the bounded receipt against the current source revision,
-sample lock hash, SDK, Node.js, Playwright, and Chromium identities before a
-second verified build and output gate. Its unique receipt directory is always
-removed; a failed browser run may retain only three redacted PNG screenshots,
-each no larger than 2 MiB, under the ignored `tmp/docs-site-e2e/` directory.
-
-Worker dispatch is serialized per pull request. The exact run title derived
-from pull request, signed lease, and infrastructure attempt is the idempotency
-key at both Controller and retry-drain boundaries, so concurrent recovery
-cannot start the same attempt twice.
-
-Review-request and interaction budgets are signed per head SHA. An
-authorized reconsideration of the current head binds a new generation from
-fresh eligible facts even when the protected control revision, intent, base,
-or test-merge revision changed; it consumes reconsideration allowance.
-
-Missing Context, reviewer, or trusted-baseline artifacts are evidence of an
-infrastructure failure, not reasons to abort the state machine. The Evidence
-job records the bounded retry or terminal `inconclusive` completion so signed
-state and the repository queue always advance.
-Before validation, that job normalizes the bounded model output through the
-Go ReviewResult decoder. Shell code does not implement a second JSON-shape
-policy.
-
-There is no scheduled Review Agent scan. A failed Controller effect is retried
-once; other recovery comes from a later event or an exact manual Controller
-dispatch.
-
-See [`docs/agents/review-agent.md`](../../docs/agents/review-agent.md) for the
-state model, commands, security boundaries, and repository setup.
-
-## Issue Agent integration
-
-The Issue Agent remains an engineering agent and still cannot merge. When the
-latest exact-head formal Review from the configured Review Agent Bot is
-`CHANGES_REQUESTED`, only its unresolved findings may authorize one of the
-Issue Agent's bounded repair loops. Human Review comments remain human
-authority and never masquerade as an automated repair command.
-Its reusable workflow ends after the clean Verifier; the caller-owned
-Publisher separately finalizes every accepted task from the protected
-`issue-agent-publisher` Environment, including failed engineering attempts.
-For a Ready Agent PR whose exact App-owned candidate is behind `main`, that
-same Publisher may mechanically recreate the candidate on current `main` only
-when none of its paths changed. The expected-head ref swap advances signed
-state, consumes a bounded sync attempt, invalidates prior Review authority, and
-requires a fresh `Review Agent Verdict`; overlaps and external heads fail
-closed without asking Codex to merge them.
-
-See [`docs/agents/issue-agent.md`](../../docs/agents/issue-agent.md).
-
-## Cloud Simulation
-
-Cloud creation and permission changes remain explicit Agent Tools. Cleanup and
-live-run patrol are the only scheduled safety automations while provider
-inventory exists. Provision re-enables both after persisting its provider
-binding and before creating billable resources. A complete scheduled cleanup
-with no retained Run and no reconciliation failure disables patrol first and
-cleanup last, so an idle repository consumes no recurring Runner capacity.
-Provider credentials, analysis credentials, and cleanup authority stay in
-their documented separate Environments.
-
-See
-[`docs/superpowers/runbooks/cloud-simulation.md`](../../docs/superpowers/runbooks/cloud-simulation.md).
-
 ## Cloud Lease identity and lifecycle
 
-The generic Cloud Lease flow is distinct from the older Cloud Simulation
+The Cloud Lease identity is separate from the retired Cloud Simulation
 identity. One local administrator-authenticated setup command preserves
 unrelated Environment settings, removes human-review requirements from the
 four unattended Environments, and configures the repository OIDC subject. The
@@ -1250,16 +649,14 @@ expiry backstop.
 ## Workflow maintenance
 
 - Keep external Actions pinned by full commit SHA.
-- Keep candidate checkouts credential-free and reject tracked-tree mutation.
-- Never expose App keys to candidate or model jobs.
-- Update policy, schemas, Workflows, docs, and their contract tests together.
+- Keep pull-request checkouts credential-free (`persist-credentials: false`).
+- Put logic in scripts or Go commands; keep YAML to triggers, permissions and
+  job wiring.
 - Read this file before invoking or changing any Workflow.
 
 Run:
 
 ```bash
-GOWORK=off go test ./scripts/... -run 'Workflow|ReviewAgent' -count=1
-node --test .github/review-agent/responses-budget-proxy.test.mjs
-go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
-  .github/workflows/*.yml
+GOWORK=off go test ./scripts/... -run Workflow -count=1
+go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 -shellcheck=
 ```

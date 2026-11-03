@@ -72,7 +72,7 @@ func (n *Node) probeWriteReady(ctx context.Context, generation uint64) error {
 	var slotLeaders map[uint32]uint64
 	if validateStatuses {
 		var err error
-		statusPlan, err = n.captureWriteProbeStatusPlan(snapshot)
+		statusPlan, err = n.captureWriteProbeStatusPlan()
 		if err != nil {
 			return err
 		}
@@ -127,8 +127,6 @@ func (n *Node) proposeWriteProbe(ctx context.Context, slotHashSlots map[uint32]u
 
 // writeProbeStatusPlan freezes the route and local-assignment evidence used by one readiness probe.
 type writeProbeStatusPlan struct {
-	// revision is the control revision shared by the Node snapshot and route table.
-	revision uint64
 	// hashToSlot preserves the complete logical-to-physical route mapping for the final fence.
 	hashToSlot []uint32
 	// slotHashSlots selects one representative logical hash slot per physical Slot.
@@ -137,6 +135,11 @@ type writeProbeStatusPlan struct {
 	slotLeaders map[uint32]uint64
 	// slotLeaderTerms records the observed leader term paired with slotLeaders.
 	slotLeaderTerms map[uint32]uint64
+	// Replica fences are independent of unrelated logical Controller revisions.
+	slotConfigEpochs map[uint32]uint64
+	slotPeers        map[uint32][]uint64
+	// Local observation epochs reject authority loss/recovery with identical final fences.
+	authorityEpochs []uint64
 	// localAssignedSlotIDs includes followers as well as locally led Slots.
 	localAssignedSlotIDs []uint32
 	// localStatusRuntime reads node-local Multi-Raft status without an RPC round trip.
@@ -146,31 +149,49 @@ type writeProbeStatusPlan struct {
 }
 
 // captureWriteProbeStatusPlan reads one internally consistent control and route view.
-func (n *Node) captureWriteProbeStatusPlan(snapshot Snapshot) (writeProbeStatusPlan, error) {
+func (n *Node) captureWriteProbeStatusPlan() (writeProbeStatusPlan, error) {
 	if n == nil || n.router == nil {
 		return writeProbeStatusPlan{}, ErrRouteNotReady
 	}
+	// Follow the route publisher's lock order to capture the table and its ABA
+	// epochs together. No lock survives this bounded read or covers RPC/I/O.
+	n.routeAuthorityPublishMu.Lock()
+	defer n.routeAuthorityPublishMu.Unlock()
 	n.mu.RLock()
-	stateRevision := n.snapshot.StateRevision
-	controlSnapshot := n.controlSnapshot.Clone()
+	snapshot := n.snapshot
+	controlRevision := n.controlSnapshot.Revision
 	statusRuntime := n.slotStatusRuntime
 	statusCaller := n.slotStatusCaller
+	var localAssignedSlotIDs []uint32
+	for _, slot := range n.controlSnapshot.Slots {
+		if writeProbeContainsNodeID(slot.DesiredPeers, n.cfg.NodeID) {
+			localAssignedSlotIDs = append(localAssignedSlotIDs, slot.SlotID)
+		}
+	}
+	epochs := make([]uint64, int(snapshot.HashSlotCount))
+	for hashSlot := range epochs {
+		epochs[hashSlot] = n.routeAuthorityEpochs[uint16(hashSlot)]
+	}
 	n.mu.RUnlock()
-	if snapshot.StateRevision != stateRevision || controlSnapshot.Revision != stateRevision {
-		return writeProbeStatusPlan{}, fmt.Errorf("%w: write probe snapshot revision changed from %d to %d", ErrRouteNotReady, snapshot.StateRevision, stateRevision)
+	stateRevision := snapshot.StateRevision
+	if !snapshot.RoutesReady || !snapshot.SlotsReady || snapshot.HashSlotCount == 0 || controlRevision != stateRevision {
+		return writeProbeStatusPlan{}, fmt.Errorf("%w: write probe publication is not ready", ErrRouteNotReady)
 	}
 	table := n.router.Table()
 	if table == nil || table.Revision != stateRevision || table.HashSlotCount != snapshot.HashSlotCount || len(table.HashToSlot) != int(snapshot.HashSlotCount) {
 		return writeProbeStatusPlan{}, fmt.Errorf("%w: write probe route revision=%d state_revision=%d hash_slots=%d", ErrRouteNotReady, routeTableRevision(table), stateRevision, snapshot.HashSlotCount)
 	}
 	plan := writeProbeStatusPlan{
-		revision:           stateRevision,
-		hashToSlot:         append([]uint32(nil), table.HashToSlot...),
-		slotHashSlots:      make(map[uint32]uint16),
-		slotLeaders:        make(map[uint32]uint64),
-		slotLeaderTerms:    make(map[uint32]uint64),
-		localStatusRuntime: statusRuntime,
-		remoteStatusCaller: statusCaller,
+		hashToSlot:           append([]uint32(nil), table.HashToSlot...),
+		slotHashSlots:        make(map[uint32]uint16),
+		slotLeaders:          make(map[uint32]uint64),
+		slotLeaderTerms:      make(map[uint32]uint64),
+		slotConfigEpochs:     table.SlotConfigEpochs,
+		slotPeers:            table.SlotPeers,
+		authorityEpochs:      epochs,
+		localAssignedSlotIDs: localAssignedSlotIDs,
+		localStatusRuntime:   statusRuntime,
+		remoteStatusCaller:   statusCaller,
 	}
 	for hashSlot, slotID := range table.HashToSlot {
 		if slotID == 0 {
@@ -187,11 +208,6 @@ func (n *Node) captureWriteProbeStatusPlan(snapshot Snapshot) (writeProbeStatusP
 			plan.slotHashSlots[slotID] = uint16(hashSlot)
 			plan.slotLeaders[slotID] = leader
 			plan.slotLeaderTerms[slotID] = table.SlotLeaderTerms[slotID]
-		}
-	}
-	for _, slot := range controlSnapshot.Slots {
-		if writeProbeContainsNodeID(slot.DesiredPeers, n.cfg.NodeID) {
-			plan.localAssignedSlotIDs = append(plan.localAssignedSlotIDs, slot.SlotID)
 		}
 	}
 	sort.Slice(plan.localAssignedSlotIDs, func(i, j int) bool { return plan.localAssignedSlotIDs[i] < plan.localAssignedSlotIDs[j] })
@@ -335,29 +351,12 @@ func writeProbeLocalStatusError(nodeID uint64, slotID uint32, err error) error {
 
 // ensureWriteProbeStatusPlanCurrent rejects probes whose route authority changed while they ran.
 func (n *Node) ensureWriteProbeStatusPlanCurrent(plan writeProbeStatusPlan) error {
-	if n == nil || n.router == nil {
-		return ErrRouteNotReady
+	current, err := n.captureWriteProbeStatusPlan()
+	if err != nil {
+		return err
 	}
-	n.mu.RLock()
-	stateRevision := n.snapshot.StateRevision
-	controlRevision := n.controlSnapshot.Revision
-	n.mu.RUnlock()
-	if stateRevision != plan.revision || controlRevision != plan.revision {
-		return fmt.Errorf("%w: write probe revision changed from %d to state=%d control=%d", ErrRouteNotReady, plan.revision, stateRevision, controlRevision)
-	}
-	current := n.router.Table()
-	if current == nil || current.Revision != plan.revision || len(current.HashToSlot) != len(plan.hashToSlot) {
-		return fmt.Errorf("%w: write probe route table changed during validation", ErrRouteNotReady)
-	}
-	for i, slotID := range plan.hashToSlot {
-		if current.HashToSlot[i] != slotID {
-			return fmt.Errorf("%w: write probe hash_slot=%d changed from slot=%d to slot=%d", ErrRouteNotReady, i, slotID, current.HashToSlot[i])
-		}
-	}
-	for slotID, leader := range plan.slotLeaders {
-		if current.SlotLeaders[slotID] != leader || current.SlotLeaderTerms[slotID] != plan.slotLeaderTerms[slotID] {
-			return fmt.Errorf("%w: write probe slot=%d route authority changed", ErrRouteNotReady, slotID)
-		}
+	if !sameWriteProbeAuthority(plan, current) {
+		return fmt.Errorf("%w: write probe authority changed during validation", ErrRouteNotReady)
 	}
 	return nil
 }

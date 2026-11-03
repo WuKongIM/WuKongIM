@@ -21,6 +21,9 @@ var (
 // VerifierConfig fixes every retained state bound. CorrelationCapacity should
 // be sized from the offered rate multiplied by CorrelationDeadline.
 type VerifierConfig struct {
+	// HotLatency fixes exact configured-threshold counts independently of the
+	// historical histogram buckets. Zero retains the canonical 400ms/1s limits.
+	HotLatency LatencyLimit
 	// EnableAttemptLinkDiagnostics adds only a fixed original-late prefix.
 	EnableAttemptLinkDiagnostics bool
 	PendingCapacity              int
@@ -236,6 +239,7 @@ type VerifierSnapshot struct {
 	ReleasedAttemptCurrent        int
 	ReleasedAttemptPeak           int
 	HotSendackLatency             WorkerHistogramSnapshot
+	HotSendackThresholds          LatencyThresholdCounters
 	ColdFirstCreateSendackLatency WorkerHistogramSnapshot
 	LifecycleReheatSendackLatency WorkerHistogramSnapshot
 	RecvackLatency                WorkerHistogramSnapshot
@@ -516,6 +520,7 @@ type Verifier struct {
 	sendCounters                  verifierSendCounters
 	recvCounters                  verifierReceiveCounters
 	hotSendackLatency             WorkerHistogramSnapshot
+	hotSendackThresholds          LatencyThresholdCounters
 	coldFirstCreateSendackLatency WorkerHistogramSnapshot
 	lifecycleReheatSendackLatency WorkerHistogramSnapshot
 	recvackLatency                WorkerHistogramSnapshot
@@ -523,9 +528,12 @@ type Verifier struct {
 
 // NewVerifier constructs empty state without preallocating from untrusted bounds.
 func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRecorder) (*Verifier, error) {
+	if config.HotLatency == (LatencyLimit{}) {
+		config.HotLatency = FormalConfig().Thresholds.Latency.HotSendACK
+	}
 	if model.identity == nil || evidence == nil || !validVerifierCapacity(config.PendingCapacity) ||
 		!validVerifierCapacity(config.SequenceCapacity) || !validVerifierCapacity(config.CorrelationCapacity) ||
-		config.CorrelationDeadline <= 0 {
+		config.CorrelationDeadline <= 0 || validateHotLatencyLimit("hot_latency", config.HotLatency) != nil {
 		return nil, errVerifierConfig
 	}
 	v := &Verifier{
@@ -537,6 +545,7 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 		correlations:                  make(map[string]*sampledCorrelation),
 		releasedAttempts:              make(map[releasedAttemptKey]*releasedAttempt),
 		hotSendackLatency:             newWorkerHistogramSnapshot(),
+		hotSendackThresholds:          latencyThresholdCounters(config.HotLatency),
 		coldFirstCreateSendackLatency: newWorkerHistogramSnapshot(),
 		lifecycleReheatSendackLatency: newWorkerHistogramSnapshot(),
 		recvackLatency:                newWorkerHistogramSnapshot(),
@@ -777,6 +786,10 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 			return v.recordUnknownSendackLocked(pending.logical.LogicalSend, ack)
 		}
 	}
+	// Only the first observed original response can anchor a timely success.
+	// The optional path borrows the existing ACK clock and changes no counters.
+	captureSlowHot := v.attemptLinkEnabled() && positiveSuccess && attempt != nil && attempt.attempt == 0 &&
+		!attempt.firstDeadline.resultObserved && !attempt.firstDeadline.deadline.IsZero()
 	if attempt != nil {
 		v.observeFirstAttemptResultLocked(&attempt.firstDeadline, completedAt, false, attemptLinkObservation{message: ack.ClientMsgNo, seq: ack.ClientSeq, result: resultEvidence})
 	}
@@ -828,7 +841,12 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	if !completedAt.IsZero() {
 		switch pending.latencyClass {
 		case SendLatencyHot:
-			recordWorkerLatency(&v.hotSendackLatency, completedAt.Sub(pending.registeredAt))
+			latency := completedAt.Sub(pending.registeredAt)
+			recordWorkerLatency(&v.hotSendackLatency, latency)
+			recordLatencyThresholdCounters(&v.hotSendackThresholds, latency)
+			if captureSlowHot {
+				v.recordSlowHotSuccessLocked(&attempt.firstDeadline, completedAt, latency, attemptLinkObservation{message: ack.ClientMsgNo, seq: ack.ClientSeq, result: resultEvidence})
+			}
 		case SendLatencyColdFirstCreate:
 			recordWorkerLatency(&v.coldFirstCreateSendackLatency, completedAt.Sub(pending.registeredAt))
 		case SendLatencyLifecycleReheat:
@@ -1458,6 +1476,7 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot.ReleasedAttemptCurrent = len(v.releasedAttempts)
 	snapshot.ReleasedAttemptPeak = v.releasedPeak
 	snapshot.HotSendackLatency = v.hotSendackLatency
+	snapshot.HotSendackThresholds = v.hotSendackThresholds
 	snapshot.ColdFirstCreateSendackLatency = v.coldFirstCreateSendackLatency
 	snapshot.LifecycleReheatSendackLatency = v.lifecycleReheatSendackLatency
 	v.sendMu.Unlock()
@@ -1512,6 +1531,7 @@ func (v *Verifier) resetRuntime() {
 		*v.attemptLinkDiagnostics = verifierAttemptLinkRecorder{}
 	}
 	v.hotSendackLatency = newWorkerHistogramSnapshot()
+	v.hotSendackThresholds = latencyThresholdCounters(v.config.HotLatency)
 	v.coldFirstCreateSendackLatency = newWorkerHistogramSnapshot()
 	v.lifecycleReheatSendackLatency = newWorkerHistogramSnapshot()
 	v.sendMu.Unlock()

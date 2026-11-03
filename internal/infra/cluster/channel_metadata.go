@@ -76,15 +76,6 @@ type ChannelMetadataStore struct {
 	membershipNode      ChannelMembershipNode
 	appendMetadataCache *ChannelAppendMetadataCache
 	personDirectories   *personDirectoryBatcher
-	personDirectoryWake func()
-}
-
-// SetPersonDirectoryWake installs the process-local nonblocking projector
-// wake used after a durable admission commits.
-func (s *ChannelMetadataStore) SetPersonDirectoryWake(wake func()) {
-	if s != nil {
-		s.personDirectoryWake = wake
-	}
 }
 
 // NewChannelMetadataStore creates a cluster-backed channel metadata store.
@@ -350,11 +341,12 @@ func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads [
 			resultIndex = resultIndexes[proxyIndex]
 		}
 		results[resultIndex] = messageusecase.PermissionReadResult{
-			Channel:    result.Channel,
-			UserPolicy: result.UserPolicy,
-			Found:      result.Found,
-			Value:      result.Value,
-			Err:        mapChannelPermissionReadError(result.Err),
+			Channel:              result.Channel,
+			PersonDirectoryFence: result.PersonDirectoryFence,
+			UserPolicy:           result.UserPolicy,
+			Found:                result.Found,
+			Value:                result.Value,
+			Err:                  mapChannelPermissionReadError(result.Err),
 		}
 	}
 	return results
@@ -412,9 +404,8 @@ func (s *ChannelMetadataStore) CommittedChannelTail(ctx context.Context, channel
 	return node.CommittedChannelTail(ctx, channelID, channelType)
 }
 
-// AdmitPersonChannelDirectory atomically admits the source-owned projection
-// task before the first persistent ordinary person-channel append. UID-owned
-// memberships are projected asynchronously after SEND admission.
+// AdmitPersonChannelDirectory waits for both UID memberships and the source
+// generation's durable Ready proof before ordinary persistent person append.
 func (s *ChannelMetadataStore) AdmitPersonChannelDirectory(ctx context.Context, channelID string, channelType int64) error {
 	results := s.AdmitPersonChannelDirectories([]messageusecase.PersonDirectoryAdmission{{
 		Context: ctx, ChannelID: channelID, ChannelType: channelType,
@@ -494,7 +485,7 @@ func (s *ChannelMetadataStore) AdmitPersonChannelDirectoryWaves(admissions []mes
 				needsAdmission[i] = false
 				continue
 			}
-			channelFacts[i] = messageusecase.PermissionReadResult{Found: fact.Found, Channel: fact.Channel}
+			channelFacts[i] = messageusecase.PermissionReadResult{Found: fact.Found, Channel: fact.Channel, PersonDirectoryFence: fact.PersonDirectoryFence}
 			continue
 		}
 		reads = append(reads, messageusecase.PermissionRead{
@@ -528,18 +519,22 @@ func (s *ChannelMetadataStore) AdmitPersonChannelDirectoryWaves(admissions []mes
 			results[index] = readResult.Err
 			continue
 		}
-		if readResult.Found && readResult.Channel.DirectoryProjectionState != metadb.DirectoryProjectionNone {
+		if readResult.Found && readResult.Channel.DirectoryProjectionState == metadb.DirectoryProjectionReady && readResult.PersonDirectoryFence.Valid() {
 			s.appendMetadataCache.storeChannel(readResult.Channel)
 			continue
 		}
 		var tail uint64
-		if readResult.Found {
+		if readResult.Found && readResult.Channel.DirectoryProjectionState == metadb.DirectoryProjectionNone {
 			var err error
 			tail, err = node.CommittedChannelTail(admission.Context, admission.ChannelID, admission.ChannelType)
 			if err != nil {
 				results[index] = err
 				continue
 			}
+		}
+		var generation uint64
+		if readResult.Found && (readResult.Channel.DirectoryProjectionState == metadb.DirectoryProjectionPending || readResult.Channel.DirectoryProjectionState == metadb.DirectoryProjectionReady) {
+			generation = readResult.Channel.DirectoryProjectionGeneration
 		}
 		channel := readResult.Channel
 		channel.ChannelID = admission.ChannelID
@@ -549,6 +544,7 @@ func (s *ChannelMetadataStore) AdmitPersonChannelDirectoryWaves(admissions []mes
 			ctx: admission.Context,
 			mutation: personDirectoryMutation{task: metadb.PersonDirectoryTask{
 				ChannelID: admission.ChannelID, ChannelType: admission.ChannelType, CommittedTail: tail, CreatedAt: time.Now().UnixNano(),
+				Generation: generation,
 			}},
 		})
 		pendingIndexes = append(pendingIndexes, index)
@@ -558,12 +554,11 @@ func (s *ChannelMetadataStore) AdmitPersonChannelDirectoryWaves(admissions []mes
 	immediate := make([]messageusecase.PersonDirectoryAdmissionOutcome, 0, len(admissions)-len(pending))
 	for index := range admissions {
 		if !isPending[index] {
-			immediate = append(immediate, messageusecase.PersonDirectoryAdmissionOutcome{Index: index, Err: results[index]})
+			immediate = append(immediate, messageusecase.PersonDirectoryAdmissionOutcome{Index: index, Err: results[index], PersonDirectoryFence: channelFacts[index].PersonDirectoryFence})
 		}
 	}
 	emitPersonDirectoryWave(emit, immediate)
 
-	wake := false
 	s.personDirectories.ensureBatchWaves(pending, func(batchWave []personDirectoryBatchOutcome) {
 		wave := make([]messageusecase.PersonDirectoryAdmissionOutcome, 0, len(batchWave))
 		for _, outcome := range batchWave {
@@ -573,15 +568,11 @@ func (s *ChannelMetadataStore) AdmitPersonChannelDirectoryWaves(admissions []mes
 			index := pendingIndexes[outcome.index]
 			if outcome.err == nil {
 				s.appendMetadataCache.storeChannel(pendingChannels[outcome.index])
-				wake = true
 			}
-			wave = append(wave, messageusecase.PersonDirectoryAdmissionOutcome{Index: index, Err: outcome.err})
+			wave = append(wave, messageusecase.PersonDirectoryAdmissionOutcome{Index: index, Err: outcome.err, PersonDirectoryFence: outcome.fence})
 		}
 		emitPersonDirectoryWave(emit, wave)
 	})
-	if wake && s.personDirectoryWake != nil {
-		s.personDirectoryWake()
-	}
 }
 
 func emitPersonDirectoryWave(emit func([]messageusecase.PersonDirectoryAdmissionOutcome), wave []messageusecase.PersonDirectoryAdmissionOutcome) {

@@ -79,6 +79,11 @@ func snapshotFromControllerState(st controller.ClusterState, leaderID uint64, no
 		st.ScheduledBackup.ActiveRestore.MaintenanceEntered {
 		snap.Maintenance = true
 	}
+	if st.Presence != nil {
+		presence := st.Presence.Clone()
+		snap.Presence = &presence
+		snap.PresenceRosterCurrent = st.PresenceRosterCurrent(presence.OwnerSet.Owners)
+	}
 	healthByNode := make(map[uint64]controller.NodeHealthReport, len(st.NodeHealthReports))
 	for _, report := range st.NodeHealthReports {
 		healthByNode[report.NodeID] = report

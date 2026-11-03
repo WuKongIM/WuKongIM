@@ -37,6 +37,13 @@ type PersonDirectoryTaskCursor struct {
 	ChannelType int64
 }
 
+// PersonDirectoryTaskEntry binds a committed task to its source hash slot for
+// bounded direct scheduling. It is a runtime descriptor, not a stored row.
+type PersonDirectoryTaskEntry struct {
+	HashSlot HashSlot
+	Task     PersonDirectoryTask
+}
+
 // PersonDirectoryTaskLocation identifies one task at its source hash slot.
 // It contains no UID payload; completion derives all ownership from the
 // canonical Channel key and current Slot routing.

@@ -257,7 +257,7 @@ func TestBatchingRecoveryProbeDispatcherRoutesLocalStoreAndRemotePeer(t *testing
 	probe := recoveryReport(1, 1, 1, []EntryProbe{{Index: 1, Present: true, Identity: identity}}).Result
 	executor := &manualPeerExecutor{}
 	link := &recordingPeerLink{probes: map[ch.ChannelKey]ProbeResult{"1:adapter": probe}}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,
@@ -358,7 +358,7 @@ func TestBatchingRecoveryProbeDispatcherRoutesExactLocalAndRemoteFetch(t *testin
 	link := &recordingPeerLink{fetches: map[ch.ChannelKey]FetchResult{
 		replicate.ChannelKey: {State: state, Proposals: []RecoveryProposal{proposal}},
 	}}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: link, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Minute,
 		MaxBatchItems: 2, MaxBatchBytes: 4096,

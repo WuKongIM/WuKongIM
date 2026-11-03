@@ -118,8 +118,8 @@ func decodeAttemptJSON(data []byte, out any) error {
 	return nil
 }
 
-// AttemptPhase borrows an existing same-clock stage measurement. Gateway
-// phases label start+duration with EndDerived, never flush or peer receipt.
+// AttemptPhase borrows an existing same-clock stage measurement. Gateway and
+// shared preparation phases label start+duration, never flush or peer receipt.
 // Durable is a duration-only retry-segment fact with zero StartedAt and no end.
 type AttemptPhase struct {
 	Observed bool  `json:"observed"`
@@ -177,6 +177,17 @@ func RecordGatewayAttemptPhase(token AttemptToken, phase AttemptPhase) {
 	}
 	if observer := activeAttemptObserver(); observer != nil {
 		observer.RecordAttemptPhase(token, phase)
+	}
+}
+
+// RecordContextAttemptPhase forwards an already measured fact for the original
+// context token. Disabled capability returns before context lookup or storage;
+// this operation reads no clock and publishes no general trace event.
+func RecordContextAttemptPhase(ctx context.Context, phase AttemptPhase) {
+	if observer := activeAttemptObserver(); observer != nil {
+		if token := GatewayAttemptFromContext(ctx); token.Valid() {
+			observer.RecordAttemptPhase(token, phase)
+		}
 	}
 }
 

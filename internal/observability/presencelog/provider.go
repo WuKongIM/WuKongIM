@@ -8,6 +8,13 @@ import (
 // AppendRecoveryProviderFailure publishes fixed scalar metadata only on the
 // existing failed activation event. Missing stages remain absent, not zero.
 func AppendRecoveryProviderFailure(fields []wklog.Field, err error) []wklog.Field {
+	if full, ok := presence.FullRecoveryFailure(err); ok {
+		fields = append(fields,
+			wklog.String("full_recovery_stage", full.Stage),
+			wklog.String("full_recovery_kind", full.Kind),
+			wklog.Int64("full_recovery_step_elapsed_ns", int64(full.Elapsed)),
+			wklog.Int64("full_recovery_effective_budget_ns", int64(full.EffectiveBudget)))
+	}
 	e, ok := presence.RecoveryProviderFailure(err)
 	if !ok {
 		return fields

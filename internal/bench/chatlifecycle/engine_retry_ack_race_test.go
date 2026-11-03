@@ -42,11 +42,13 @@ func TestEngineRetryAdmissionJoinsAckAlreadyVerifiedBeforeOwnerConsumption(t *te
 	if _, err := fixture.engine.Advance(started); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	now := started.Add(20 * time.Millisecond)
 	fixture.clock.Set(now)
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatal(err)
 	}
+	waitForEngineAdmissions(t, fixture.engine)
 	retry, err := fixture.retry.Attempt(intent.Logical, 1)
 	if err != nil {
 		t.Fatal(err)

@@ -62,13 +62,13 @@ func addFormalChainReportCommand(root *cobra.Command) {
 	command := &cobra.Command{
 		Use: "validate-formal-chain", Short: "Validate terminal formal and same-Lease capacity reports", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			formal, err := chatlifecycle.ReadReport(formalPath)
+			formal, err := chatlifecycle.ReadCurrentReport(formalPath)
 			if err != nil {
 				return chatlifecyclerun.ErrInvalidInput
 			}
 			var capacity *chatlifecycle.Report
 			if strings.TrimSpace(capacityPath) != "" {
-				read, readErr := chatlifecycle.ReadReport(capacityPath)
+				read, readErr := chatlifecycle.ReadCurrentReport(capacityPath)
 				if readErr != nil {
 					return chatlifecyclerun.ErrInvalidInput
 				}
@@ -90,7 +90,8 @@ func addFormalChainReportCommand(root *cobra.Command) {
 }
 
 func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlifecycle.Report) (formalChainResult, error) {
-	if formal.Profile != chatlifecycle.ProfileFormal || formal.Mode != chatlifecycle.ModeSoak ||
+	if formal.SchemaVersion != chatlifecycle.ReportSchemaVersion ||
+		formal.Profile != chatlifecycle.ProfileFormal || formal.Mode != chatlifecycle.ModeSoak ||
 		formal.Stage != chatlifecycle.StageFormal || formal.Kind != chatlifecycle.CheckpointFinal ||
 		!formal.Final || formal.Continue || !formal.Continuous || !formal.Verdict.Terminal {
 		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
@@ -105,7 +106,8 @@ func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlif
 		}
 		return result, nil
 	}
-	if capacity == nil || capacity.Profile != chatlifecycle.ProfileFormal || capacity.Mode != chatlifecycle.ModeCapacity ||
+	if capacity == nil || capacity.SchemaVersion != chatlifecycle.ReportSchemaVersion ||
+		capacity.Profile != chatlifecycle.ProfileFormal || capacity.Mode != chatlifecycle.ModeCapacity ||
 		capacity.Stage != chatlifecycle.StageFormal || capacity.Kind != chatlifecycle.CheckpointFinal ||
 		!capacity.Final || capacity.Continue || !capacity.Continuous || !capacity.Verdict.Terminal || !capacity.Capacity.Attempted {
 		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
@@ -132,7 +134,7 @@ func addPrepareCapacityConfigCommand(root *cobra.Command) {
 			if err != nil {
 				return err
 			}
-			checkpoint, err := chatlifecycle.ReadReport(checkpointPath)
+			checkpoint, err := chatlifecycle.ReadCurrentReport(checkpointPath)
 			if err != nil {
 				return err
 			}
@@ -375,7 +377,7 @@ func addReportCommand(root *cobra.Command) {
 	command := &cobra.Command{
 		Use: "validate-rehearsal-report", Short: "Validate one terminal bounded rehearsal report", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			report, err := chatlifecycle.ReadReport(path)
+			report, err := chatlifecycle.ReadCurrentReport(path)
 			if err != nil || report.Stage != chatlifecycle.StageRehearsal || report.Kind != chatlifecycle.CheckpointFinal ||
 				!report.Final || report.Continue || !report.Verdict.Terminal {
 				return chatlifecyclerun.ErrInvalidInput

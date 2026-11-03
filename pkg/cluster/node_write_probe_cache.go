@@ -141,9 +141,11 @@ func (n *Node) checkWriteProbeCurrent(ctx context.Context, plan writeProbeStatus
 }
 
 func sameWriteProbeAuthority(a, b writeProbeStatusPlan) bool {
-	return a.revision == b.revision &&
-		slices.Equal(a.hashToSlot, b.hashToSlot) &&
+	return slices.Equal(a.hashToSlot, b.hashToSlot) &&
+		slices.Equal(a.authorityEpochs, b.authorityEpochs) &&
 		slices.Equal(a.localAssignedSlotIDs, b.localAssignedSlotIDs) &&
 		maps.Equal(a.slotLeaders, b.slotLeaders) &&
-		maps.Equal(a.slotLeaderTerms, b.slotLeaderTerms)
+		maps.Equal(a.slotLeaderTerms, b.slotLeaderTerms) &&
+		maps.Equal(a.slotConfigEpochs, b.slotConfigEpochs) &&
+		maps.EqualFunc(a.slotPeers, b.slotPeers, slices.Equal[[]uint64])
 }

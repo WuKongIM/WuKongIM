@@ -115,7 +115,9 @@ def read_report(path, directory):
         body = source.read(MAX_FILE_BYTES+1)
     require(0 < len(body) <= MAX_FILE_BYTES)
     report = strict_json(body)
-    require(report["schema_version"] == "wukongim/chat-lifecycle-report/v7" and
+    # Legacy v7 remains readable as archived diagnostics, not current terminal proof.
+    # Only the current v8 report may anchor this evidence handoff.
+    require(report["schema_version"] == "wukongim/chat-lifecycle-report/v8" and
             report["threshold_version"] == "wukongim/chat-lifecycle-thresholds/v2" and
             report["kind"] == "final" and report["final"] is True)
     require(report["stage"] == ("rehearsal" if directory == "rehearsal" else "formal"))

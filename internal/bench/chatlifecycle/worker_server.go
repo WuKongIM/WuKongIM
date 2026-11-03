@@ -1037,15 +1037,14 @@ func validWorkerMessageSnapshot(messages WorkerMessageSnapshot) bool {
 }
 
 func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
+	if !validWorkerHotThresholds(snapshot) {
+		return false
+	}
 	terminal, terminalOK := snapshot.Messages.TerminalReasons.total()
 	if !validWorkerMessageSnapshot(snapshot.Messages) || !terminalOK || terminal != snapshot.Messages.Terminal {
 		return false
 	}
-	thresholds := snapshot.Sync.Thresholds
-	if thresholds != (LatencyThresholdCounters{}) &&
-		(thresholds.P99Limit <= 0 || thresholds.P999Limit < thresholds.P99Limit ||
-			thresholds.AboveP99 > thresholds.Count || thresholds.AboveP999 > thresholds.AboveP99 ||
-			thresholds.Above10Seconds > thresholds.AboveP999) {
+	if !validWorkerSyncThresholds(snapshot.Sync) {
 		return false
 	}
 	if len(snapshot.Evidence.Classes) > int(FailureClassHarness) {
@@ -1137,15 +1136,16 @@ func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
 
 type engineWorkerGenerationFactory struct {
 	// benchToken stays in the worker process and never enters assignments or reports.
-	benchToken                   string
-	enableDriverDiagnostics      bool
-	enableAttemptLinkDiagnostics bool
-	driverCPUClockProbe          func() DriverCPUClockSample
-	driverCPUReports             chan<- DriverCPUReport
-	clock                        SessionClock
-	newSessionFactory            func(WorkerAssignment) (SessionClientFactory, error)
-	newSyncer                    func(WorkerAssignment) (ConversationSyncer, error)
-	newTicker                    func(time.Duration) workerGenerationTicker
+	benchToken                       string
+	enableDriverDiagnostics          bool
+	enableDriverAdmissionDiagnostics bool
+	enableAttemptLinkDiagnostics     bool
+	driverCPUClockProbe              func() DriverCPUClockSample
+	driverCPUReports                 chan<- DriverCPUReport
+	clock                            SessionClock
+	newSessionFactory                func(WorkerAssignment) (SessionClientFactory, error)
+	newSyncer                        func(WorkerAssignment) (ConversationSyncer, error)
+	newTicker                        func(time.Duration) workerGenerationTicker
 }
 
 // NewEngineWorkerGenerationFactory composes the existing deterministic models,
@@ -1168,10 +1168,11 @@ func NewEngineWorkerGenerationFactoryWithAttemptLinkDiagnostics(token string, dr
 }
 
 func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
-	// CPU observation is one explicit pair; reject incomplete opt-ins before
-	// constructing runtime collaborators or sampling the optional probe.
+	// CPU observation stays one explicit pair. Independent SDK observation also
+	// requires its driver parent before constructing runtime collaborators.
 	if (f.driverCPUClockProbe != nil) != (f.driverCPUReports != nil) ||
-		(f.driverCPUClockProbe != nil && !f.enableDriverDiagnostics) {
+		(f.driverCPUClockProbe != nil && !f.enableDriverDiagnostics) ||
+		(f.enableDriverAdmissionDiagnostics && !f.enableDriverDiagnostics) {
 		return nil, errWorkerServerConfig
 	}
 	if !validWorkerAssignment(assignment) || assignment.Generation > maxLogicalGeneration {
@@ -1211,6 +1212,7 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 		return nil, err
 	}
 	verifier, err := NewVerifier(traffic, VerifierConfig{
+		HotLatency:                   config.Thresholds.Latency.HotSendACK,
 		PendingCapacity:              limits.pending,
 		SequenceCapacity:             limits.sequence,
 		CorrelationCapacity:          limits.correlation,
@@ -1227,9 +1229,30 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	newSessionFactory := f.newSessionFactory
 	if newSessionFactory == nil {
 		newSessionFactory = func(assignment WorkerAssignment) (SessionClientFactory, error) {
-			gatewayAddress := assignment.Config.Observation.GatewayTCPAddrs[int(assignment.WorkerID)%len(assignment.Config.Observation.GatewayTCPAddrs)]
+			gateways := append([]string(nil), assignment.Config.Observation.GatewayTCPAddrs...)
+			workerID, workerCount := assignment.WorkerID, assignment.WorkerCount
+			gatewayAddress := gateways[workerID%uint64(len(gateways))]
 			return engineWorkerSessionFactory{
 				address: gatewayAddress, ackTimeout: assignment.Config.Thresholds.Latency.SingleAnomaly,
+				gatewayForUID: func(uid string) (string, error) {
+					index, ok := identity.IndexFromUID(uid)
+					owner, _ := identity.Owner(index)
+					if !ok || owner != workerID {
+						return "", errWorkerServerConfig
+					}
+					group, ordinal, member, err := catalog.GroupForMemberIndex(index)
+					if err != nil {
+						return "", errWorkerServerConfig
+					}
+					if !member {
+						return gatewayAddress, nil
+					}
+					// Keep the original member-ordinal gateway projection while
+					// its driver owns an aligned roster for sampled verification.
+					// Catalog/member bounds cap this virtual index below 200M.
+					originalIndex := group.Index + uint64(ordinal)*uint64(catalog.Count())
+					return gateways[(originalIndex%workerCount)%uint64(len(gateways))], nil
+				},
 				enableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
 				runID:                        assignment.RunID, assignmentID: assignment.AssignmentID,
 				tokens: target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs, Token: f.benchToken, HTTPClient: &http.Client{Timeout: 5 * time.Second}}),
@@ -1243,7 +1266,10 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	newSyncer := f.newSyncer
 	if newSyncer == nil {
 		newSyncer = func(assignment WorkerAssignment) (ConversationSyncer, error) {
-			return target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs}), nil
+			return &workerConversationSyncer{
+				next:      target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs}),
+				admission: make(chan struct{}, workerFullSyncConcurrency),
+			}, nil
 		}
 	}
 	syncer, err := newSyncer(assignment)
@@ -1279,13 +1305,14 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	}
 	engine, err := NewEngine(EngineConfig{
 		Clock: clock, Sessions: sessions, Schedule: schedule, Graph: graph, Traffic: traffic,
-		EnableDriverDiagnostics: f.enableDriverDiagnostics,
-		DriverCPUClockProbe:     f.driverCPUClockProbe,
-		Generator:               generator, Retry: retry, Verifier: verifier, Evidence: evidence,
+		EnableDriverDiagnostics:          f.enableDriverDiagnostics,
+		EnableDriverAdmissionDiagnostics: f.enableDriverAdmissionDiagnostics,
+		DriverCPUClockProbe:              f.driverCPUClockProbe,
+		Generator:                        generator, Retry: retry, Verifier: verifier, Evidence: evidence,
 		WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount,
 		CommandCapacity: limits.command, WorkCapacity: limits.work, RetryCapacity: limits.retry,
 		InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,
-		AttemptTimeout:            config.Thresholds.Latency.HotSendACK.P999,
+		AttemptTimeout:            config.Thresholds.Latency.hotAttemptTimeout(),
 		ColdAttemptTimeout:        config.Thresholds.Latency.Cold.P999,
 		ActivityEligibilityWindow: config.Thresholds.Latency.SustainedBreachWindow,
 	})
@@ -1447,10 +1474,13 @@ func (t *wallWorkerGenerationTicker) Stop() { t.ticker.Stop() }
 
 type engineWorkerSessionFactory struct {
 	// tokens persists one device credential before its CONNECT; the session pool bounds concurrent logins.
-	tokens                       *target.Client
-	runID                        string
-	assignmentID                 string
-	address                      string
+	tokens       *target.Client
+	runID        string
+	assignmentID string
+	address      string
+	// gatewayForUID decouples fixed roster ownership from product-node placement.
+	// Nil retains the direct single-endpoint adapter used by connected tests.
+	gatewayForUID                func(string) (string, error)
 	ackTimeout                   time.Duration
 	enableAttemptLinkDiagnostics bool
 }
@@ -1461,6 +1491,14 @@ func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token s
 	}
 	if f.tokens == nil {
 		return nil, errWorkerServerConfig
+	}
+	address := f.address
+	if f.gatewayForUID != nil {
+		var err error
+		address, err = f.gatewayForUID(uid)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// Repeated and returning logins upsert the same credential without retaining
 	// an unbounded history of prepared UIDs. APP/slave matches the WKProto client.
@@ -1480,9 +1518,10 @@ func (f engineWorkerSessionFactory) NewSession(ctx context.Context, uid, token s
 	}
 
 	client, err := wkproto.NewClient(wkproto.ClientConfig{
-		Addr: f.address, Token: token, EnableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
+		Addr: address, Token: token, EnableAttemptLinkDiagnostics: f.enableAttemptLinkDiagnostics,
 		OperationTimeout: 5 * time.Second, AckTimeout: f.ackTimeout,
-		SendQueueCapacity: 32, MaxInflight: 32, ReadBufferSize: 64 << 10, FrameBufferSize: 32,
+		// Large frames grow on demand; each online user initially retains only 8KiB.
+		SendQueueCapacity: 32, MaxInflight: 32, ReadBufferSize: 8 << 10, FrameBufferSize: 32,
 	})
 	if err != nil {
 		return nil, err
@@ -1783,6 +1822,7 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			Thresholds: engine.ConversationSyncThresholds,
 		},
 		HotSendackLatency:             verification.HotSendackLatency,
+		HotSendackThresholds:          verification.HotSendackThresholds,
 		ColdFirstCreateSendackLatency: verification.ColdFirstCreateSendackLatency,
 		LifecycleReheatSendackLatency: verification.LifecycleReheatSendackLatency,
 		RecvackLatency:                verification.RecvackLatency,

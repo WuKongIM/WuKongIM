@@ -117,7 +117,7 @@ func loadCapacityChatLifecycleConfig(cli *chatLifecycleCLIConfig) error {
 	if err := validateChatLifecyclePaths(*cli, true); err != nil {
 		return err
 	}
-	report, err := chatlifecycle.ReadReport(cli.checkpointPath)
+	report, err := chatlifecycle.ReadCurrentReport(cli.checkpointPath)
 	if err != nil {
 		return err
 	}

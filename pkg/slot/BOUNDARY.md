@@ -9,6 +9,8 @@
 - `proxy/`: 给上层提供分布式元数据 Store facade，按 key 路由到 Slot leader，提交写入命令，处理需要权威语义的 Slot RPC 读取。
 - 元数据范围：User、Device、Channel、Subscriber、UserChannelMembership、UserCMDChannelMembership、ChannelRuntimeMeta、ChannelMigrationTask、PluginUserBinding 等集群共享状态。
 
+SEND 权限读取核对派生 HashSlot 与实际 Slot/leader/term/config 权威，保留 fresh barrier 和数据库快照。全局 Controller revision 仅作请求回执的诊断绑定；接收端在同一次读取前后核对非零本地权威发布 epoch，防止已观测的拓扑 ABA。该本地值不进入 RPC、不跨节点比较、不替代已提交的 Presence G/M；缺失时读取保持 not-ready。
+
 ## 不做
 
 - 不决定 Slot 副本分配、扩缩容、rebalance、recover、hash-slot table 规划或节点生命周期；这些属于 controller/cluster。

@@ -235,8 +235,9 @@ func (r *CheckpointRecorder) buildReport(
 	resources := evidence.Resources
 	resources.Retention = verdict.Retention
 	final := verdict.Terminal || kind == CheckpointFinal
+	schemaVersion, thresholdVersion := r.cfg.reportVersions()
 	return Report{
-		SchemaVersion: ReportSchemaVersion, ThresholdVersion: ReportThresholdVersion, DesignProfile: ReportDesignProfile,
+		SchemaVersion: schemaVersion, ThresholdVersion: thresholdVersion, DesignProfile: ReportDesignProfile,
 		ConfigDigest: r.configDigest, DatasetDigest: evidence.DatasetDigest,
 		Qualification: reportQualification(r.cfg.Profile, r.cfg.Stage),
 		Thresholds:    r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Stage: r.cfg.Stage,
@@ -287,6 +288,7 @@ func projectReportVerdict(snapshot VerdictSnapshot) ReportVerdictEvidence {
 		CleanupErrorCount: snapshot.CleanupErrorCount, CleanupErrors: append([]VerdictCleanupErrorCode(nil), snapshot.CleanupErrors...),
 		LatencyWarnings:     ReportLatencyWarnings{Hot: snapshot.LatencyWarnings.Hot, Cold: snapshot.LatencyWarnings.Cold, Sync: snapshot.LatencyWarnings.Sync},
 		LatencyAnomalyCount: snapshot.LatencyAnomalyCount, LatencyAnomalies: anomalies, Retention: projectReportRetention(snapshot.Retention),
+		LatencyGate: cloneVerdictLatencyGate(snapshot.LatencyGate),
 	}
 }
 

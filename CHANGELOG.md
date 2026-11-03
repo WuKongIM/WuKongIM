@@ -6,7 +6,58 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Separate session lookup from client admission in optional lifecycle worker
+  traces, so a pool lock wait is not mistaken for transport admission time.
+  / 生命周期压测的可选运行时轨迹区分会话查找与客户端提交，避免将会话池锁等待误归因于传输层。
+
+## [v3.0.0-beta.25] - 2026-11-03
+
+### 🔧 Improvements / 改进
+
+- Chat-lifecycle benchmarks no longer report a spurious checkpoint failure when an
+  evidence cut finishes just as the next status round begins.
+  / Chat-lifecycle 压测在证据采集刚好于下一轮状态检查开始时完成，不再误报 checkpoint 失败。
+
+- Temporarily suspend the hosted-runner channel-append CI performance check pending
+  a controlled performance environment; retain other checks and prior failure evidence.
+  / 暂停托管 runner 上的 channel-append CI 性能检查，待受控性能环境就绪后恢复；保留其他检查及历史失败证据。
+
+- Reduce memory used by idle and sparsely used Channels by growing their retry
+  receipt caches on demand while preserving the configured command limit.
+  / Channel 重试回执缓存按实际使用增长，减少空闲与稀疏驻留内存，保留原配置的命令上限。
+
+- Preserve bounded storage-cache and memtable byte evidence from existing lifecycle
+  GC observation rounds without adding requests or changing acceptance gates.
+  / 生命周期测试复用已有GC观察轮次保留有界缓存与memtable字节证据，不增加请求或改变验收门槛。
+
+- Include bounded Full Presence recovery step, cause and timing evidence in
+  existing activation failure logs while preserving deadlines and protocol results.
+  / 在现有激活失败日志中保留有界的 Full Presence 恢复步骤、原因及计时证据，期限与协议结果不变。
+
+- Reduce enabled diagnostics memory by indexing retained events through their
+  ring slots instead of storing duplicate complete events.
+  / 启用诊断时，通过环形缓冲区槽位索引事件，消除完整事件副本的额外内存占用。
+
+- Reclaim idle Channel replication authority state after admitted callbacks and
+  follower repairs complete, preventing historical Channels from accumulating
+  in memory while preserving durable recovery.
+  / 通道卸载后，在已接收回调与副本补齐完成时回收复制权限状态，避免历史通道持续占用内存，并保留持久化恢复能力。
+
+- Custom local lifecycle tests can pair hot P95 with full-sync P95 while retaining full-sync P99.9, with separately versioned reports. / 本地生命周期测试可成对使用热消息与完整同步 P95，保留完整同步 P99.9，并以独立版本报告门禁。
+
+- Optional SEND diagnostics now show the longest original permission RPC interval using existing clocks, including when RPC sampling is off; permission policy and sampling stay unchanged. / 可选 SEND 诊断复用现有时钟显示原请求最长权限 RPC 区间，RPC 采样关闭时也可观测，权限策略和采样行为不变。
+
+- Preserve independent P99.9 hot-message tail samples in optional local diagnostics without increasing sample capacity or changing latency gates. / 本地可选诊断在原有采样容量内保留独立 P99.9 热消息尾样本，延迟门禁不变。
+
+- Allow an explicit P95 hot-message latency policy in custom local lifecycle tests, with independent P99.9 protection and correctly labelled reports. / 本地生命周期测试可显式使用热消息 P95 门禁，保留独立 P99.9 保护并准确标注报告。
+
 ### 📚 Documentation / 文档
+
+- Align the private Debug and Presence control interface inventories with source
+  registrations, including the SEND attempt query's mandatory bearer boundary.
+  / 同步私有 Debug 与 Presence 控制接口文档，明确 SEND attempt 查询必须配置 Bearer Token。
 
 - Update Flutter EasySDK tutorials to 1.2.1 and add bilingual streaming examples
   for independent peers, typed stream settings, live events and backend recovery.
@@ -26,9 +77,153 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
-- Separate session lookup from client admission in optional lifecycle worker
-  traces, so a pool lock wait is not mistaken for transport admission time.
-  / 生命周期压测的可选运行时轨迹区分会话查找与客户端提交，避免将会话池锁等待误归因于传输层。
+- Wait for durable person-channel discovery before accepting the first ordinary
+  persistent message, fixing successful sends temporarily missing from history
+  and conversation sync. Bind readiness to final append authority across
+  deletion/recreation and retries. Queue and coalesce concurrent cold preparations
+  within fixed limits to absorb ingress bursts. Ready channels reuse existing permission reads.
+  Upgrade cluster nodes together for preparation RPC and append request version 4.
+  / 修复单聊首条持久化消息发送成功后暂时查不到历史和会话的问题；热会话复用权限读取。
+  目录就绪状态绑定到最终追加代际，防止删除重建与重试越代；内部 RPC 需集群节点配套升级。
+  冷会话准备在固定容量内排队和合批，减少并发首发突发时的拒绝与积压。
+
+- Keep the first chat-lifecycle grant on distinct senders when its active person pool is scarce by preferring other eligible group members. / 生命周期压测首批发放在单聊发送者不足时优先选择其它合格群成员，避免重复占用发送者。
+
+- Retain bounded clock evidence when lifecycle grant ticks are rejected, preserving their original timing guards, verdicts, and cleanup. / 生命周期压测拒绝发放 tick 时保留有界时钟证据，原时间校验、判定和清理行为保持不变。
+
+- Retain bounded authority-side source phases for timed-out Presence registration and commit, preserving protocol outcomes and deadlines. / Presence 注册和提交超时时保留有界的权威节点阶段信息，协议结果与期限保持不变。
+
+- Link shared permission-read RPC diagnostics to original SEND attempts using existing samples, without changing permission decisions or RPC sampling. / 共享权限读取可关联到原始 SEND 的既有 RPC 样本，便于定位等待，不改变权限决策或 RPC 采样。
+
+- Extend opt-in SEND attempt diagnostics with bounded shared permission and pre-append timings to locate slow-message preparation. / 可选 SEND 诊断增加有界的共享权限与追加前准备计时，辅助定位慢消息。
+
+- Preserve bounded authority-side failure details for Full Presence registration and commit, improving diagnosis of rejected connections without changing protocol results. / Full Presence 注册和提交失败时保留有界的权威节点诊断信息，便于定位连接拒绝原因，协议结果不变。
+
+- Add bounded local post-workload SEND/RPC evidence export for slow-message diagnosis, preserving workload outcomes and cleanup. / 增加本机负载结束后的有界 SEND/RPC 证据导出，辅助慢消息诊断并保留原负载结果和清理责任。
+
+- Add opt-in bounded samples for successful hot SENDs above configured P99, preserving original timeout evidence and acceptance gates. / 为超过配置 P99 的成功热消息补充可选、有界采样，保留原超时证据和验收门禁。
+
+- Measure configured benchmark hot-message latency limits, including 600ms,
+  exactly instead of rejecting limits between histogram buckets.
+  / 精确统计压测热消息延迟门限，支持 600ms 等位于直方图桶间的配置，避免观测校验提前失败。
+
+- Keep benchmark group members on their group's worker so reducing the online
+  population does not strand sampled group messages before latency measurement;
+  preserve their original product gateway distribution across nodes.
+  / 压测群成员与群所属进程对齐，避免降低在线人数后抽样群消息无法发送、提前中断延迟测试，
+  同时保留群成员原有的跨节点网关分布。
+
+- Attempt bounded initial Presence recovery before opening business entries,
+  reducing contention between first logins and durable token provisioning.
+  Unavailable targets retain the existing fail-closed recovery path and deadlines.
+  / 业务入口开放前执行有界 Presence 初始恢复，减少首次登录与令牌写入竞争；
+  未完成分区仍按原有校验和期限处理。
+
+- Avoid a redundant Controller read-quorum round before fenced Presence claims;
+  successful claims still require their own durable Raft apply receipt.
+  / Presence 代号提交减少一次重复的一致性读等待，成功仍以自身 Raft 持久化回执为准。
+
+- Overlap independent Presence owner Begin checks within the original node-wide
+  control-call bound, retaining owner deadlines and late-provider cleanup.
+  / Presence 各节点恢复确认在原节点总并发上限内重叠执行，保留原有期限与延迟返回的清理责任。
+
+- Bound Presence recovery turns by page, row and byte work so small owner pages
+  can finish without repeated queue waits; original deadlines and credits remain.
+  / Presence 恢复按页数、行数和字节量限制执行量子，减少小页反复排队，
+  保留原有期限与资源额度。
+
+- Batch already-waiting Controller proposals and peer messages separately before
+  durable Ready processing,
+  keeping bounded turns, exact results, and the original durability checks.
+  / Controller 已排队提案与节点间消息分别合批持久化，限制每轮处理量，
+  保留逐请求结果与原持久性校验。
+
+- Keep Controller Raft reads progressing during slow metadata persistence, with
+  publication after durable success and unchanged quorum/applied checks.
+  / Controller Raft 读取不再等待慢元数据写入；仍在持久化成功后发布，保留 quorum 与 apply 校验。
+
+- Keep write readiness stable during unrelated Presence control updates while
+  preserving real route-change and restart fences. / Presence 控制状态更新不再
+  误伤写就绪探测，真实路由变化和重启的保护保持有效。
+
+- Bound lifecycle benchmark full-sync concurrency across login bursts, retain
+  queue wait in sync latency, and explicitly disable Top history in local runs.
+  / 生命周期压测限制登录突发时的全量同步并发，等待时间计入同步延迟，
+  本地测试明确关闭 Top 历史采集。
+
+- Stop retaining hidden Top history when Top is disabled, while keeping resource
+  and storage metrics fresh. / 关闭 Top 时不再保留隐藏历史，资源与存储指标继续更新。
+
+- Reuse bounded transport observation batches to reduce temporary allocations,
+  preserving exact counters and detached latency samples.
+  / 传输观测复用有界事件批次，减少临时分配，保留精确计数和独立延迟样本。
+
+- Retain fixed permission classifications and bounded failed SEND sequences in
+  mixed benchmark warmup evidence without changing acceptance gates.
+  / 混合压测预热证据保留固定权限阶段分类和有界失败发送序号，验收门禁保持不变。
+
+- Reduce lifecycle benchmark connection memory with a single adaptive WKProto
+  read buffer and an 8KiB initial size, preserving large frames and receive backpressure.
+  / 生命周期压测连接改用单个按需扩容的 WKProto 读缓冲，初始为 8KiB，保留大帧和接收背压。
+
+- Give hot lifecycle SEND attempts a separate two-second wait budget, including
+  retries; retain five seconds for cold attempts and the existing latency limits.
+  / 生命周期压测的热消息尝试（含重试）独立等待两秒；冷消息仍为五秒，延迟门禁不变。
+
+- Export exact rolling latency gate evidence in lifecycle report v8, preserving
+  terminal snapshots and existing thresholds; retain sampled storage preparation
+  detail without attributing shared wall time to CPU or physical commit.
+  / 生命周期报告升级为 v8，保留精确滚动延迟门禁及冻结终态，原阈值不变；
+  采样细分存储准备耗时，共享墙钟时长不冒充 CPU 或物理提交耗时。
+
+- Let lifecycle benchmark SDK and control commands progress between bounded
+  work slices, retaining original deadlines and joined shutdown after caller
+  cancellation; optionally retain bounded SDK handoff timings.
+  / 生命周期压测器在有界工作分段之间处理 SDK 与控制命令，保留原截止时间
+  及调用方取消后的完整退出所有权，可选记录有界 SDK 交接等待。
+
+- Isolate Channel replication callbacks from network workers, retaining bounded
+  result ownership and storage dependencies until shutdown has fully joined.
+  / Channel 复制回调与网络工作协程分离；结果仍受容量约束，关闭超时后继续保留
+  清理所有权与存储依赖，直至全部工作退出。
+
+- Add bounded, optional wall timing around benchmark owner fairness yields,
+  keeping dispatch deadlines and acceptance gates unchanged.
+  / 压测可选记录 owner 公平调度让出期间的有界墙钟时长，保留原派发截止时间与验收门禁。
+
+- Keep fresh SEND permission reads valid across unrelated control metadata
+  updates while retaining exact authority and local migration guards.
+  / 控制元数据更新不再误拒绝新鲜的 SEND 权限读取，保留精确权威与本节点迁移校验。
+
+- Fence presence activation to committed authority generations and reconstruct
+  complete Hash Slots through bounded owner pages; expired uncertain routes stay
+  unavailable until verified. / 在线路由激活绑定已提交的权威代际，按有界 owner
+  分页恢复整槽；过期但未核清的路由不会被误判为离线。能力校验支持集群公布地址
+  与本节点监听地址不同的代理及 NAT 部署。
+
+- Isolate slow benchmark-client submission from the lifecycle scheduling owner,
+  retaining per-session order, original dispatch deadlines and retry capacity.
+  / 生命周期压测隔离慢客户端发送准入，保留会话顺序、原始派发截止时间与重试容量。
+
+- Reduce temporary allocations when reading presence route snapshots, including
+  recovery readback and multiple devices, while preserving route order and ownership.
+  / 减少在线路由快照查询（含恢复读回和多设备）的临时分配，保留路由顺序与结果独立性。
+
+- Allow cold Go compilation within the scripts integration check's outer budget,
+  retaining the full test set and its existing test deadlines.
+  / 脚本集成检查的外层预算计入 Go 冷编译开销，保留完整测试集与现有测试截止时间。
+
+- Preserve sampled request timing across background storage commits, separating
+  append lock/preparation and commit admission/queue/collection waits.
+  / 后台存储提交保留原请求采样关联，区分追加锁与准备、提交准入、排队及收集等待。
+
+- Reduce temporary allocation for partially filled worker batches, including
+  local quorum writes, while preserving batching and admission limits.
+  / 减少工作队列未满批次（包括本节点 quorum 写入）的临时内存分配，保持组批及准入上限。
+
+- Reuse WKProto tooling-client transport buffers between messages, clearing
+  completed write requests and releasing temporary large-frame read buffers.
+  / WKProto 工具客户端复用收发缓冲区，清除已完成写请求引用并释放大报文临时读取缓冲区。
 
 - Skip lifecycle worker online-table expiry scans and locking when no session
   can be due, preserving SEND leases and cleanup admission. / 生命周期压测在

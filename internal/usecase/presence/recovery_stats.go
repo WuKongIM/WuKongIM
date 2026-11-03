@@ -33,7 +33,9 @@ func (r *AuthorityRecovery) Stats() RecoveryStats {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	s := r.census
-	s.ResultCensusEnabled = r.resultCensus
+	// Full turns do not own the legacy recovered-slice observer. Their enforced
+	// shared budget is still measured below; unobserved structure is not zero.
+	s.ResultCensusEnabled = r.resultCensus && r.fullSlots == nil
 	s.QueuedCalls, s.ActiveBatches, s.ResultCalls = len(r.queue), len(r.active), r.resultCalls
 	s.Members, s.FencedUIDs, s.OwnedUIDBytes = len(r.members), len(r.inFlight), r.ownedUIDBytes
 	s.ResultLimited = len(r.queue) > 0 && r.boundedOwners == nil && r.resultCalls == recoveryMaxResultCalls

@@ -6,8 +6,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
-// SendPermissionRoutes projects one immutable authority publication without
-// copying peer lists. The proxy preserves every distributed fence in its RPC.
+// SendPermissionRoutes projects owned rows from one immutable publication without
+// copying peer lists. Local epochs remain receiver-only; the RPC carries Slot
+// authority and the origin's diagnostic revision.
 func (n *Node) SendPermissionRoutes(keys []string) []proxy.SendPermissionRoute {
 	out := make([]proxy.SendPermissionRoute, len(keys))
 	routes, err := n.RouteAuthoritiesPartial(keys)
@@ -19,7 +20,7 @@ func (n *Node) SendPermissionRoutes(keys []string) []proxy.SendPermissionRoute {
 	}
 	for i, r := range routes {
 		a := r.Authority
-		out[i] = proxy.SendPermissionRoute{HashSlot: a.HashSlot, Err: r.Err, Fence: proxy.SendPermissionFence{
+		out[i] = proxy.SendPermissionRoute{HashSlot: a.HashSlot, LocalAuthorityEpoch: a.AuthorityEpoch, Err: r.Err, Fence: proxy.SendPermissionFence{
 			SlotID: uint64(a.SlotID), LeaderNodeID: a.LeaderNodeID, LeaderTerm: a.LeaderTerm, ConfigEpoch: a.ConfigEpoch, RouteRevision: a.RouteRevision,
 		}}
 	}

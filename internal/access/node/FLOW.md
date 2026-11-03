@@ -55,7 +55,7 @@ scheduled backup or restore
 - Enabled SEND diagnostics capture each actual outbound SID21 identity and mark the
   receiver entry explicitly. Each original item keeps its own reference across shared
   work; missing receiver traces stay unknown, and references grant no business proof.
-- Channel append request 3 carries bounded publication metadata. Native-only
+- Channel append request 4 carries the target route generation and immutable person-directory authority proofs; missing/partial proofs never downgrade. Request 3 carries bounded publication metadata. Unfenced native-only
   requests retain version-2 bytes; invalid metadata fails before dispatch.
 - Owner-push request 2 preserves publication metadata, original timestamp and
   message settings. Empty extensions keep version-1 bytes; lossy downgrade is forbidden.
@@ -88,18 +88,29 @@ scheduled backup or restore
   Bounded readers reject unknown statuses as malformed; existing codecs and bytes
   remain unchanged. Singleton legacy reads use op9, multi-target reads use op10.
 - Presence read-only classifiers verify the `WKVP` version-2 header, selecting
-  authority operations 5/8 and owner operations 9/10/11 only. Full body validation
-  remains in handlers; malformed reads never dispatch an owner mutation.
+  authority operations 5/8 and owner operations 9/10/11. Full `WKVG` format-1
+  Begin/Page/End/ReadUIDs retain the original caller's deadline/cancellation;
+  temporary cut work is joined or aborted, never given a fresh service budget.
+  Exact Abort cleanup and durable authority mutations remain detached.
+  Unknown headers retain non-read policy; handlers still validate complete bodies.
 - The owner diagnostic classifier declares only version-2 header operations
   7/9/10/11 for selected server RPC samples. Unknown/truncated headers stay zero;
   the declaration grants neither full-body validation nor cancellation authority.
-- Failed presence Register/Commit with route-not-ready log a closed source phase,
+- Failed legacy and Full presence Register/Commit with route-not-ready or deadline status log a closed source phase,
   numeric target and optional immutable physical-round provider evidence. Known
   masks preserve missing stages; RPC bytes stay unchanged and lookups add no
   event. The shared `internal/observability/presencelog` formatter preserves these
   fields for both node and gateway adapters. Raw causes, UID/session identities
   and tokens remain excluded from the added evidence. Register hashes the decoded
   original Route for gateway correlation; token-only Commit keeps that hash unknown.
+  Deadline failures use a distinct fixed event; cancellation and unknown errors add no activation event.
+- Full presence uses independent `WKVG`/`WKVg` format-1 frames over services
+  13/14. Register and final conflict Commit carry the actual generation receipt;
+  pending candidates retain its claim. Begin/Page/End/Abort and UID rechecks bind
+  F/G/M, owner boot and Cut. Touch/close carry the observed committed claim.
+  Legacy operation bytes remain unchanged and Full failures never downgrade.
+  Pages validate the complete response before prepaying decoded backing/strings;
+  server replay and client decoding retain separate nonwaiting ledgers.
 - Presence batch lookups preserve input alignment and isolate group-scoped
   stale/rejected results. Compatibility fallback is limited to an explicit
   unsupported-operation response, never arbitrary transport failure.
@@ -122,7 +133,7 @@ Channel append replies have a closed `not_submitted` error code. Decoder rejects
 
 ## Read First
 
-- [Presence](presence_rpc.go), [Channel append](channel_append_rpc.go), [Backup](scheduled_backup_rpc.go)
+- [Presence generations](presence_generation_rpc.go), [Channel append](channel_append_rpc.go), [Backup](scheduled_backup_rpc.go)
 - [Manager connections](manager_connection_rpc.go), [Operations MCP](opsmcp_rpc.go)
 
 ## Update Triggers

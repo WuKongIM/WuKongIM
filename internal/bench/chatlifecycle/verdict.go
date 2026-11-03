@@ -106,13 +106,16 @@ const (
 	LatencyFullSync    LatencyOperation = "full_sync"
 )
 
-// LatencyThresholdCounters is cumulative. AboveP99 and AboveP999 count
+// LatencyThresholdCounters is cumulative. AboveP95/P99 and AboveP999 count
 // operations strictly exceeding that operation class's configured duration;
 // Above10Seconds counts operations strictly exceeding ten seconds.
 type LatencyThresholdCounters struct {
+	// P95Limit/AboveP95 are absent from legacy P99 JSON and require matched peers.
+	P95Limit       time.Duration `json:"P95Limit,omitempty"`
 	P99Limit       time.Duration
 	P999Limit      time.Duration
 	Count          uint64
+	AboveP95       uint64 `json:"AboveP95,omitempty"`
 	AboveP99       uint64
 	AboveP999      uint64
 	Above10Seconds uint64
@@ -126,14 +129,18 @@ type LatencyCounters struct {
 }
 
 func recordLatencyThresholdCounters(counters *LatencyThresholdCounters, latency time.Duration) {
-	if counters == nil || latency < 0 || counters.P99Limit <= 0 || counters.P999Limit < counters.P99Limit {
+	if counters == nil || latency < 0 || !counters.validPrimarySchema() {
 		return
 	}
 	counters.Count = saturatingIncrement(counters.Count)
-	if latency > counters.P99Limit {
-		counters.AboveP99 = saturatingIncrement(counters.AboveP99)
+	if latency > counters.primaryLimit() {
+		if counters.P95Limit != 0 {
+			counters.AboveP95 = saturatingIncrement(counters.AboveP95)
+		} else {
+			counters.AboveP99 = saturatingIncrement(counters.AboveP99)
+		}
 	}
-	if latency > counters.P999Limit {
+	if counters.P999Limit > 0 && latency > counters.P999Limit {
 		counters.AboveP999 = saturatingIncrement(counters.AboveP999)
 	}
 	if latency > 10*time.Second {
@@ -145,9 +152,9 @@ func recordLatencyThresholdCounters(counters *LatencyThresholdCounters, latency 
 // cumulative observation must retain for the generation.
 func LatencyCountersForThresholds(thresholds LatencyThresholds) LatencyCounters {
 	return LatencyCounters{
-		Hot:  LatencyThresholdCounters{P99Limit: thresholds.HotSendACK.P99, P999Limit: thresholds.HotSendACK.P999},
+		Hot:  latencyThresholdCounters(thresholds.HotSendACK),
 		Cold: LatencyThresholdCounters{P99Limit: thresholds.Cold.P99, P999Limit: thresholds.Cold.P999},
-		Sync: LatencyThresholdCounters{P99Limit: thresholds.Sync.P99, P999Limit: thresholds.Sync.P999},
+		Sync: latencyThresholdCounters(thresholds.Sync),
 	}
 }
 
@@ -221,6 +228,8 @@ type VerdictSnapshot struct {
 	LatencyAnomalyCount uint64
 	LatencyAnomalies    []LatencyAnomaly
 	Retention           VerdictWindowRetention
+	// LatencyGate is actual negative-gate state; nil means unavailable.
+	LatencyGate *VerdictLatencyGateSnapshot
 }
 
 // VerdictWindowRetention exposes only fixed reducer sizes for bounded-memory
@@ -280,6 +289,9 @@ type VerdictEvaluator struct {
 	latencyBaselineAt    time.Time
 	latencyLastAt        time.Time
 	latencyWindowInvalid bool
+	// frozenLatencyGate retains only the first terminal native gate cut. Base
+	// evaluator timestamps, counters and cleanup behavior keep their semantics.
+	frozenLatencyGate *VerdictLatencyGateSnapshot
 	// A gap longer than the statistics window restarts positive qualification only.
 	latencyQualificationStart time.Time
 	latencyQualification      [3]*CounterWindow
@@ -456,7 +468,9 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 				}
 				for index, operation := range operations {
 					state := &v.latency[index]
-					if err := state.p99.Add(observation.At, operation.counters.AboveP99, operation.counters.Count); err != nil {
+					// The existing primary ring is selected by this class's explicit
+					// P95/P99 policy; the P999 ring remains independent.
+					if err := state.p99.Add(observation.At, operation.counters.primaryAbove(), operation.counters.Count); err != nil {
 						v.latencyWindowInvalid = true
 						selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseCounterRegression})
 						continue
@@ -471,7 +485,8 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 					}
 					aboveP99, countP99 := state.p99.Sum()
 					aboveP999, countP999 := state.p999.Sum()
-					breached := ratioAboveUnitFraction(aboveP99, countP99, 100) || ratioAboveUnitFraction(aboveP999, countP999, 1_000)
+					limits := [...]LatencyLimit{v.thresholds.Latency.HotSendACK, v.thresholds.Latency.Cold, v.thresholds.Latency.Sync}
+					breached := ratioAboveUnitFraction(aboveP99, countP99, limits[index].primaryFractionDenominator()) || (limits[index].P999 > 0 && ratioAboveUnitFraction(aboveP999, countP999, 1_000))
 					if !breached {
 						state.breachSince = nil
 						state.breachAttribution = CapacityAttributionNone
@@ -739,13 +754,14 @@ func verdictHourlyWindowCapacity(span time.Duration) (int, error) {
 }
 
 func validLatencyCounters(counters LatencyCounters, thresholds LatencyThresholds) bool {
-	if counters.Hot.P99Limit != thresholds.HotSendACK.P99 || counters.Hot.P999Limit != thresholds.HotSendACK.P999 ||
+	if counters.Hot.P95Limit != thresholds.HotSendACK.P95 || counters.Hot.P99Limit != thresholds.HotSendACK.P99 || counters.Hot.P999Limit != thresholds.HotSendACK.P999 ||
+		counters.Cold.P95Limit != 0 || counters.Sync.P95Limit != thresholds.Sync.P95 ||
 		counters.Cold.P99Limit != thresholds.Cold.P99 || counters.Cold.P999Limit != thresholds.Cold.P999 ||
 		counters.Sync.P99Limit != thresholds.Sync.P99 || counters.Sync.P999Limit != thresholds.Sync.P999 {
 		return false
 	}
 	for _, operation := range [...]LatencyThresholdCounters{counters.Hot, counters.Cold, counters.Sync} {
-		if operation.AboveP99 > operation.Count || operation.AboveP999 > operation.AboveP99 || operation.Above10Seconds > operation.AboveP999 {
+		if !operation.validObservedCounts() {
 			return false
 		}
 	}
@@ -754,7 +770,7 @@ func validLatencyCounters(counters LatencyCounters, thresholds LatencyThresholds
 
 func validLatencyDelta(delta LatencyCounters) bool {
 	for _, counters := range [...]LatencyThresholdCounters{delta.Hot, delta.Cold, delta.Sync} {
-		if counters.AboveP99 > counters.Count || counters.AboveP999 > counters.AboveP99 || counters.Above10Seconds > counters.AboveP999 {
+		if !counters.validObservedCounts() {
 			return false
 		}
 	}
@@ -763,14 +779,14 @@ func validLatencyDelta(delta LatencyCounters) bool {
 
 func latencyCountersRegressed(current, previous LatencyCounters) bool {
 	currentValues := [...]uint64{
-		current.Hot.Count, current.Hot.AboveP99, current.Hot.AboveP999, current.Hot.Above10Seconds,
+		current.Hot.Count, current.Hot.AboveP95, current.Hot.AboveP99, current.Hot.AboveP999, current.Hot.Above10Seconds,
 		current.Cold.Count, current.Cold.AboveP99, current.Cold.AboveP999, current.Cold.Above10Seconds,
-		current.Sync.Count, current.Sync.AboveP99, current.Sync.AboveP999, current.Sync.Above10Seconds,
+		current.Sync.Count, current.Sync.AboveP95, current.Sync.AboveP99, current.Sync.AboveP999, current.Sync.Above10Seconds,
 	}
 	previousValues := [...]uint64{
-		previous.Hot.Count, previous.Hot.AboveP99, previous.Hot.AboveP999, previous.Hot.Above10Seconds,
+		previous.Hot.Count, previous.Hot.AboveP95, previous.Hot.AboveP99, previous.Hot.AboveP999, previous.Hot.Above10Seconds,
 		previous.Cold.Count, previous.Cold.AboveP99, previous.Cold.AboveP999, previous.Cold.Above10Seconds,
-		previous.Sync.Count, previous.Sync.AboveP99, previous.Sync.AboveP999, previous.Sync.Above10Seconds,
+		previous.Sync.Count, previous.Sync.AboveP95, previous.Sync.AboveP99, previous.Sync.AboveP999, previous.Sync.Above10Seconds,
 	}
 	for index := range currentValues {
 		if currentValues[index] < previousValues[index] {
@@ -783,7 +799,9 @@ func latencyCountersRegressed(current, previous LatencyCounters) bool {
 func subtractLatencyCounters(current, previous LatencyCounters) LatencyCounters {
 	subtract := func(left, right LatencyThresholdCounters) LatencyThresholdCounters {
 		return LatencyThresholdCounters{
-			Count: left.Count - right.Count, AboveP99: left.AboveP99 - right.AboveP99,
+			P95Limit: left.P95Limit, P99Limit: left.P99Limit, P999Limit: left.P999Limit,
+			AboveP95: left.AboveP95 - right.AboveP95,
+			Count:    left.Count - right.Count, AboveP99: left.AboveP99 - right.AboveP99,
 			AboveP999: left.AboveP999 - right.AboveP999, Above10Seconds: left.Above10Seconds - right.Above10Seconds,
 		}
 	}
@@ -899,6 +917,7 @@ func (v *VerdictEvaluator) setTerminal(outcome VerdictOutcome, cause VerdictCaus
 		return
 	}
 	v.snapshot = VerdictSnapshot{Outcome: outcome, Cause: cause, Terminal: true}
+	v.frozenLatencyGate = v.buildLatencyGateEvidence(true)
 }
 
 // Finalize freezes a passing run if no earlier terminal evidence exists.
@@ -982,6 +1001,7 @@ func (v *VerdictEvaluator) Snapshot() VerdictSnapshot {
 		return VerdictSnapshot{}
 	}
 	snapshot := v.snapshot
+	snapshot.LatencyGate = v.latencyGateEvidence()
 	snapshot.CleanupErrorCount = v.cleanupCount
 	snapshot.CleanupErrors = make([]VerdictCleanupErrorCode, v.cleanupSize)
 	for index := 0; index < v.cleanupSize; index++ {

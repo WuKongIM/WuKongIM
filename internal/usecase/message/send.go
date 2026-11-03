@@ -9,7 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 const (
@@ -76,6 +78,7 @@ type sendBatchDirectoryGroup struct {
 }
 
 type sendBatchDirectoryOutcome struct {
+	fence      metadb.PersonDirectoryAppendFence
 	groupIndex int
 	err        error
 }
@@ -107,13 +110,16 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cmd, reason, err := a.checkSendPermission(ctx, cmd)
+	outcome := a.resolveSingleSendPermission(ctx, SendBatchItem{Context: ctx, Command: cmd})
+	cmd.ChannelID = outcome.channelID
+	reason, err := outcome.reason, outcome.err
 	if err != nil {
 		return SendResult{Reason: reason}, err
 	}
 	if reason != ReasonSuccess {
 		return SendResult{Reason: reason}, nil
 	}
+	permissionChannelID, permissionChannelType := cmd.ChannelID, cmd.ChannelType
 	cmd, reason, err = a.beforeSendHook(ctx, cmd)
 	if err != nil {
 		return SendResult{Reason: reason}, err
@@ -121,8 +127,12 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if reason != ReasonSuccess {
 		return SendResult{Reason: reason}, nil
 	}
-	if err := a.ensurePersonDirectory(ctx, cmd); err != nil {
-		return SendResult{Reason: ReasonSystemError}, err
+	fact := outcome.personDirectoryFact
+	if cmd.ChannelID != permissionChannelID || cmd.ChannelType != permissionChannelType {
+		fact = nil
+	}
+	if directoryErr, invariantErr := a.admitSinglePersonDirectory(ctx, &cmd, fact); directoryErr != nil || invariantErr != nil {
+		return SendResult{Reason: ReasonSystemError}, errors.Join(directoryErr, invariantErr)
 	}
 	if a == nil || a.submitter == nil {
 		return SendResult{}, ErrRouteNotReady
@@ -239,6 +249,9 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	}
 	permissionDuration := time.Since(permissionStartedAt)
 	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, len(items), permissionDuration)
+	for _, item := range items {
+		recordPreparationAttempt(item.Context, sendtrace.StageMessagePermissionBatch, permissionStartedAt, permissionDuration, permissionResult)
+	}
 	for i := range items {
 		if !allowedItems[i] {
 			finalize(i, results[i])
@@ -284,7 +297,12 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	directoryGroupByChannel := make(map[string]int, len(items))
 	if a != nil && a.personDirectory != nil {
 		for i := range prepared {
+			prepared[i].Command.PersonDirectoryFence = metadb.PersonDirectoryAppendFence{}
 			if !allowedItems[i] || !sendNeedsPersonDirectory(prepared[i].Command) {
+				continue
+			}
+			if personDirectoryReady(prepared[i].Command, directoryFacts[i]) {
+				prepared[i].Command.PersonDirectoryFence = directoryFacts[i].PersonDirectoryFence
 				continue
 			}
 			channelID := prepared[i].Command.ChannelID
@@ -319,6 +337,7 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 				if outcome.err == nil {
 					for _, index := range group.indexes {
 						readyForSubmit[index] = true
+						prepared[index].Command.PersonDirectoryFence = outcome.fence
 					}
 					continue
 				}
@@ -342,7 +361,7 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 						continue
 					}
 					completed[outcome.Index] = true
-					wave = append(wave, sendBatchDirectoryOutcome{groupIndex: outcome.Index, err: outcome.Err})
+					wave = append(wave, sendBatchDirectoryOutcome{groupIndex: outcome.Index, err: outcome.Err, fence: outcome.PersonDirectoryFence})
 				}
 				if len(wave) > 0 {
 					submitDirectoryWave(wave)
@@ -390,6 +409,7 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 	}
 	permissionDuration := time.Since(permissionStartedAt)
 	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, 1, permissionDuration)
+	recordPreparationAttempt(ctx, sendtrace.StageMessagePermissionBatch, permissionStartedAt, permissionDuration, permissionResult)
 	if outcome.err != nil || outcome.reason != ReasonSuccess {
 		return emit(0, SendBatchItemResult{
 			Result: SendResult{Reason: outcome.reason},
@@ -399,7 +419,7 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 	item.Command.ChannelID = outcome.channelID
 
 	preAppendStartedAt := time.Now()
-	directoryErr, invariantErr := a.admitSinglePersonDirectory(ctx, item.Command, outcome.personDirectoryFact)
+	directoryErr, invariantErr := a.admitSinglePersonDirectory(ctx, &item.Command, outcome.personDirectoryFact)
 	if directoryErr != nil {
 		return errors.Join(emit(0, SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: directoryErr}), invariantErr)
 	}
@@ -409,12 +429,15 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 		if err != nil {
 			preAppendResult = sendBatchStageResultErr
 		}
-		a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, 1, time.Since(preAppendStartedAt))
+		preAppendDuration := time.Since(preAppendStartedAt)
+		a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, 1, preAppendDuration)
+		recordPreparationAttempt(ctx, sendtrace.StageMessagePreAppend, preAppendStartedAt, preAppendDuration, preAppendResult)
 		return errors.Join(emit(0, SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}), invariantErr)
 	}
 	item.Command = cmd
 	preAppendDuration := time.Since(preAppendStartedAt)
 	a.observeSendBatchStage(sendBatchStagePreAppend, sendBatchStageResultOK, 1, preAppendDuration)
+	recordPreparationAttempt(ctx, sendtrace.StageMessagePreAppend, preAppendStartedAt, preAppendDuration, sendBatchStageResultOK)
 
 	submitterStartedAt := time.Now()
 	result, invalidSubmission := a.submitSingleBatchItem(item)
@@ -459,8 +482,19 @@ func (a *App) resolveSingleSendPermission(ctx context.Context, item SendBatchIte
 	return sendBatchPermissionOutcome{channelID: cmd.ChannelID, reason: reason, err: err}
 }
 
-func (a *App) admitSinglePersonDirectory(ctx context.Context, cmd SendCommand, fact *PersonDirectoryChannelFact) (error, error) {
-	if a == nil || a.personDirectory == nil || !sendNeedsPersonDirectory(cmd) {
+// personDirectoryReady reuses only this request's authoritative permission fact.
+// No readiness survives into another SEND or across a runtime generation change.
+func personDirectoryReady(cmd SendCommand, fact *PersonDirectoryChannelFact) bool {
+	return fact != nil && fact.Found && fact.Channel.ChannelID == cmd.ChannelID && fact.Channel.ChannelType == int64(cmd.ChannelType) && fact.Channel.DirectoryProjectionState == metadb.DirectoryProjectionReady && fact.PersonDirectoryFence.Valid() && fact.PersonDirectoryFence.DirectoryGeneration == fact.Channel.DirectoryProjectionGeneration
+}
+
+func (a *App) admitSinglePersonDirectory(ctx context.Context, cmd *SendCommand, fact *PersonDirectoryChannelFact) (error, error) {
+	cmd.PersonDirectoryFence = metadb.PersonDirectoryAppendFence{}
+	if a == nil || a.personDirectory == nil || !sendNeedsPersonDirectory(*cmd) {
+		return nil, nil
+	}
+	if personDirectoryReady(*cmd, fact) {
+		cmd.PersonDirectoryFence = fact.PersonDirectoryFence
 		return nil, nil
 	}
 	admission := PersonDirectoryAdmission{Context: ctx, ChannelID: cmd.ChannelID, ChannelType: int64(cmd.ChannelType), ChannelFact: fact}
@@ -476,6 +510,7 @@ func (a *App) admitSinglePersonDirectory(ctx context.Context, cmd SendCommand, f
 				}
 				emitted = true
 				result = outcome.Err
+				cmd.PersonDirectoryFence = outcome.PersonDirectoryFence
 			}
 		})
 		if !emitted {
@@ -647,6 +682,9 @@ func (a *App) submitSendBatchLane(
 	}
 	preAppendDuration := time.Since(preAppendStartedAt)
 	a.observeSendBatchStage(sendBatchStagePreAppend, preAppendResult, len(indexes), preAppendDuration)
+	for _, index := range indexes {
+		recordPreparationAttempt(contexts[index], sendtrace.StageMessagePreAppend, preAppendStartedAt, preAppendDuration, preAppendResult)
+	}
 	if len(allowed) == 0 {
 		return
 	}
@@ -907,6 +945,9 @@ func sendNeedsPersonDirectory(cmd SendCommand) bool {
 
 func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {
 	cmd, reason, err := a.beforePluginSendHook(ctx, cmd)
+	if !sendNeedsPersonDirectory(cmd) {
+		cmd.PersonDirectoryFence = metadb.PersonDirectoryAppendFence{}
+	}
 	if err != nil || reason != ReasonSuccess || a == nil || a.beforeSendWebhook == nil {
 		return cmd, reason, err
 	}
@@ -937,14 +978,15 @@ func (a *App) beforePluginSendHook(ctx context.Context, cmd SendCommand) (SendCo
 	if reason != 0 && reason != ReasonSuccess {
 		return mutated, reason, nil
 	}
-	if cmd.FromUID != mutated.FromUID || cmd.DeviceID != mutated.DeviceID || cmd.ChannelID != mutated.ChannelID || cmd.ChannelType != mutated.ChannelType || cmd.NormalizePersonChannel != mutated.NormalizePersonChannel || cmd.RequestScoped != mutated.RequestScoped || !slices.Equal(originalRecipients, mutated.MessageScopedUIDs) {
+	mutated.PersonDirectoryFence = cmd.PersonDirectoryFence
+	if cmd.FromUID != mutated.FromUID || cmd.DeviceID != mutated.DeviceID || cmd.ChannelID != mutated.ChannelID || cmd.ChannelType != mutated.ChannelType || cmd.NormalizePersonChannel != mutated.NormalizePersonChannel || cmd.RequestScoped != mutated.RequestScoped || (!sendNeedsPersonDirectory(cmd) && sendNeedsPersonDirectory(mutated)) || !slices.Equal(originalRecipients, mutated.MessageScopedUIDs) {
 		// A hook cannot carry admission to another sender or source Channel.
 		checked, reason, err := a.checkSendPermission(ctx, mutated)
 		if err != nil || reason != ReasonSuccess {
 			return checked, reason, err
 		}
-		if err := a.ensurePersonDirectory(ctx, checked); err != nil {
-			return checked, ReasonSystemError, err
+		if directoryErr, invariantErr := a.admitSinglePersonDirectory(ctx, &checked, nil); directoryErr != nil || invariantErr != nil {
+			return checked, ReasonSystemError, errors.Join(directoryErr, invariantErr)
 		}
 		mutated = checked
 	}

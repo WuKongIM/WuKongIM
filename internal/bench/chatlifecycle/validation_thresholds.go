@@ -29,14 +29,29 @@ func validateThresholds(t ThresholdsConfig) error {
 	if err := validateFailureRate("thresholds.correctness.any_minute_first_attempt_failure", t.Correctness.AnyMinuteFirstAttemptFailure); err != nil {
 		return err
 	}
-	if err := validateLatencyLimit("thresholds.latency.hot_sendack", t.Latency.HotSendACK); err != nil {
+	if err := validateHotLatencyLimit("thresholds.latency.hot_sendack", t.Latency.HotSendACK); err != nil {
 		return err
+	}
+	if t.Latency.HotAttemptTimeout < 0 {
+		return fieldError("thresholds.latency.hot_attempt_timeout", "must not be negative")
 	}
 	if err := validateLatencyLimit("thresholds.latency.cold", t.Latency.Cold); err != nil {
 		return err
 	}
-	if err := validateLatencyLimit("thresholds.latency.sync", t.Latency.Sync); err != nil {
-		return err
+	if t.Latency.pairedP95Policy() {
+		if t.Latency.HotAttemptTimeout <= 0 || t.Latency.Sync.P999 <= 0 {
+			return fieldError("thresholds.latency", "paired P95 requires explicit attempt timeout and sync p999")
+		}
+		if err := validateHotLatencyLimit("thresholds.latency.sync", t.Latency.Sync); err != nil {
+			return err
+		}
+	} else {
+		if t.Latency.HotSendACK.P95 > 0 && t.Latency.HotSendACK.P999 == 0 {
+			return fieldError("thresholds.latency", "hot P95-only requires the paired sync P95 policy")
+		}
+		if err := validateLatencyLimit("thresholds.latency.sync", t.Latency.Sync); err != nil {
+			return err
+		}
 	}
 	if t.Latency.SingleAnomaly <= 0 {
 		return fieldError("thresholds.latency.single_anomaly", "must be greater than zero")
@@ -130,6 +145,9 @@ func validateFailureRate(path string, limit FailureRateLimit) error {
 }
 
 func validateLatencyLimit(path string, limit LatencyLimit) error {
+	if limit.P95 != 0 {
+		return fieldError(path+".p95", "is allowed only for local hot SENDACK")
+	}
 	if limit.P99 <= 0 {
 		return fieldError(path+".p99", "must be greater than zero")
 	}
@@ -138,6 +156,19 @@ func validateLatencyLimit(path string, limit LatencyLimit) error {
 	}
 	if limit.P99 > limit.P999 {
 		return fieldError(path, "p99 must not exceed p999")
+	}
+	return nil
+}
+
+func validateHotLatencyLimit(path string, limit LatencyLimit) error {
+	if limit.P95 == 0 {
+		return validateLatencyLimit(path, limit)
+	}
+	if limit.P95 < 0 || limit.P99 != 0 {
+		return fieldError(path, "exactly one positive p95 or p99 is required")
+	}
+	if limit.P999 < 0 || (limit.P999 != 0 && limit.P999 < limit.P95) {
+		return fieldError(path, "p95 must not exceed a configured positive p999")
 	}
 	return nil
 }

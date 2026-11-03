@@ -33,8 +33,8 @@ func TestGroupCatalogFormalShapeAndReconstructableMembership(t *testing.T) {
 			if !ok {
 				t.Fatalf("group %d member %d UID %q is not reconstructable", index, member, uid)
 			}
-			if member > 0 && memberIndex != previous+uint64(catalog.Count()) {
-				t.Fatalf("group %d member indexes %d then %d do not use fixed catalog stride", index, previous, memberIndex)
+			if member > 0 && memberIndex != previous+group.memberStride {
+				t.Fatalf("group %d member indexes %d then %d do not use fixed roster stride", index, previous, memberIndex)
 			}
 			previous = memberIndex
 		}

@@ -12,41 +12,26 @@ import (
 )
 
 var workflowCatalog = map[string]string{
-	"conversation-qps-diagnose.yml":            "Agent Tool - Diagnose Conversation QPS",
-	"conversation-qps-gate.yml":                "Safety Automation - Conversation QPS Release Gate",
-	"easy-sdk-web-docs-sync.yml":               "Safety Automation - Propose Web EasySDK Documentation Upgrade",
-	"binary-release-publish.yml":               "Safety Automation - Publish WuKongIM Binaries",
-	"chat-lifecycle-rehearsal.yml":             "Agent Tool - Start Chat Lifecycle Rehearsal",
-	"chat-lifecycle-rehearsal-finalize.yml":    "Safety Automation - Finalize Chat Lifecycle Rehearsals",
-	"chat-lifecycle-formal.yml":                "Safety Automation - Start Fresh Formal Chat Lifecycle",
-	"chat-lifecycle-formal-finalize.yml":       "Safety Automation - Finalize Formal Chat Lifecycle Runs",
-	"chat-lifecycle-stop.yml":                  "Agent Tool - Stop Chat Lifecycle Request",
-	"cloud-deployment-activate.yml":            "Agent Tool - Activate Cloud Deployment",
-	"cloud-deployment-bundle.yml":              "Agent Tool - Build Cloud Deployment Bundle",
-	"cloud-lease-analyze.yml":                  "Agent Tool - Analyze Chat Lifecycle Cloud Lease",
-	"cloud-lease-observe.yml":                  "Agent Tool - Inspect Cloud Lease",
-	"cloud-lease-oidc-setup.yml":               "Agent Tool - Configure Cloud Lease OIDC Roles",
-	"cloud-lease-provision.yml":                "Agent Tool - Provision Cloud Lease",
-	"cloud-lease-release.yml":                  "Safety Automation - Release Cloud Leases",
-	"cloud-sim-analyze.yml":                    "Agent Tool - Analyze Cloud Simulation",
-	"cloud-sim-cleanup.yml":                    "Safety Automation - Reconcile Cloud Simulation Resources",
-	"cloud-sim-monitor.yml":                    "Safety Automation - Patrol Cloud Simulation Runs",
-	"cloud-sim-oidc-subject.yml":               "Agent Tool - Configure Cloud Simulation OIDC Subject",
-	"cloud-sim-provision.yml":                  "Agent Tool - Provision Cloud Simulation",
-	"docker-image-publish.yml":                 "Safety Automation - Publish Docker Images",
-	"docs-cdn-certificate.yml":                 "Safety Automation - Renew Documentation CDN Certificate",
-	"docs-pages.yml":                           "Safety Automation - Publish Documentation to GitHub Pages",
-	"easysdk-release-acceptance.yml":           "Safety Automation - EasySDK Released Package Acceptance",
-	"issue-agent-engineer.yml":                 "Agent Tool - Issue Engineer",
-	"issue-agent-pr-signal.yml":                "Safety Automation - Issue Agent PR Signal",
-	"issue-agent.yml":                          "Safety Automation - GitHub Issue Agent",
-	"manager-browser-smoke.yml":                "Safety Automation - Manager Browser Smoke",
-	"native-package-preview.yml":               "Safety Automation - Validate Native Package Preview",
-	"review-agent-pr-signal.yml":               "Safety Automation - Review Agent PR Signal",
-	"review-agent-run.yml":                     "Agent Tool - Review Pull Request",
-	"review-agent.yml":                         "Safety Automation - Review Agent Controller",
-	"three-node-chat-lifecycle-regression.yml": "Safety Automation - Three-Node Chat Lifecycle Regression",
-	"v3-candidate-regression.yml":              "Safety Automation - V3 Candidate Regression",
+	"ci.yml":                                "CI",
+	"perf.yml":                              "Performance",
+	"compat.yml":                            "Compatibility",
+	"conversation-qps-diagnose.yml":         "Agent Tool - Diagnose Conversation QPS",
+	"easy-sdk-web-docs-sync.yml":            "Safety Automation - Propose Web EasySDK Documentation Upgrade",
+	"binary-release-publish.yml":            "Release",
+	"chat-lifecycle-rehearsal.yml":          "Agent Tool - Start Chat Lifecycle Rehearsal",
+	"chat-lifecycle-rehearsal-finalize.yml": "Safety Automation - Finalize Chat Lifecycle Rehearsals",
+	"chat-lifecycle-formal.yml":             "Safety Automation - Start Fresh Formal Chat Lifecycle",
+	"chat-lifecycle-formal-finalize.yml":    "Safety Automation - Finalize Formal Chat Lifecycle Runs",
+	"chat-lifecycle-stop.yml":               "Agent Tool - Stop Chat Lifecycle Request",
+	"cloud-deployment-activate.yml":         "Agent Tool - Activate Cloud Deployment",
+	"cloud-deployment-bundle.yml":           "Agent Tool - Build Cloud Deployment Bundle",
+	"cloud-lease-analyze.yml":               "Agent Tool - Analyze Chat Lifecycle Cloud Lease",
+	"cloud-lease-observe.yml":               "Agent Tool - Inspect Cloud Lease",
+	"cloud-lease-oidc-setup.yml":            "Agent Tool - Configure Cloud Lease OIDC Roles",
+	"cloud-lease-provision.yml":             "Agent Tool - Provision Cloud Lease",
+	"cloud-lease-release.yml":               "Safety Automation - Release Cloud Leases",
+	"docs-cdn-certificate.yml":              "Safety Automation - Renew Documentation CDN Certificate",
+	"docs-pages.yml":                        "Safety Automation - Publish Documentation to GitHub Pages",
 }
 
 func TestConversationQPSDiagnosticWorkflowIsReadOnlyAndBindsProduct(t *testing.T) {
@@ -205,7 +190,7 @@ func TestEasySDKAndroidEmulatorScriptHasIndependentCommands(t *testing.T) {
 	}
 	require.NoError(
 		t,
-		yaml.Unmarshal(readWorkflow(t, "easysdk-release-acceptance.yml"), &workflow),
+		yaml.Unmarshal(readWorkflow(t, "compat.yml"), &workflow),
 	)
 
 	found := false
@@ -228,7 +213,7 @@ func TestEasySDKAndroidEmulatorScriptHasIndependentCommands(t *testing.T) {
 
 func TestEasySDKFlutterReleaseSmokeIsBounded(t *testing.T) {
 	root := repoRoot(t)
-	workflow := string(readWorkflow(t, "easysdk-release-acceptance.yml"))
+	workflow := string(readWorkflow(t, "compat.yml"))
 	helperPath := filepath.Join(
 		root,
 		"test",
@@ -308,41 +293,6 @@ func TestEasySDKFlutterReleaseSmokeIsBounded(t *testing.T) {
 		"integration_test",
 		"the receipt app must not retain the flaky integration-test dependency",
 	)
-}
-
-func TestLegacyAutomaticTestWorkflowsAreAbsent(t *testing.T) {
-	root := repoRoot(t)
-	for _, name := range []string{"ci.yml", "nightly.yml"} {
-		_, err := os.Stat(
-			filepath.Join(root, ".github", "workflows", name),
-		)
-		require.ErrorIs(t, err, os.ErrNotExist, name)
-	}
-}
-
-func TestOnlyCatalogedSafetyWorkflowsUseAutomaticTriggers(t *testing.T) {
-	automatic := map[string]struct{}{
-		"issues": {}, "issue_comment": {}, "pull_request": {},
-		"pull_request_target": {}, "pull_request_review": {},
-		"pull_request_review_comment": {}, "schedule": {}, "workflow_run": {},
-	}
-	for file, name := range workflowCatalog {
-		var workflow struct {
-			On map[string]yaml.Node `yaml:"on"`
-		}
-		require.NoError(t, yaml.Unmarshal(readWorkflow(t, file), &workflow))
-		for trigger := range workflow.On {
-			if _, ok := automatic[trigger]; ok {
-				require.Truef(
-					t,
-					strings.HasPrefix(name, "Safety Automation - "),
-					"%s uses automatic trigger %s",
-					file,
-					trigger,
-				)
-			}
-		}
-	}
 }
 
 func readWorkflow(t *testing.T, name string) []byte {

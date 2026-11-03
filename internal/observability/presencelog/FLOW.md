@@ -21,6 +21,11 @@ owner-route and actual terminal owner-RPC references; raw identities stay exclud
 Existing adapter failure -> typed immutable evidence -> known-mask-selected fields.
 Absent evidence leaves the supplied field slice unchanged.
 
+Full-slot failures add four fixed scalar fields for the closed physical step,
+cause kind, step elapsed time and original remaining budget at step entry.
+They reuse the existing activation failure events; success adds no fields.
+Legacy physical-round fields retain their original masks and meanings.
+
 ## Invariants and Failure Semantics
 
 Physical-round timings are not exclusive caller timings. Missing stages stay

@@ -62,7 +62,7 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   durable ordering must hold even when configured append concurrency exceeds
   one.
 - Expected Channel and leader epochs fence every durable write. A canonical
-  target mismatch is stale routing and creates no state.
+  target mismatch is stale routing and creates no state. Person-directory commands retain an immutable Ready authority proof; older cached routes may refresh toward that proof, newer routes terminate mismatched invocations, and append-time filtering prevents mixed generations sharing a newer item's fence.
 - Invalid metadata and unkeyed Will templates fail before routing or IDs, including
   transient sends. Valid MQTT metadata permits empty bodies; native sends still require a body. Owned envelopes preserve original metadata.
 - Temporary gofail builds can delay accepted Will appends before the native budget; ordinary controls are inert.

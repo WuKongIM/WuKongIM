@@ -18,11 +18,11 @@ func attemptLinkSnapshotFixture() WorkerSnapshot {
 		AttemptLinkDiagnostics: &AttemptLinkDiagnosticsSnapshot{Generation: 1, Records: []AttemptLinkRecord{{Ordinal: 1, Key: sendtrace.AttemptKey{MessageFingerprint: [16]byte{1}, ClientSeq: 1, ConnectFingerprint: [16]byte{2}}, Kind: "sendack_success", Attribution: "candidate", DeadlineAfterRegistration: time.Second, ObservedAfterRegistration: time.Second}}}}
 }
 func TestAttemptLinkV15OptionalLiveAndFinalDiagnosticSanitizesIndependently(t *testing.T) {
-	if ReportSchemaVersion != "wukongim/chat-lifecycle-report/v7" {
+	if ReportSchemaVersion != "wukongim/chat-lifecycle-report/v8" {
 		t.Fatal("attempt diagnostics changed native report schema")
 	}
-	if workerProtocolVersion != 15 {
-		t.Fatalf("private protocol=%d want15", workerProtocolVersion)
+	if workerProtocolVersion != 19 {
+		t.Fatalf("private protocol=%d want19", workerProtocolVersion)
 	}
 	for _, phase := range []WorkerPhase{WorkerPhaseRunning, WorkerPhaseFinal} {
 		s := attemptLinkSnapshotFixture()
@@ -55,6 +55,7 @@ func TestAttemptLinkV15OptionalLiveAndFinalDiagnosticSanitizesIndependently(t *t
 func TestAttemptLinkMaximumEncodingFitsEveryExistingEnvelope(t *testing.T) {
 	s := attemptLinkSnapshotFixture()
 	fillEvidenceBudgetScalars(reflect.ValueOf(&s).Elem())
+	setMaximumWidthHotEvidence(&s)
 	s.RunID = strings.Repeat("\x01", 128)
 	s.AssignmentID = s.RunID
 	s.Generation = math.MaxUint64

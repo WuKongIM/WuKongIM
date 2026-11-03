@@ -246,11 +246,12 @@ type PermissionRead struct {
 
 // PermissionReadResult is aligned with one PermissionRead.
 type PermissionReadResult struct {
-	UserPolicy metadb.SendBanResult
-	Channel    metadb.Channel
-	Found      bool
-	Value      bool
-	Err        error
+	PersonDirectoryFence metadb.PersonDirectoryAppendFence
+	UserPolicy           metadb.SendBanResult
+	Channel              metadb.Channel
+	Found                bool
+	Value                bool
+	Err                  error
 }
 
 // PermissionBatchStore reads independent permission facts through a bounded
@@ -259,20 +260,20 @@ type PermissionBatchStore interface {
 	ReadPermissionsBatch(context.Context, []PermissionRead) []PermissionReadResult
 }
 
-// PersonDirectoryEnsurer admits durable discovery projection work for a
-// canonical person channel before its first persistent ordinary message.
+// PersonDirectoryEnsurer waits for both UID discovery memberships and the
+// current source generation's durable Ready state before ordinary person append.
 type PersonDirectoryEnsurer interface {
 	AdmitPersonChannelDirectory(ctx context.Context, channelID string, channelType int64) error
 }
 
 // PersonDirectoryAdmission identifies one canonical person directory whose
-// durable admission must complete before its SEND can proceed.
+// durable preparation must complete before its SEND can proceed.
 type PersonDirectoryAdmission struct {
 	Context     context.Context
 	ChannelID   string
 	ChannelType int64
 	// ChannelFact is the authoritative channel read already used by this
-	// SendBatch's permission decision. It is request-scoped and must never be
+	// SEND's permission decision. It is request-scoped and must never be
 	// retained as a cross-request readiness proof.
 	ChannelFact *PersonDirectoryChannelFact
 }
@@ -280,8 +281,9 @@ type PersonDirectoryAdmission struct {
 // PersonDirectoryChannelFact carries one request-scoped authoritative channel
 // observation from permission evaluation into directory admission.
 type PersonDirectoryChannelFact struct {
-	Found   bool
-	Channel metadb.Channel
+	PersonDirectoryFence metadb.PersonDirectoryAppendFence
+	Found                bool
+	Channel              metadb.Channel
 }
 
 // PersonDirectoryBatchEnsurer admits one bounded wave and preserves exact
@@ -292,8 +294,9 @@ type PersonDirectoryBatchEnsurer interface {
 
 // PersonDirectoryAdmissionOutcome is one result in a completed durable wave.
 type PersonDirectoryAdmissionOutcome struct {
-	Index int
-	Err   error
+	PersonDirectoryFence metadb.PersonDirectoryAppendFence
+	Index                int
+	Err                  error
 }
 
 // PersonDirectoryWaveEnsurer emits serialized waves as independently sealed

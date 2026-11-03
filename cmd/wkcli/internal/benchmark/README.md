@@ -735,8 +735,28 @@ fail before worker start. Additional enabled clock reads can perturb timing.
 The terminal `driver-diagnostics.json` sidecar contains only bounded numeric
 phase evidence and closed operation names. It does not change workload TOML,
 10,000 online / 2,000 SEND/s / 256 slots, deadlines, native evidence or gates.
-Absent diagnostics provide no cause attribution. Worker protocol v15 is
+Absent diagnostics provide no cause attribution. Worker protocol v16 is
 required on both coordinator and workers.
+
+The optional `yield_wall` child freezes only completed calls to the existing
+owner fairness `Gosched` before that same dispatch miss: `count`, independent
+monotonic `wall_nanos`, and `clock_valid`. Missing data is unknown; invalid
+clock readings retain the count with unknown wall, not measured zero. These
+two additional reads per yield occur only with driver diagnostics enabled and
+while its original retention remains open. They do not enable tracing or CPU
+profiling, change the fairness quantum or use the business clock. The interval
+overlaps the original `residual`; do not add them, subtract across clock domains,
+or interpret yield wall as Runnable time or actor CPU. Records and final copies
+remain bounded and independent. Use the same source on coordinator and workers:
+the reader accepts legacy absent diagnostic fields, while older worker peers
+are rejected at preflight. Enabling diagnostics leaves native counters unchanged;
+malformed optional diagnostic children are discarded independently.
+
+Protocol v16 also retains exact configured hot-SENDACK threshold counts beside
+the unchanged sixteen-bucket histogram. A 600ms P99 limit therefore uses real
+ACK durations, with the same 1s P99.9 and independent 2s first-attempt wait.
+Missing or inconsistent exact counts cannot qualify an in-between limit;
+historical 400ms evidence retains its original exact histogram boundary.
 
 For the separate bounded attempt diagnostic, set `WK_CHAT_LIFECYCLE_ATTEMPT_LINK_DIAGNOSTICS=1` (or `true`) on each worker process and opt the product into `diagnostics.attempt_link_enable`. Empty/`0`/`false` disables this private worker option; other values fail configuration. The driver option does not enable it. The existing live cuts and final cut may export `attempt-link-diagnostics.json` (at most64KiB) with the first16 confirmed-late original attempt keys per worker generation. This optional evidence preserves native reportv7, Evidencev3, counters, retry/deadline behavior and all original gates. Missing/reused connection identity, multiple Gateway invocations or expired samples remain unknown; a normal WriteFrame callback is not flush or client receipt. Diagnostic CPU/memory/control-response overhead remains a confound.
 
@@ -808,3 +828,46 @@ profiler is started. Parked synchronization stacks, runnable waits and GC
 overlap can guide diagnosis, while missing or evicted events remain unknown.
 Recording and export add diagnostic overhead, so a new capture cannot by
 itself establish the cause of an earlier run.
+
+Successful hot SENDs above configuredP99 (or explicit localP95) and before the original first-attempt
+deadline can be sampled with the existing private attempt-link opt-in. The
+unchanged first16 confirmed-late records are separate from the latest16
+original slow-success anchors, which borrow opaque exact-attempt keys and the
+original SDK observation clock. Retries, duplicates, cold SENDs and unknown
+clocks cannot create these anchors. Generation reset clears both sets. The
+64KiB optional artifact uses schema v2; live peers require worker protocol18.
+Malformed new child evidence stays absent without erasing the original late
+prefix or changing native evidence or gates. Anchors alone are not a causal
+diagnosis.
+
+For a separately identified local diagnostic run, an owning launcher may invoke
+`scripts/chat-lifecycle/capture-local-send-observations.py` after joining the
+coordinator and before tearing down the three product nodes. Supply the exact
+report directory, run ID, exited coordinator PID, original exit-status file,
+three literal loopback API ports and a fresh output path. Pass the existing
+configured bench bearer only through `WK_LOCAL_SEND_OBSERVATION_TOKEN`.
+The exporter verifies final native fences and takes at most48 latest slow-hot
+anchors from the terminal five-minute window. It queries only the existing
+anonymous-attempt endpoint, then at most16 derived SID21 RPC identities on the
+three nodes. Requests never redirect or retry; capture has an eight-second,
+18-request and4MiB artifact bound. Export errors leave the original workload
+exit/cleanup with its owner. The output is private0600, created atomically and
+never overwritten. Unsupported, expired, ambiguous or missing evidence remains
+explicit; one candidate is never called unique. Do not invoke this exporter
+during load. Enabled diagnostics add overhead, so this run cannot replace an
+ordinary performance acceptance run.
+
+### Custom local hot P95 policy
+
+Only a local shakeout soak may replace `thresholds.latency.hot_sendack.p99`
+with `p95: 600ms`; do not configure both. Keep `p999: 1s` and the independently
+configured `hot_attempt_timeout: 2s`. Exactly5% strictly above600ms is allowed;
+more than5% breaches the primary gate. P99.9 still fails when more than0.1%
+exceeds1s. Cold/sync policies, five-minute persistence and ten-minute positive
+qualification remain unchanged. This changes the acceptance policy, not product
+performance.
+
+P95 emits local reportv9/thresholdv3 and explicitly P95-named gatev2 evidence.
+Existing P99 runs keep reportv8/thresholdv2/gatev1, and old artifacts are never
+reheadered or reclassified. Local v9 evidence cannot qualify formal or capacity
+continuation. Use matched worker-protocol18 binaries for the new scalar schema.

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/wire"
 )
@@ -20,6 +21,8 @@ const relayPresenceBody = 64 << 10
 
 // relayObservation keeps only finite transport metadata and anonymous counters.
 type relayObservation struct {
+	DelayProtocol          string `json:"delay_protocol,omitempty"`
+	DelayOperation         uint8  `json:"delay_operation,omitempty"`
 	ActiveCopies           int    `json:"active_copies"`
 	FramesForwarded        uint64 `json:"frames_forwarded"`
 	OwnerReadRequests      uint64 `json:"owner_read_requests"`
@@ -41,6 +44,7 @@ type relayObservation struct {
 type ownerReadRelay struct {
 	mu          sync.Mutex
 	needle      []byte
+	hashSlot    uint16
 	delay       time.Duration
 	done        chan struct{}
 	doneOnce    sync.Once
@@ -56,6 +60,7 @@ func (r *ownerReadRelay) arm(uid string, delay time.Duration) {
 	defer r.mu.Unlock()
 	r.needle = binary.AppendUvarint(nil, uint64(len(uid)))
 	r.needle = append(r.needle, uid...)
+	r.hashSlot = routing.HashSlotForKey(uid, 256)
 	r.delay = delay
 	r.observation.ConfiguredDelayNanos = int64(delay)
 }
@@ -86,18 +91,41 @@ func (r *ownerReadRelay) failure(ctx context.Context, kind string) error {
 
 // match claims only one original remote owner-read, without changing its header.
 func (r *ownerReadRelay) match(from, to uint64, header wire.Header, body []byte) (bool, time.Duration) {
-	if len(body) < 6 || !bytes.Equal(body[:5], []byte{'W', 'K', 'V', 'P', 2}) {
+	if len(body) < 6 {
+		return false, 0
+	}
+	legacy := bytes.Equal(body[:5], []byte{'W', 'K', 'V', 'P', 2})
+	full := bytes.Equal(body[:5], []byte{'W', 'K', 'V', 'G', 1})
+	if !legacy && !full {
 		return false, 0
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if len(r.needle) == 0 || !bytes.Contains(body[6:], r.needle) {
+	if len(r.needle) == 0 {
 		return false, 0
 	}
-	if header.ServiceID == 13 && body[5] == 1 {
-		r.observation.RegisterRequests++
+	protocol := "legacy_uid"
+	ownerRead := false
+	if legacy {
+		if !bytes.Contains(body[6:], r.needle) {
+			return false, 0
+		}
+		if header.ServiceID == 13 && body[5] == 1 {
+			r.observation.RegisterRequests++
+		}
+		ownerRead = header.ServiceID == 14 && body[5] == 11
+	} else {
+		hash, valid := fullPresenceSelector(body)
+		if !valid || hash != r.hashSlot {
+			return false, 0
+		}
+		protocol = "full_hash_slot"
+		if header.ServiceID == 13 && body[5] == 1 && bytes.Contains(body[6:], r.needle) {
+			r.observation.RegisterRequests++
+		}
+		ownerRead = header.ServiceID == 14 && (body[5] == 4 || body[5] == 5)
 	}
-	if header.ServiceID != 14 || body[5] != 11 {
+	if !ownerRead {
 		return false, 0
 	}
 	r.observation.OwnerReadRequests++
@@ -108,7 +136,36 @@ func (r *ownerReadRelay) match(from, to uint64, header wire.Header, body []byte)
 	r.observation.FromNode, r.observation.ToNode = from, to
 	r.observation.BudgetMillis = header.BudgetMillis
 	r.observation.BudgetPresent = header.Kind == transport.FrameKindRPCBudgetRequest
+	r.observation.DelayProtocol, r.observation.DelayOperation = protocol, body[5]
 	return true, r.delay
+}
+
+// fullPresenceSelector reads only the fixed version-1 public claim prefix.
+// It does not replace the product decoder or retain bodies. The independent
+// target hash selects Begin/Page even though those operations carry no UID.
+func fullPresenceSelector(body []byte) (uint16, bool) {
+	if len(body) < 6 || !bytes.Equal(body[:5], []byte{'W', 'K', 'V', 'G', 1}) {
+		return 0, false
+	}
+	var fields [12]uint64
+	offset := 6
+	for i := range fields {
+		value, n := binary.Uvarint(body[offset:])
+		if n <= 0 {
+			return 0, false
+		}
+		fields[i] = value
+		offset += n
+	}
+	if offset >= len(body) || fields[0] > 65535 || fields[1] > uint64(^uint32(0)) || fields[2] == 0 || fields[3] == 0 || fields[4] == 0 {
+		return 0, false
+	}
+	if body[5] == 4 || body[5] == 5 {
+		if fields[7] == 0 || fields[8] == 0 || fields[9] == 0 || fields[10] >= fields[9] || fields[11] != fields[9] {
+			return 0, false
+		}
+	}
+	return uint16(fields[0]), true
 }
 
 // copy consumes one bounded header at a time; unrelated payloads remain streaming.

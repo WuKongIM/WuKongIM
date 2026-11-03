@@ -4,17 +4,14 @@ import {
   benchHTTP,
   benchmarkWorkerHTTP,
   chatLifecycleWorkerHTTP,
+  ciCheckSelectorCommands,
   cloudAnalysisHTTP,
   cloudAnalysisMCPTools,
   debugHTTP,
-  issueAgentCLICommands,
   managerRoutes,
   nodeTransportServices,
   operationsMCPTools,
   pluginHostRPCPaths,
-  reviewAgentCLICommands,
-  reviewCheckMCPTools,
-  reviewCheckSelectorCommands,
   webhookEvents,
 } from './api-surface-contracts';
 
@@ -81,7 +78,7 @@ describe('operations HTTP surface', () => {
     ].filter((route) => route.includes(' /debug/'));
     const benchActual = parseGinCalls(server, { bench: '/bench/v1' });
 
-    expect(debugHTTP).toHaveLength(9);
+    expect(debugHTTP).toHaveLength(10);
     expect(benchHTTP).toHaveLength(12);
     expect(sorted(debugActual)).toEqual(
       sorted(debugHTTP.map(({ method, path }) => routeKey(method, path))),
@@ -93,6 +90,14 @@ describe('operations HTTP surface', () => {
     expect(server).toMatch(/s\.benchToken == ""[\s\S]*strings\.HasPrefix\(path, "\/debug\/"\)/u);
     expect(server).toContain('if s.benchToken != "" {');
     expect(server).toContain('if s.benchTerminalFence != nil && s.benchToken != "" {');
+  });
+
+  test('keeps retained SEND attempt queries behind a configured bearer', async () => {
+    const query = debugHTTP.find(({ path }) => path === '/debug/diagnostics/send-attempts/query');
+    expect(query).toMatchObject({ method: 'POST', audience: 'operator', stability: 'unstable' });
+    expect(query?.authentication).toContain('non-empty bench.api_token');
+    const handler = await source('../../internal/access/api/send_attempt_query.go');
+    expect(handler).toMatch(/s == nil \|\| s\.benchToken == ""[\s\S]*?http\.StatusNotFound/u);
   });
 });
 
@@ -182,7 +187,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(77);
+    expect(nodeTransportServices).toHaveLength(79);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))
@@ -198,8 +203,8 @@ describe('cluster transport catalog', () => {
       ([, name, symbol]) => `${name}:${symbol}`,
     );
 
-    // The Go test map covers only part of MQTT; ids.go is the complete authority.
-    const mqttAliasesOutsideTestMap = [
+    // The Go test map is partial; ids.go and its alias switch remain authoritative.
+    const aliasesOutsideTestMap = [
       'RPCChannelMQTTReplay', 'RPCChannelMQTTCopy', 'RPCChannelMQTTAnchor',
       'RPCChannelMQTTPlan', 'RPCChannelMQTTRepair', 'RPCChannelMQTTRecovery',
       'RPCChannelMQTTRetirement', 'RPCChannelMQTTRetirementSelection',
@@ -208,11 +213,11 @@ describe('cluster transport catalog', () => {
     ];
     expect(sorted(actual)).toEqual(
       sorted(nodeTransportServices
-        .filter(({ symbol }) => !mqttAliasesOutsideTestMap.includes(symbol))
+        .filter(({ symbol }) => !aliasesOutsideTestMap.includes(symbol))
         .map(({ name, symbol }) => `${name}:${symbol}`)),
     );
     const ids = await source('../../pkg/cluster/net/ids.go');
-    for (const symbol of mqttAliasesOutsideTestMap) {
+    for (const symbol of aliasesOutsideTestMap) {
       const alias = ids.match(new RegExp(`case ${symbol}:\\s*return "([^"]+)"`))?.[1];
       expect(alias, symbol).toBeDefined();
       expect(nodeTransportServices.find((service) => service.symbol === symbol)?.name)
@@ -257,18 +262,10 @@ describe('MCP and agent-only contracts', () => {
     expect(cloudTools).toEqual([...cloudAnalysisMCPTools]);
   });
 
-  test('matches Review Check MCP and strict agent CLI selectors', async () => {
-    const [checkMCP, issueCLI, reviewCLI, selectorCLI] = await Promise.all([
-      source('../../internal/access/reviewagentcheckmcp/server.go'),
-      source('../../internal/access/issueagentcli/command.go'),
-      source('../../internal/access/reviewagentcli/command.go'),
-      source('../../cmd/wkreviewcheck/main.go'),
-    ]);
+  test('matches the named CI check selectors', async () => {
+    const selectorCLI = await source('../../cmd/wkcicheck/main.go');
 
-    expect(parseStringArray(checkMCP, 'toolNames')).toEqual([...reviewCheckMCPTools]);
-    expect(parseSwitchCases(issueCLI)).toEqual([...issueAgentCLICommands]);
-    expect(parseSwitchCases(reviewCLI)).toEqual([...reviewAgentCLICommands]);
-    expect(parseSwitchCases(selectorCLI)).toEqual([...reviewCheckSelectorCommands]);
+    expect(parseSwitchCases(selectorCLI)).toEqual([...ciCheckSelectorCommands]);
   });
 
   test('matches Cloud Analysis HTTP mounts', async () => {

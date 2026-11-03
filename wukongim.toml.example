@@ -100,6 +100,8 @@ jwt_expire = "24h"
 # A user named exactly "guest" has its username and password publicly displayed on the Manager login page when auth is enabled.
 users = [{ username = "admin", password = "a1234567", permissions = [{ resource = "*", actions = ["*"] }] }]
 
+# Workload latency policies belong to configs/wkbench/chat-lifecycle/*.yaml.
+# Custom local hot SENDACK may use p95 instead of p99; formal policies stay unchanged.
 [bench]
 api_enable = false
 # Optional bearer capability required by every /bench/v1/* request. Always set this for remotely reachable benchmark environments.
@@ -135,6 +137,7 @@ scrape_interval = "15s"
 scrape_targets = []
 
 [top]
+# Disabling Top also disables its history. Resource/storage metrics remain available.
 api_enable = true
 collect_interval = "1s"
 history_window = "5m"

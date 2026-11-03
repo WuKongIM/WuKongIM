@@ -30,6 +30,9 @@ func (sm *StateMachine) applyUpsertNode(next *state.ClusterState, cmd command.Co
 	if next.Revision == 0 || cmd.Node == nil {
 		return reject(ReasonInvalidCommand)
 	}
+	if !presenceNodeAdmission(*next, *cmd.Node, cmd.PresenceJoiningCapability) {
+		return reject(ReasonPresenceNotReady)
+	}
 	before := next.Clone()
 	node := cloneNode(*cmd.Node)
 	upsertNode(next, node)

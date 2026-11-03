@@ -13,6 +13,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/rpctrace"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -32,8 +33,10 @@ const sendPermissionMaxWait = 2 * time.Second
 
 var ErrPermissionBusy = errors.New("permission read admission busy")
 
-// SendPermissionFence is the complete distributed authority identity of a Slot.
-// Hash Slot ownership is carried separately on each read and rederived remotely.
+// SendPermissionFence carries Slot authority and the origin's diagnostic control
+// revision. Hash Slot ownership is rederived for each read. RouteRevision is
+// echoed exactly in the reply, but unrelated control commits do not change the
+// authority required to serve a fresh read.
 type SendPermissionFence struct {
 	SlotID        uint64
 	LeaderNodeID  uint64
@@ -47,8 +50,12 @@ type SendPermissionRoute struct {
 	Fence    SendPermissionFence
 	HashSlot uint16
 	Err      error
+	// LocalAuthorityEpoch belongs to this receiver's immutable route publication.
+	// It guards one local read against topology ABA and is never sent on the wire.
+	LocalAuthorityEpoch uint64
 }
 type sendPermissionRouter interface {
+	// SendPermissionRoutes returns owned rows from one immutable publication.
 	SendPermissionRoutes([]string) []SendPermissionRoute
 }
 type sendPermissionRead struct {
@@ -266,7 +273,7 @@ func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []Per
 						continue
 					}
 					fact := g.Results[k].Fact
-					out[r.Index] = PermissionMetadataReadResult{Channel: fact.Channel, Found: fact.Found, Value: fact.Value, UserPolicy: fact.UserPolicy}
+					out[r.Index] = PermissionMetadataReadResult{PersonDirectoryFence: fact.PersonDirectoryFence, Channel: fact.Channel, Found: fact.Found, Value: fact.Value, UserPolicy: fact.UserPolicy}
 				}
 			}
 		})
@@ -323,13 +330,33 @@ func (s *Store) callSendPermission(ctx context.Context, q sendPermissionRequest)
 		return s.serveSendPermissions(ctx, q)
 	}
 	started := s.permissionStart()
-	defer func() { s.permissionStage("rpc", sendPermissionErrorClass(err), started) }()
+	var attempts sendtrace.PermissionAttempts
+	invoked := false
+	defer func() {
+		duration := s.permissionStage("rpc", sendPermissionErrorClass(err), started)
+		if invoked {
+			attempts.RecordRPCEnvelope(started, duration, sendtrace.Result(rpctrace.ResultFor(err)))
+		}
+	}()
 	raw, err := json.Marshal(q)
 	if err != nil || len(raw) > sendPermissionMaxBytes {
 		return sendPermissionReply{}, metadb.ErrInvalidArgument
 	}
 	s.permissionCount("node_envelopes", 1)
 	s.permissionCount("request_bytes", len(raw))
+	// Each physical envelope gets its own passive capture on the existing owner.
+	// Shared originals receive a detached identity only after this call returns.
+	attempts.AddContext(ctx)
+	if attempts.Enabled() {
+		var capture *rpctrace.TerminalCapture
+		ctx, capture = rpctrace.WithPassiveTerminalCapture(ctx)
+		defer func() {
+			if ref := sendtrace.RPCReferenceForTerminal(capture.Snapshot()); ref != nil {
+				attempts.RecordRPC(*ref)
+			}
+		}()
+	}
+	invoked = true
 	body, err := s.cluster.RPCService(ctx, multiraft.NodeID(q.Groups[0].Fence.LeaderNodeID), 0, sendPermissionRPCServiceID, raw)
 	if err != nil {
 		return sendPermissionReply{}, err
@@ -593,15 +620,24 @@ func (s *Store) readSendPermissionSlot(ctx context.Context, g sendPermissionGrou
 	for i, r := range g.Reads {
 		keys[i], _ = permissionReadKey(r.Read)
 	}
+	// Retain the first owned route projection as the receiver-local topology
+	// guard. This token is never compared with another node's observation.
+	var baseline []SendPermissionRoute
 	validate := func() bool {
 		routes := router.SendPermissionRoutes(keys)
 		if len(routes) != len(keys) {
 			return false
 		}
 		for i, r := range routes {
-			if r.Err != nil || r.Fence != g.Fence || r.HashSlot != g.Reads[i].HashSlot || !s.cluster.IsLocal(multiraft.NodeID(r.Fence.LeaderNodeID)) {
+			if r.Err != nil || !sameSendPermissionAuthority(r.Fence, g.Fence) || r.HashSlot != g.Reads[i].HashSlot || !s.cluster.IsLocal(multiraft.NodeID(r.Fence.LeaderNodeID)) || r.LocalAuthorityEpoch == 0 {
 				return false
 			}
+			if baseline != nil && r.LocalAuthorityEpoch != baseline[i].LocalAuthorityEpoch {
+				return false
+			}
+		}
+		if baseline == nil {
+			baseline = routes
 		}
 		return true
 	}
@@ -652,6 +688,11 @@ func (s *Store) readSendPermissionSlot(ctx context.Context, g sendPermissionGrou
 	return out
 }
 
+func sameSendPermissionAuthority(a, b SendPermissionFence) bool {
+	return a.SlotID == b.SlotID && a.LeaderNodeID == b.LeaderNodeID &&
+		a.LeaderTerm == b.LeaderTerm && a.ConfigEpoch == b.ConfigEpoch
+}
+
 // UpdateChannelInfo changes flags and optional policy in one Slot proposal.
 func (s *Store) UpdateChannelInfo(ctx context.Context, q metadb.ChannelInfoMutation) (metadb.SendBanResult, error) {
 	var out metadb.SendBanResult
@@ -676,6 +717,11 @@ func (s *Store) UpdateChannelInfo(ctx context.Context, q metadb.ChannelInfoMutat
 }
 
 func validSendPermissionFact(q PermissionMetadataRead, f metadb.PermissionFact) bool {
+	if proof := f.PersonDirectoryFence; proof != (metadb.PersonDirectoryAppendFence{}) {
+		if q.Kind != PermissionMetadataReadChannel || q.ChannelType != 1 || !f.Found || !proof.Valid() || f.Channel.DirectoryProjectionState != metadb.DirectoryProjectionReady || proof.DirectoryGeneration != f.Channel.DirectoryProjectionGeneration {
+			return false
+		}
+	}
 	switch q.Kind {
 	case PermissionMetadataReadChannel:
 		if f.Value || f.UserPolicy != (metadb.SendBanResult{}) {

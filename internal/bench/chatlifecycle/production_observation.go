@@ -104,6 +104,8 @@ type ProductionObservationSource struct {
 	workerQueueFired      [coordinatorWorkerCount][workerBoundedQueueCount]bool
 	lastWorkerQueueAt     time.Time
 	diagnosticLines       uint64
+	// storageMemoryLines bounds optional successful-GC evidence independently of failures.
+	storageMemoryLines uint8
 }
 
 var _ ObserverSampleSink = (*ProductionObservationSource)(nil)
@@ -181,6 +183,7 @@ func (s *ProductionObservationSource) Begin(start time.Time) error {
 	s.lastWorkerQueueAt = time.Time{}
 	s.diagnosticMu.Lock()
 	s.diagnosticLines = 0
+	s.storageMemoryLines = 0
 	s.diagnosticMu.Unlock()
 	return nil
 }
@@ -301,6 +304,14 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 	if err := s.commitRound(ctx, sample, observationAt, forcedGC, round); err != nil {
 		s.writeObservationFailureDiagnostic(ctx, sample.At, "commit", err, &round)
 		return err
+	}
+	if forcedGC {
+		s.mu.RLock()
+		complete := s.snapshot.ResourceEvidence.Capacity.Complete
+		s.mu.RUnlock()
+		if complete {
+			s.writeStorageMemoryDiagnostic(observationAt, start, round.metrics)
+		}
 	}
 	return nil
 }

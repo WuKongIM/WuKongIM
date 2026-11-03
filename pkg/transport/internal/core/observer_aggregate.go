@@ -101,7 +101,7 @@ func (d *ObserverDrain) aggregate(e Event) bool {
 }
 
 func (d *ObserverDrain) drainAggregates() {
-	var batch []Event
+	batch := d.aggregateBatch[:0]
 	for i := range d.aggregates {
 		shard := &d.aggregates[i]
 		shard.mu.Lock()
@@ -120,9 +120,11 @@ func (d *ObserverDrain) drainAggregates() {
 		}
 		shard.mu.Unlock()
 	}
-	for _, event := range batch {
+	for i, event := range batch {
 		d.target.ObserveTransport(event)
+		batch[i] = Event{}
 	}
+	d.aggregateBatch = batch[:0]
 	if dropped := d.dropped.Swap(0); dropped > 0 {
 		d.target.ObserveTransport(Event{Name: "observer_dropped", Count: dropped})
 	}

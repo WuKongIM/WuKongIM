@@ -38,7 +38,8 @@ func LoadConfig(path string) (Config, error) {
 	return cfg, nil
 }
 
-// ReadReport reads one strict, fully validated persisted JSON report.
+// ReadReport reads one strict, fully validated persisted JSON report. Legacy
+// reports remain available for diagnostics; current eligibility uses ReadCurrentReport.
 func ReadReport(path string) (Report, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -65,8 +66,25 @@ func ReadReport(path string) (Report, error) {
 		}
 		return Report{}, fmt.Errorf("parse chat-lifecycle checkpoint: %w", err)
 	}
+	if !validPairedReportWire(encoded, report) {
+		return Report{}, fmt.Errorf("validate paired chat-lifecycle checkpoint: %w", ErrReportInvalid)
+	}
 	if err := validateReport(report); err != nil {
 		return Report{}, fmt.Errorf("validate chat-lifecycle checkpoint: %w", err)
+	}
+	return report, nil
+}
+
+// ReadCurrentReport admits only the current persisted schema for live result
+// and continuation eligibility. Legacy diagnostic decoding never grants that
+// authority; optional native proof remains unknown when absent in either API.
+func ReadCurrentReport(path string) (Report, error) {
+	report, err := ReadReport(path)
+	if err != nil {
+		return Report{}, err
+	}
+	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion && report.SchemaVersion != localPairedP95ReportSchemaVersion {
+		return Report{}, fmt.Errorf("validate current chat-lifecycle checkpoint: %w", ErrReportInvalid)
 	}
 	return report, nil
 }

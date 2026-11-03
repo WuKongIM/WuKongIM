@@ -110,12 +110,15 @@ type GroupHotSet struct {
 }
 
 // GroupCatalog reconstructs fixed groups and membership from run identity and
-// indexes. Its retained state is bounded by four category counters.
+// indexes. Its retained state is bounded by category counters and one stride.
 type GroupCatalog struct {
-	identity       *IdentitySpace
-	counts         [4]int
-	starts         [4]uint64
-	total          int
+	identity *IdentitySpace
+	counts   [4]int
+	starts   [4]uint64
+	total    int
+	// memberStride aligns every fixed roster with its group owner's worker.
+	// Padding residues are ordinary identities with no fixed group membership.
+	memberStride   uint64
 	veryLargeCount int
 	veryLargeEvery time.Duration
 	primaryWeight  [3]int
@@ -168,11 +171,15 @@ func NewGroupCatalog(identity *IdentitySpace, config GroupCatalogConfig) (GroupC
 		identity:       identity,
 		counts:         counts,
 		total:          total,
+		memberStride:   uint64(total),
 		veryLargeCount: config.VeryLargeMembers,
 		veryLargeEvery: config.VeryLargeSendEvery,
 		primaryWeight:  primaryWeight,
 		primaryTotal:   uint64(primaryTotal),
 		primaryPhase:   phase,
+	}
+	if remainder := catalog.memberStride % identity.Workers(); remainder != 0 {
+		catalog.memberStride += identity.Workers() - remainder
 	}
 	var start uint64
 	for category, count := range counts {
@@ -197,15 +204,18 @@ func (c GroupCatalog) GroupOwner(index uint64) (uint64, error) {
 // GroupForMemberIndex reverses the fixed strided roster without scanning the
 // catalog. One identity can belong to at most one group in this layout.
 func (c GroupCatalog) GroupForMemberIndex(userIndex uint64) (Group, int, bool, error) {
-	if c.total <= 0 {
+	if c.total <= 0 || c.memberStride == 0 {
 		return Group{}, 0, false, errGroupCatalog
 	}
-	groupIndex := userIndex % uint64(c.total)
+	groupIndex := userIndex % c.memberStride
+	if groupIndex >= uint64(c.total) {
+		return Group{}, 0, false, nil
+	}
 	group, err := c.Group(groupIndex)
 	if err != nil {
 		return Group{}, 0, false, err
 	}
-	memberOrdinal := userIndex / uint64(c.total)
+	memberOrdinal := userIndex / c.memberStride
 	if memberOrdinal >= uint64(group.MemberCount) {
 		return Group{}, 0, false, nil
 	}
@@ -215,7 +225,8 @@ func (c GroupCatalog) GroupForMemberIndex(userIndex uint64) (Group, int, bool, e
 // Group reconstructs one catalog entry and a checked strided membership base.
 // The catalog index itself is member zero, guaranteeing that the fixed
 // prepared roster intersects the initial bounded online population; later
-// members remain spread across deterministic arrival cohorts.
+// members remain spread across deterministic arrival cohorts on the same
+// worker, allowing its session pool to prove sampled sender/recipient delivery.
 func (c GroupCatalog) Group(index uint64) (Group, error) {
 	if index >= uint64(c.total) {
 		return Group{}, errGroupIndex
@@ -232,7 +243,7 @@ func (c GroupCatalog) Group(index uint64) (Group, error) {
 		MemberCount:  memberCount,
 		identity:     c.identity,
 		memberBase:   index,
-		memberStride: uint64(c.total),
+		memberStride: c.memberStride,
 	}, nil
 }
 

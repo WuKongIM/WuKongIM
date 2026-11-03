@@ -3553,14 +3553,10 @@ func (w *lateRuntimeClassificationCoordinatorWorker) Grant(ctx context.Context, 
 	if w.id != 0 {
 		return w.recordingCoordinatorWorker.Grant(ctx, request)
 	}
-	w.once.Do(func() {
-		go func() {
-			<-ctx.Done()
-			time.Sleep(10 * time.Millisecond)
-			close(w.terminal)
-		}()
-	})
 	<-ctx.Done()
+	// Publish the generation-owned result after the caller deadline, before
+	// status recovery starts. Its availability must not race the poll budget.
+	w.once.Do(func() { close(w.terminal) })
 	return WorkerGrantResponse{}, ctx.Err()
 }
 

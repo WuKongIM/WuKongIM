@@ -16,8 +16,9 @@ import (
 
 const attemptSummaryCapacity = 65536
 const attemptIndexCapacity = 2 * attemptSummaryCapacity
-const attemptPhaseCount = 5
-const attemptDurablePhaseIndex = attemptPhaseCount - 1
+const attemptPhaseCount = 8
+const attemptDurablePhaseIndex = 4
+const attemptPermissionRPCPhaseIndex = 7
 
 // AttemptStoreOptions opts into separate fixed diagnostic storage. Disabled
 // construction returns before randomness, allocation, clocks or background work.
@@ -39,16 +40,18 @@ type attemptSummaryRow struct {
 	ordinal uint64
 	trace   [16]byte
 	// at preserves the existing ingress monotonic clock without a new read.
-	at        time.Time
-	offsets   [attemptPhaseCount]int64
-	durations [attemptPhaseCount]int64
-	refs      [2]attemptRPCSlot
-	keySlot   uint32
-	traceSlot uint32
-	results   [attemptPhaseCount]uint8
-	known     uint8
-	refCount  uint8
-	flags     uint8
+	at                 time.Time
+	offsets            [attemptPhaseCount]int64
+	durations          [attemptPhaseCount]int64
+	permissionRefs     [2]attemptRPCSlot
+	refs               [2]attemptRPCSlot
+	keySlot            uint32
+	traceSlot          uint32
+	results            [attemptPhaseCount]uint8
+	known              uint8
+	refCount           uint8
+	permissionRefCount uint8
+	flags              uint8
 }
 type attemptIndexEntry struct {
 	key     sendtrace.AttemptKey
@@ -68,6 +71,7 @@ const (
 	rowTraceAmbiguous
 	rowRPCOverflow
 	rowAtKnown
+	rowPermissionRPCOverflow
 )
 
 // AttemptStore is an opt-in bounded invocation summary, independent of the
@@ -205,12 +209,18 @@ func attemptPhaseIndex(stage sendtrace.Stage) int {
 		return 3
 	case sendtrace.StageMessageSendDurable:
 		return attemptDurablePhaseIndex
+	case sendtrace.StageMessagePermissionBatch:
+		return 5
+	case sendtrace.StageMessagePreAppend:
+		return 6
+	case sendtrace.StageMessagePermissionRPC:
+		return attemptPermissionRPCPhaseIndex
 	}
 	return -1
 }
 
-var attemptStages = [attemptPhaseCount]sendtrace.Stage{sendtrace.StageGatewayAsyncDispatchWait, sendtrace.StageGatewayMessagesSend, sendtrace.StageGatewayWriteSendack, sendtrace.StageGatewaySessionPublicationWait, sendtrace.StageMessageSendDurable}
-var attemptBoundaries = [attemptPhaseCount]string{"enqueue_to_dispatch", "message_call_to_result", "write_frame_callback", "ready_to_publication_attempt", "diagnostic_event_duration"}
+var attemptStages = [attemptPhaseCount]sendtrace.Stage{sendtrace.StageGatewayAsyncDispatchWait, sendtrace.StageGatewayMessagesSend, sendtrace.StageGatewayWriteSendack, sendtrace.StageGatewaySessionPublicationWait, sendtrace.StageMessageSendDurable, sendtrace.StageMessagePermissionBatch, sendtrace.StageMessagePreAppend, sendtrace.StageMessagePermissionRPC}
+var attemptBoundaries = [attemptPhaseCount]string{"enqueue_to_dispatch", "message_call_to_result", "write_frame_callback", "ready_to_publication_attempt", "diagnostic_event_duration", "shared_permission_batch", "shared_pre_append_until_submit", "longest_origin_rpc91"}
 
 func attemptResultCode(result sendtrace.Result) uint8 {
 	switch result {
@@ -235,8 +245,10 @@ func attemptResultCode(result sendtrace.Result) uint8 {
 var attemptResults = [8]sendtrace.Result{"", sendtrace.ResultOK, sendtrace.ResultError, sendtrace.ResultTimeout, sendtrace.ResultCanceled, sendtrace.ResultPartial, sendtrace.ResultDropped, sendtrace.ResultSkipped}
 
 // RecordAttemptPhase retains the first valid fact for an exact live token.
-// Gateway phases borrow existing start clocks; durable is duration-only because
+// Gateway and shared preparation borrow existing start clocks; durable is duration-only because
 // its retry-segment sum does not establish a continuous start or end.
+// The separate origin service91 slot keeps the longest observed envelope; equal
+// durations preserve the first fact. It is independent of the retained RPC refs.
 func (s *AttemptStore) RecordAttemptPhase(token sendtrace.AttemptToken, phase sendtrace.AttemptPhase) {
 	if s == nil || !token.Valid() {
 		return
@@ -249,7 +261,10 @@ func (s *AttemptStore) RecordAttemptPhase(token sendtrace.AttemptToken, phase se
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	row := s.rowFor(token)
-	if row == nil || row.known&(1<<p) != 0 {
+	if row == nil {
+		return
+	}
+	if row.known&(1<<p) != 0 && (p != attemptPermissionRPCPhaseIndex || phase.Duration <= time.Duration(row.durations[p])) {
 		return
 	}
 	if p == attemptDurablePhaseIndex {
@@ -400,6 +415,35 @@ func (s *AttemptStore) RecordAttemptRPC(token sendtrace.AttemptToken, reference 
 	}
 }
 
+// RecordAttemptPermissionRPC retains separate fixed permission references.
+// Permission overflow cannot consume append credits or select a stale epoch.
+func (s *AttemptStore) RecordAttemptPermissionRPC(token sendtrace.AttemptToken, reference sendtrace.RPCReference) {
+	if s == nil {
+		return
+	}
+	ref, ok := compactAttemptRPC(reference)
+	if !ok {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	row := s.rowFor(token)
+	if row == nil {
+		return
+	}
+	for i := uint8(0); i < row.permissionRefCount; i++ {
+		if row.permissionRefs[i] == ref {
+			return
+		}
+	}
+	if int(row.permissionRefCount) == len(row.permissionRefs) {
+		row.flags |= rowPermissionRPCOverflow
+		return
+	}
+	row.permissionRefs[row.permissionRefCount] = ref
+	row.permissionRefCount++
+}
+
 // RecordTraceRPC projects an already emitted original forward reference through
 // the fixed upper index. A reused trace never selects its first/latest caller.
 func (s *AttemptStore) RecordTraceRPC(trace string, reference *sendtrace.RPCReference) {
@@ -471,12 +515,14 @@ func (s *AttemptStore) RecordTraceDurable(trace string, duration time.Duration, 
 
 // AttemptCandidate is a detached observation, never a generic uniqueness claim.
 type AttemptCandidate struct {
-	Token          sendtrace.AttemptToken                    `json:"token"`
-	UpperTraceID   string                                    `json:"upper_trace_id,omitempty"`
-	TraceAmbiguous bool                                      `json:"trace_ambiguous,omitempty"`
-	RPCOverflow    bool                                      `json:"rpc_overflow,omitempty"`
-	Phases         [attemptPhaseCount]sendtrace.AttemptPhase `json:"phases"`
-	RPCReferences  []sendtrace.RPCReference                  `json:"rpc_references,omitempty"`
+	Token                   sendtrace.AttemptToken                    `json:"token"`
+	UpperTraceID            string                                    `json:"upper_trace_id,omitempty"`
+	TraceAmbiguous          bool                                      `json:"trace_ambiguous,omitempty"`
+	RPCOverflow             bool                                      `json:"rpc_overflow,omitempty"`
+	Phases                  [attemptPhaseCount]sendtrace.AttemptPhase `json:"phases"`
+	PermissionRPCReferences []sendtrace.RPCReference                  `json:"permission_rpc_references,omitempty"`
+	PermissionRPCOverflow   bool                                      `json:"permission_rpc_overflow,omitempty"`
+	RPCReferences           []sendtrace.RPCReference                  `json:"rpc_references,omitempty"`
 }
 type AttemptQueryItem struct {
 	Key        sendtrace.AttemptKey `json:"key"`
@@ -511,6 +557,10 @@ func (s *AttemptStore) candidate(row attemptSummaryRow) AttemptCandidate {
 	}
 	for i := 0; i < int(row.refCount); i++ {
 		out.RPCReferences = append(out.RPCReferences, expandAttemptRPC(row.refs[i]))
+	}
+	out.PermissionRPCOverflow = row.flags&rowPermissionRPCOverflow != 0
+	for i := uint8(0); i < row.permissionRefCount; i++ {
+		out.PermissionRPCReferences = append(out.PermissionRPCReferences, expandAttemptRPC(row.permissionRefs[i]))
 	}
 	return out
 }

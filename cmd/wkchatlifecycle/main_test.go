@@ -28,7 +28,8 @@ func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T)
 		RunHash: "sha256:" + strings.Repeat("b", 64), AssignmentHash: "sha256:" + strings.Repeat("c", 64), Generation: 1,
 	}
 	formal := chatlifecycle.Report{
-		Profile: chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeSoak, Stage: chatlifecycle.StageFormal,
+		SchemaVersion: chatlifecycle.ReportSchemaVersion,
+		Profile:       chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeSoak, Stage: chatlifecycle.StageFormal,
 		Kind: chatlifecycle.CheckpointFinal, Final: true, Continuous: true, DatasetDigest: digest, Fence: fence,
 		Window:  chatlifecycle.ReportTimeWindow{End: end},
 		Verdict: chatlifecycle.ReportVerdictEvidence{Terminal: true, Outcome: chatlifecycle.VerdictPass, Cause: chatlifecycle.VerdictCauseCompleted},
@@ -38,7 +39,8 @@ func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T)
 	}
 	capacityEnd := end.Add(4 * time.Hour)
 	capacity := chatlifecycle.Report{
-		Profile: chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeCapacity, Stage: chatlifecycle.StageFormal,
+		SchemaVersion: chatlifecycle.ReportSchemaVersion,
+		Profile:       chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeCapacity, Stage: chatlifecycle.StageFormal,
 		Kind: chatlifecycle.CheckpointFinal, Final: true, Continuous: true, DatasetDigest: digest, Fence: fence,
 		Window: chatlifecycle.ReportTimeWindow{Start: end.Add(time.Second), End: capacityEnd},
 		Verdict: chatlifecycle.ReportVerdictEvidence{

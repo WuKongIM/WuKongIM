@@ -165,10 +165,16 @@ const (
 	RPCSlotMQTTMetadata uint8 = 106 + iota
 	// RPCMQTTOwner requests exact MQTT owner execution quiescence.
 	RPCMQTTOwner
+	// RPCPresenceControl proves capability and commits bounded Presence generations.
+	RPCPresenceControl
+	// RPCPersonDirectoryPrepare waits for source-owned person discovery preparation.
+	RPCPersonDirectoryPrepare
 )
 
 func transportServiceAlias(serviceID uint8) string {
 	switch serviceID {
+	case RPCPersonDirectoryPrepare:
+		return "person directory prepare"
 	case MsgSlotRaft:
 		return "slot raft"
 	case MsgSlotRaftBatch:
@@ -293,6 +299,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "message update hint"
 	case RPCSlotMQTTMetadata:
 		return "slot mqtt metadata"
+	case RPCPresenceControl:
+		return "presence control"
 	case RPCMQTTOwner:
 		return "mqtt owner"
 	case RPCChannelMQTTSource:

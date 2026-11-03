@@ -74,6 +74,9 @@ const (
 	StageCommitBuild             Stage = "commit_build"
 	StageCommitDurable           Stage = "commit_durable"
 	StageCommitPublish           Stage = "commit_publish"
+	// Store append stages describe one engine/class group, not each item CPU.
+	StageStoreAppendLocks   Stage = "store_append_locks"
+	StageStoreAppendPrepare Stage = "store_append_prepare"
 )
 
 // Channel authority stages retain a bounded first-effect view within the
@@ -142,6 +145,8 @@ type SpanSample struct {
 	Duration   time.Duration `json:"duration"`
 	Result     Result        `json:"result"`
 	Incomplete bool          `json:"incomplete,omitempty"`
+	// StorePrepareDetail is fixed group wall evidence on an existing preparation span.
+	StorePrepareDetail *StorePrepareDetailSample `json:"store_prepare_detail,omitempty"`
 }
 
 // BarrierOverlayCoverage totals disjoint intersections for one operation kind
@@ -279,6 +284,9 @@ type Sample struct {
 func (s Sample) Clone() Sample {
 	s.CommitCohorts = s.CommitCohorts.clone()
 	s.Spans = append([]SpanSample(nil), s.Spans...)
+	for i := range s.Spans {
+		s.Spans[i] = s.Spans[i].cloneStorePrepareDetail()
+	}
 	if s.Dispatch != nil {
 		dispatch := *s.Dispatch
 		s.Dispatch = &dispatch
@@ -671,6 +679,7 @@ func (t *Trace) Finish(result Result) *Sample {
 	spans := make([]SpanSample, t.count)
 	copy(spans, t.spans[:t.count])
 	for i := range spans {
+		spans[i] = spans[i].cloneStorePrepareDetail()
 		if spans[i].Incomplete {
 			spans[i].Duration = elapsed - spans[i].Offset
 		}
@@ -735,6 +744,7 @@ func validStage(stage Stage) bool {
 		StageRecoveryAdmission, StageRecoveryFlight, StageRecoveryOwners, StageRecoveryOwner, StageRecoveryInstall,
 		StagePermissionAdmission, StagePermissionBarrier, StagePermissionSnapshot, StagePermissionAuthority,
 		StageCommitAdmission, StageCommitQueue, StageCommitCollect, StageCommitBuild, StageCommitDurable, StageCommitPublish,
+		StageStoreAppendLocks, StageStoreAppendPrepare,
 		StageChannelSubmit, StageChannelFutureWait, StageChannelPrepareWait, StageChannelPrepare,
 		StageChannelFirstAppendPending, StageChannelFirstAppendQueue, StageChannelFirstAppend, StageChannelAfterFirstAppend:
 		return true

@@ -115,7 +115,7 @@ func TestWorkerRuntimeTraceCLIEnvironmentStrictAndDefaultOff(t *testing.T) {
 					var info struct {
 						ProtocolVersion int `json:"protocol_version"`
 					}
-					if readErr != nil || len(raw) > 65536 || response.StatusCode != http.StatusOK || json.Unmarshal(raw, &info) != nil || info.ProtocolVersion != 15 {
+					if readErr != nil || len(raw) > 65536 || response.StatusCode != http.StatusOK || json.Unmarshal(raw, &info) != nil || info.ProtocolVersion != 17 {
 						t.Fatal("trace configuration changed worker protocol")
 					}
 					ready = true

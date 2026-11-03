@@ -166,6 +166,7 @@ func TestEngineDeferredGrantPreservesArrivalWindow(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		waitForEngineAdmissions(t, fixture.engine)
 		wantInitial := uint64(0)
 		if scenario == "late roster recovery" {
 			wantInitial = 1 // Existing roster gaps retain their separate eligibility budget.
@@ -187,6 +188,7 @@ func TestEngineDeferredGrantPreservesArrivalWindow(t *testing.T) {
 			} else if err != nil {
 				t.Fatal(err)
 			}
+			waitForEngineAdmissions(t, fixture.engine)
 			if sent := fixture.verifier.Snapshot().Sent; sent != wantSent {
 				t.Fatalf("recovered route %s sent=%d want=%d", scenario, sent, wantSent)
 			}
@@ -221,6 +223,9 @@ func TestWorkerExternalGrantAdvancesSubsecondWithoutExtraPrimaryCredit(t *testin
 	for tick := 1; tick <= 99; tick++ {
 		fixture.clock.Set(now.Add(time.Duration(tick) * 10 * time.Millisecond))
 		ticker.tickAndWait(t)
+		// A tick joins scheduling, while SDK admission completes asynchronously.
+		// Settle its queued work before sampling SENDs or moving the fake clock.
+		waitForEngineAdmissions(t, fixture.engine)
 		if tick == 50 {
 			sent := fixture.verifier.Snapshot().Sent
 			if sent < 20 || sent > 80 {

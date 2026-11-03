@@ -77,9 +77,11 @@ const (
 )
 
 type projectorRun struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	wake    chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+	wake   chan struct{}
+	// direct carries bounded source-leader requests into the shared scheduler.
+	direct  chan preparationRequest
 	tasks   chan ownedTaskBatch
 	results chan taskResult
 	done    chan struct{}
@@ -161,7 +163,7 @@ func (p *Projector) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(context.Background())
 	run := &projectorRun{
 		ctx: runCtx, cancel: cancel,
-		wake: make(chan struct{}, 1), tasks: make(chan ownedTaskBatch, projectorWorkers),
+		direct: make(chan preparationRequest, projectorWorkers), wake: make(chan struct{}, 1), tasks: make(chan ownedTaskBatch, projectorWorkers),
 		results: make(chan taskResult, projectorQueueSize), done: make(chan struct{}),
 	}
 	run.workers.Add(projectorWorkers)
@@ -236,6 +238,8 @@ func (p *Projector) runScheduler(run *projectorRun) {
 	}()
 	ticker := time.NewTicker(projectorRepairInterval)
 	defer ticker.Stop()
+	waiters := make(map[ownedTaskKey][]preparationWaiter)
+	waiterCount := 0
 	inflight := make(map[ownedTaskKey]struct{}, projectorQueueSize)
 	known := make(map[ownedTaskKey]struct{}, projectorQueueSize)
 	scanState := projectorScanState{cursors: make(map[metadb.HashSlot]metadb.PersonDirectoryTaskCursor)}
@@ -249,10 +253,30 @@ func (p *Projector) runScheduler(run *projectorRun) {
 		case <-ticker.C:
 			p.scan(run, inflight, known, &scanState)
 			p.observePressure(len(known), len(inflight))
+		case request := <-run.direct:
+			p.admitPreparation(run, request, inflight, known, waiters, &waiterCount)
+			p.observePressure(len(known), len(inflight))
 		case <-run.wake:
 			p.scan(run, inflight, known, &scanState)
 			p.observePressure(len(known), len(inflight))
 		case result := <-run.results:
+			completed := make(map[ownedTaskKey]struct{}, len(result.completed))
+			for _, key := range result.completed {
+				completed[key] = struct{}{}
+			}
+			for _, key := range result.keys {
+				err := result.err
+				if _, ok := completed[key]; ok {
+					err = nil
+				} else if err == nil {
+					err = metadb.ErrStaleMeta
+				}
+				for _, waiter := range waiters[key] {
+					waiter.results <- preparationResult{index: waiter.index, err: err}
+					waiterCount--
+				}
+				delete(waiters, key)
+			}
 			for _, key := range result.keys {
 				delete(inflight, key)
 			}
@@ -263,8 +287,10 @@ func (p *Projector) runScheduler(run *projectorRun) {
 			// A failed projection remains durable and is retried by the bounded
 			// repair cadence. Immediate retry here would hot-spin on a failed UID
 			// Slot and could starve shutdown. Successful completion may expose the
-			// next page immediately.
-			if result.err == nil {
+			// next page immediately when tracked work remains. An empty queue
+			// waits for the repair tick instead of scanning all hash slots
+			// after every directly prepared first SEND.
+			if result.err == nil && len(known) > 0 {
 				p.scan(run, inflight, known, &scanState)
 				p.observePressure(len(known), len(inflight))
 			}

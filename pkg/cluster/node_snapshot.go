@@ -73,6 +73,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	// Publish restore maintenance before slower placement reconciliation so no
 	// business write races an archive installation.
 	n.setMaintenance(snapshot.Maintenance)
+	n.publishPresenceSnapshot(snapshot)
 	// Cancel the previously published placement generation before applying any
 	// newer Controller state. Strict Slot-worker requests use this cancellation
 	// as their nonblocking fence against an apply-in-progress stale intent.

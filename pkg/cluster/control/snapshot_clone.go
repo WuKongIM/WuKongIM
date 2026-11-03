@@ -24,5 +24,9 @@ func (s Snapshot) Clone() Snapshot {
 		opsMCP.Credentials = append([]OpsMCPCredential(nil), s.OpsMCP.Credentials...)
 		out.OpsMCP = &opsMCP
 	}
+	if s.Presence != nil {
+		presence := s.Presence.Clone()
+		out.Presence = &presence
+	}
 	return out
 }

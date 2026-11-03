@@ -15,6 +15,8 @@ func (s *committedRefreshSink) RecordFollowerRepair(r followerRepair) {
 }
 func (s *committedRefreshSink) InstallAuthority(Authority) {}
 
+func (s *committedRefreshSink) ReleaseAuthority(ch.ChannelKey, AuthorityID) {}
+
 func TestCommittedReplicaRefreshUsesOnlyInstalledQuorumFrontier(t *testing.T) {
 	for _, mode := range []string{"ok", "empty", "missing", "unready", "released", "changed_epoch", "changed_voters", "changed_quorum", "fenced", "changed_fence", "cancel", "invalid_tail"} {
 		t.Run(mode, func(t *testing.T) {

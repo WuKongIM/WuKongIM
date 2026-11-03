@@ -302,7 +302,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, err
 	}
 	conversationReadStore := app.newConversationReadStore()
-	app.wirePresence()
+	if err := app.wirePresence(); err != nil {
+		return nil, err
+	}
 	if err := app.wireBackup(clusterCfg); err != nil {
 		return nil, err
 	}

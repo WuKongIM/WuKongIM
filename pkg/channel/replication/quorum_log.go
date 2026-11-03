@@ -139,11 +139,11 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 				return Installed{Authority: state.authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 			}
 		case 1:
-			fenceQuorumChannel(state, authority, l.cfg.MaxRetainedCommands)
+			fenceQuorumChannel(state, authority)
 			authorityAdvanced = true
 		}
 	} else {
-		fenceQuorumChannel(state, authority, l.cfg.MaxRetainedCommands)
+		fenceQuorumChannel(state, authority)
 		authorityAdvanced = true
 	}
 	if authorityAdvanced && l.cfg.RepairAuthorities != nil {
@@ -201,20 +201,21 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 	state.hw = installedFrontier.LEO
 	state.ready = true
 	state.pending = nil
-	state.retained = make(map[ch.CommandID]retainedProposal, l.cfg.MaxRetainedCommands)
+	// Empty and sparse Channels pay for current receipts, not future retry headroom.
+	state.retained = make(map[ch.CommandID]retainedProposal)
 	state.order = state.order[:0]
 	l.scheduleLearners(state, 1)
 	return Installed{Authority: authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 }
 
-func fenceQuorumChannel(state *quorumChannel, authority Authority, retainedCapacity int) {
+func fenceQuorumChannel(state *quorumChannel, authority Authority) {
 	state.released = false
 	state.authority = cloneAuthority(authority)
 	state.frontier = ReplicaState{}
 	state.hw = 0
 	state.ready = false
 	state.pending = nil
-	state.retained = make(map[ch.CommandID]retainedProposal, retainedCapacity)
+	state.retained = make(map[ch.CommandID]retainedProposal)
 	state.order = state.order[:0]
 }
 
@@ -237,6 +238,11 @@ func (l *quorumLog) Release(key ch.ChannelKey, expected AuthorityID) bool {
 		l.mu.Unlock()
 		state.mu.Unlock()
 		return false
+	}
+	if l.cfg.RepairAuthorities != nil {
+		// Keep this under the sequencer locks: a reinstall of the same durable
+		// authority must not be retired by its predecessor's delayed Release.
+		l.cfg.RepairAuthorities.ReleaseAuthority(key, expected)
 	}
 	state.released = true
 	state.ready = false
@@ -370,7 +376,9 @@ func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, prop
 // until durability. A nil return transfers exactly one complete callback,
 // possibly inline; an error transfers none. The Channel sequencer stays owned
 // by the round until its terminal result and is released before complete runs,
-// so complete may re-enter this log for the same Channel.
+// permitting already-durable same-Channel retries. A completion handler must
+// not synchronously wait for an operation requiring a subsequent peer completion
+// on that Channel; return control to its existing owner before such a wait.
 func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complete func(Receipt, error)) error {
 	if complete == nil || !l.validProposal(ctx, proposal) {
 		return ch.ErrInvalidConfig

@@ -14,7 +14,7 @@ import (
 func TestRuntimeRepairFixtureRejectsCoalescedReplicas(t *testing.T) {
 	router, store := newRuntimeRepairFixtureRouter(t)
 	executor := &manualPeerExecutor{}
-	batcher, err := newPeerBatcher(peerBatcherConfig{
+	batcher, err := newManualPeerBatcher(peerBatcherConfig{
 		Link: runtimeTestLink{from: 1, router: router}, Executor: executor,
 		OwnerContext: context.Background(), ExchangeTimeout: time.Second,
 		MaxBatchItems: 4, MaxBatchBytes: 4096,
