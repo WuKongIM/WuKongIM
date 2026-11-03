@@ -17,12 +17,10 @@ selector list in `cmd/wkcicheck/main.go` is the single catalog of named checks.
 | File | Display name | Purpose |
 | --- | --- | --- |
 | `ci.yml` | `CI` | Pull-request and `main` correctness: lint, Go unit, race, scripts integration, E2E, Manager web, demo, documentation and package jobs selected by changed paths, aggregated into the single required check `ci-ok`; nightly full race/integration/E2E |
-| `perf.yml` | `Performance` | 500 QPS seams on tmpfs and runner disk with runner-class summaries, same-runner A/B for pull requests labeled `perf`, the ten-minute three-node qualification, and the fixed SEND diagnosis |
+| `perf.yml` | `Performance` | 500 QPS seams on tmpfs and runner disk with runner-class summaries, same-runner A/B for pull requests labeled `perf`, the ten-minute three-node qualification, the nightly conversation QPS release gate as early warning, and the fixed SEND diagnosis |
 | `compat.yml` | `Compatibility` | Nightly native deb/rpm build plus four-distribution install and systemd lifecycle, and released EasySDK Android/iOS/Flutter acceptance |
 | `conversation-qps-diagnose.yml` | `Agent Tool - Diagnose Conversation QPS` | Read-only four-CPU AMD64 fixed mixed-load attribution with separate driver/server profiles; never publication evidence |
-| `conversation-qps-gate.yml` | `Safety Automation - Conversation QPS Release Gate` | Credential-free fixed HTTP load matrix; required by both publishers before release writes |
-| `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
-| `binary-release-publish.yml` | `Safety Automation - Publish WuKongIM Binaries` | Builds immutable Linux/macOS archives plus unsigned Linux amd64 DEB/RPM assets and publishes the exact set to the tag's GitHub Release |
+| `binary-release-publish.yml` | `Release` | One tag-triggered release: conversation QPS gate once, then the immutable multi-platform Docker image and its mirrors, then archives, unsigned deb/rpm and the immutable GitHub Release |
 | `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies and deploys the exact documentation artifact, then optionally refreshes the pre-provisioned Alibaba Cloud CDN |
 | `docs-cdn-certificate.yml` | `Safety Automation - Renew Documentation CDN Certificate` | While explicitly enabled, checks daily and renews the public CDN certificate through ACME DNS-01 and Alibaba Cloud OIDC |
 | `easy-sdk-web-docs-sync.yml` | `Safety Automation - Propose Web EasySDK Documentation Upgrade` | Checks successful Web npm publications daily, verifies literal tutorials in Chromium, and proposes a bounded documentation PR |
@@ -253,257 +251,69 @@ authority. The job deadline is 40 minutes; each diagnostic and gate test keeps
 its original 12/18-minute deadline. Actual publishers still require their own
 exact-tag gate.
 
-## Conversation QPS release gate
+## Release
 
-Both Docker and binary publication require `conversation-qps-gate.yml` to pass
-for the requested immutable tag. This reusable Workflow has read-only access,
-no protected Environment or inherited secrets, and a 24-minute job deadline.
-It runs on `ubuntu-24.04`, builds the tagged server, and tests real single-node
-and three-node clusters with 256 hash slots and `GOMAXPROCS=2` per node. The
-publisher compares its checkout SHA with the gate output before proceeding;
-a changed tag cannot reuse evidence for another commit.
-
-The fixed workload and acceptance thresholds live in
-[`profile.json`](../../test/e2e/message/conversation_qps/profile.json).
-Each endpoint runs pages of 25, 100 and 200 conversations against 600 persisted
-groups, 24 readers and three messages per channel. The existing authenticated
-benchmark eviction endpoint safely unloads only these generated channels on
-every node before reading, respecting busy-runtime guards. The fixture verifies
-zero active runtimes across all roles, then runs explicit cache warmup. Warmup
-and measurement must add zero loads and leave all residency at zero. This is
-cold-runtime storage access with warm disk caches, without process-recovery
-traffic mixed into the read workload. Each measured phase has 15 seconds of scheduled arrivals and eight
-bounded workers. The arrival queue is bounded by the number of requests
-offered within the P99 budget (at least the worker count); scheduler/queue delay
-counts toward P99. Reports bind both actual worker and queue limits. Every response must contain complete, correct message
-identities; measured requests never retry. Require at least 95% of offered QPS,
-P99 at most 500 ms, zero errors/drops, zero Channel loads, and zero membership
-writes. Missing metrics fail. Topology-specific allocated-byte ceilings per
-completed request additionally catch allocation regressions below saturation.
-CPU, heap and allocation totals accompany the results. These fixed regression floors are not peak-capacity claims or a
-100,000-member group throughput qualification.
-
-The three-node matrix also runs list 200 QPS and sync 60 QPS simultaneously
-for 60 seconds, with eight workers per endpoint. Six additional 15-second sync
-windows at 20 QPS and eight workers verify 50% hidden, 90% hidden, and the
-99-visible/100-hidden/one-visible layout, each on page 1 (size 100) and page 2
-(size 50). Exact ordered response IDs and recent messages are checked. Shared
-CPU/allocations belong to the window, never to both mixed endpoint results.
-The `stress_gate` profile pins window allocation ceilings. The v2 receipt filter
-in `scripts/validate-conversation-qps-report.jq` requires all seven windows,
-both simultaneous endpoints, exact settings and the same zero-error, 500-ms P99
-rules. The separate ten-minute 600/200-QPS diagnosis cannot qualify publication.
-
-Missing/skipped tests, partial matrices, dirty source, identity mismatches and
-failed performance limits block publication. The exact source/profile/binary
-hashes, all 12 base results and seven stress windows are retained with the log for 90 days, even on failure.
-There is no threshold override or bypass input. Diagnose a failing runner from
-its evidence; do not lower floors automatically or rerun until green. A tag
-that lacks this test cannot use the new gate and needs a new source release.
-The separate signed APT/RPM publication and public client checks remain required.
-
-## Docker image publishing
-
-`docker-image-publish.yml` is the sole official container-image publisher. A
-new `v*` tag starts an automatic release, while `workflow_dispatch` accepts one
-existing tag for a first publication or incomplete-release recovery. The tag
-must be strict SemVer without `+build` metadata, resolve to a commit reachable
-from `origin/main`, and remain the immutable source identity. Before checking
-credentials or publishing an image, the Workflow validates that the tagged
-`CHANGELOG.md` contains one non-empty, correctly formatted section for the
-exact tag. It never derives release notes from commits or GitHub-generated
-notes.
-
-Hosted release builds use the official Go module proxy for both the product
-and embedded Prometheus; the Dockerfile default remains available for local builds.
-All three release image builds pass the validated version (without the Git `v`
-prefix), source commit, and `release` build source into the server and CLI.
-Both platform candidates must report that exact identity through their version
-commands before publication. Source builds default to `dev`/`unknown`/`source`
-unless `BUILD_VERSION`, `BUILD_COMMIT`, and `BUILD_SOURCE` are supplied.
-
-GHCR is the canonical build target. The Workflow builds
-`linux/amd64,linux/arm64` security candidates and blocks publication when
-Trivy reports any Critical or High vulnerability. A recovery run applies the
-same per-platform scan to the existing canonical digest before it can fill a
-missing mirror. Each candidate must also pass the bounded
-`scripts/verify-docker-prometheus.sh` probe: offline non-root startup with
-managed Prometheus enabled, an actual scrape, historical queries after container
-recreation on the same volume, and graceful stop. The canonical digest passes
-that probe again before mirroring, including recovery runs. Each platform is
-pulled by its unique child manifest from the verified canonical index, so classic
-Docker stores never load both architectures under one index reference. Extracted Prometheus
-executables pass a separate Trivy `rootfs` scan that requires exactly one
-`gobinary` result, preventing an empty scan from passing. Their components and
-dependency edges are included in the corresponding platform SBOM. After the
-scan passes, the Workflow builds the canonical
-multi-platform image, creates signed GitHub build provenance plus a CycloneDX
-SBOM attestation for each platform, and copies the exact runtime manifest
-digest to all three public repositories:
-
-- `ghcr.io/wukongim/wukongim`;
-- `docker.io/wukongim/wukongim`;
-- `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`.
-
-The mirror-copy step uses checksum-pinned [Crane v0.22.1](https://github.com/google/go-containerregistry/releases/tag/v0.22.1)
-with one concurrent layer transfer and `--no-clobber`. It copies the canonical
-runtime index and both platform manifests over HTTPS with HTTP/1.1
-(`GODEBUG=http2client=0`), after HTTP/2 peer stream failures and stalled bulk
-copies. For Alibaba Cloud, checksum-pinned [regctl v0.11.6](https://github.com/regclient/regclient/releases/tag/v0.11.6)
-first prepares that same index by digest with 1 MiB upload chunks and one
-concurrent target request. This preparation creates no tag; Crane then creates
-the absent exact tag with its no-clobber guard. Chunking prevents repeated
-whole-layer uploads when a long request is interrupted. Detached attestations
-remain on canonical GHCR. Registry authentication and exact digest, source,
-and platform verification remain required.
-
-The exact Docker tag removes the Git `v` prefix. A stable `v3.1.2` may advance
-`3.1`, `3`, and `latest` only when it is the highest stable repository SemVer
-in each corresponding range. Pre-release tags, including date suffixes such as
-`v3.1.2-20260831`, publish only their exact tag. Exact tags are never
-overwritten. A manual recovery reuses an existing canonical GHCR digest, fills
-only absent exact mirrors, verifies identical digests and the two required
-platforms, and advances aliases only after that verification. BuildKit's inline
-provenance and SBOM manifests stay disabled because Alibaba Cloud Registry
-rejects their OCI empty-config media type; the detached signed GitHub
-attestations preserve this evidence without changing the portable runtime
-digest. Every successful run uploads a 90-day JSON release receipt and both
-per-platform SBOMs, and writes the same source, builder, digest, platform, and
-image facts to the Job Summary.
-
-Repository administrators must pre-create all three repositories with public
-pull visibility and configure a `docker-publish` Environment. Limit that
-Environment to protected `main` for manual recovery and trusted version tags
-for automatic publication, do not require a reviewer, and configure:
-
-- Variable `DOCKERHUB_USERNAME`;
-- Secret `DOCKERHUB_TOKEN`;
-- Variable `ALIYUNHUB_USERNAME`;
-- Secret `ALIYUNHUB_TOKEN`.
-
-GHCR uses the job-scoped `GITHUB_TOKEN`; no standing GHCR credential is
-required. Missing credentials, a conflicting exact tag, a registry copy
-failure, a digest mismatch, or a missing platform fails the complete release.
-
-## Binary release publishing
-
-Release delivery also includes the independently signed APT/RPM publication
-and public exact-version client checks in
-[`RELEASING.md`](../../docs/development/RELEASING.md). A successful binary,
-container, or documentation Workflow does not complete that downstream stage.
-The native package publisher remains in `WuKongIM/packages`; source tag
-Workflows do not automatically dispatch it or receive its signing credentials.
-
-`binary-release-publish.yml` publishes downloadable WuKongIM executables from
-the same strict SemVer `v*` source identity used by the container publisher. A
-new tag starts the workflow automatically; the manual `version` input accepts
-one existing tag for first publication or incomplete-draft recovery. A manual
-run must itself be dispatched from that exact tag, for example
-`gh workflow run binary-release-publish.yml --repo WuKongIM/WuKongIM --ref "$tag" -f version="$tag"`;
-a run dispatched from `main` fails before building because GitHub provenance
-inherits the run ref and Workflow commit. The tag must contain this Workflow,
-resolve to a commit reachable from `origin/main`, and may not contain SemVer
-build metadata. A historical tag without the Workflow needs a new SemVer tag
-rather than provenance synthesized from current `main`.
-
-Each run builds deterministic `.tar.gz` archives for `linux/amd64`,
-`linux/arm64`, `darwin/amd64`, and `darwin/arm64`. Windows is not advertised
-because the server currently contains Unix-only runtime and filesystem paths.
-Every archive includes `wukongim` and `wkcli`, English and Chinese readmes, and
-`wukongim.toml.example`. When the tagged source contains
-`.goreleaser.packages.yaml`, the same run also uses the commit-pinned
-GoReleaser action with GoReleaser `v2.18.0` to build unsigned Linux amd64
-packages containing both version-matched executables, normalized to exactly:
-
-- `wukongim_<version>_linux_amd64.deb`;
-- `wukongim_<version>_linux_amd64.rpm`.
-
-All archives and native packages share one SHA-256 checksum file and one signed
-GitHub build-provenance statement. The workflow verifies Linux binaries under
-amd64 and arm64 and retains the complete asset set plus a JSON receipt as
-Actions evidence for 90 days. Native packages remain unsigned source assets;
-the separate package repository must apply and verify its production package
-and repository signatures before publication. Tags containing the version
-command also prove the embedded version, full source commit, and `release`
-build source. Older tags that predate `.goreleaser.packages.yaml` retain their
-original five-asset recovery contract and remain bound by the immutable tag,
-checksums, and attestation.
-
-The workflow creates a draft Release without publishing it, uploads every
-expected archive, native package, and checksum, downloads and byte-compares the
-complete exact asset set, and only then publishes the verified draft once.
-Recovery may compare existing
-assets and fill missing files only in that same draft. Draft discovery scans
-all Releases for one exact tag match, then binds creation, upload, verification,
-and publication to the resulting numeric Release ID; it never relies on the
-published-by-tag endpoint to find a draft. Asset upload accepts only the exact
-numeric-ID `uploads.github.com` URL returned by GitHub and checks each upload
-response against the local size and SHA-256. Immediately before publication it
-rechecks that the remote tag still peels to the validated source commit, that
-repository-level immutable Releases remain enabled, and that the draft still
-has the exact asset names, sizes, and digests verified earlier. Any existing
-published Release fails closed: a complete one is already final, while an
-incomplete one must never be reused and requires a new SemVer tag. A
-pre-release SemVer tag must correspond to a GitHub pre-release; stable tags
-must correspond to a normal Release. After publication, the workflow verifies
-that GitHub sealed the same numeric Release ID as immutable, checks every
-asset's API size and any available SHA-256 digest against the local file, and
-always performs an ID-bound download and byte comparison. The same ID-bound
-byte comparison is repeated immediately before publication.
-
-The human-authored part of every new Release comes only from the exact tagged
-section in the root `CHANGELOG.md`. The file keeps `Unreleased` first and uses
-`## [vMAJOR.MINOR.PATCH[-PRERELEASE]] - YYYY-MM-DD` version boundaries with the
-fixed bilingual categories documented in that file. The Workflow rejects a
-missing, duplicate, empty, or malformed target section before building. It
-preserves the extracted Markdown verbatim and appends only machine-derived
-source, binary, checksum, image, digest, platform, Docker Workflow, and compare
-facts. It never falls back to GitHub-generated notes, a commit log, or an empty
-body. Every discovered, created, pre-publication, and published numeric Release
-ID must carry the exact rendered body.
-
-For manual recovery, the release-note extractor may come only from the exact
-`github.workflow_sha` commit, which the identity gate requires to resolve to
-the tagged source. It can never be borrowed from current `main`. A historical
-tag missing either this Workflow or the extractor needs a new SemVer tag;
-automatic tag publication likewise fails when the tagged source omits the
-extractor.
-
-The binary publisher waits for a successful Docker publisher run for the same
-tag, then verifies that GHCR, Docker Hub, and Alibaba Cloud expose one identical
-`linux/amd64,linux/arm64` digest whose per-platform labels match the exact tag
-source. A Docker failure or bounded wait timeout leaves any matching draft
-unpublished. After repair, manual dispatch resumes only when the draft body and
-assets still exactly match the tagged source. Pre-release Changelog entries are
-incremental from the previous pre-release in the same version line; stable
-entries summarize user-visible changes since the previous stable release.
-
-Repository administrators must configure a `binary-publish` Environment,
-allow only trusted version tags for both automatic publication and manual
-recovery, and avoid a reviewer gate for tag-triggered runs. The workflow uses
-only its job-scoped `GITHUB_TOKEN`; it requires no standing release credential.
-Until those Environment deployment restrictions have been configured and
-verified remotely, administrators must not push a release tag or manually
-dispatch this workflow.
-
-Immediately before pushing a release tag or starting manual recovery, an
-administrator must also verify that repository-level immutable Releases remain
-enabled in repository settings or through the administrator-only
-`GET /repos/{owner}/{repo}/immutable-releases` endpoint. The Actions
-`GITHUB_TOKEN` cannot read that administration endpoint, so the Workflow does
-not request or store an administrator token. It instead verifies after
-publication that GitHub sealed the exact numeric Release as immutable.
-
-For a user-visible pull request, add the release note under `Unreleased` when
-the change is made. A PR with no user-visible behavior must explain the reason
-in the repository PR template and receive the maintainer-applied
-`skip-changelog` label. Maintainers check that rule during review;
-the tag Workflows remain the final fail-closed publication gate. Before tagging,
-run:
+`binary-release-publish.yml` (display name `Release`) is the only publisher.
+A new strict SemVer `v*` tag starts it; manual recovery must be dispatched from
+that same tag ref:
 
 ```bash
-awk -v version=v3.0.0-beta.5 \
-  -f scripts/extract-release-notes.awk CHANGELOG.md >/dev/null
+gh workflow run binary-release-publish.yml --repo WuKongIM/WuKongIM --ref "$tag" -f version="$tag"
+```
+
+The file name is part of the release identity: `WuKongIM/packages` verifies
+binary build provenance against `.github/workflows/binary-release-publish.yml`,
+so do not rename it without changing that repository first. Release delivery
+also requires the independently signed APT/RPM publication and public
+exact-version client checks in
+[`RELEASING.md`](../../docs/development/RELEASING.md); this workflow does not
+complete that stage and receives no signing credential.
+
+One run executes three jobs in order:
+
+1. **`conversation-qps`** runs `scripts/release/conversation-qps-gate.sh` once
+   on the exact tag, with cluster data on tmpfs so hosted-runner disk speed
+   does not decide the result. Thresholds live in
+   [`profile.json`](../../test/e2e/message/conversation_qps/profile.json) and the
+   report must pass `scripts/validate-conversation-qps-report.jq`. There is no
+   bypass input; diagnose a failure from its 90-day evidence instead of
+   rerunning until green. `perf.yml` runs the same gate nightly on `main`.
+2. **`docker`** (Environment `docker-publish`) validates the tag (strict SemVer,
+   reachable from `origin/main`, valid `CHANGELOG.md` section), builds
+   `linux/amd64,linux/arm64` candidates, blocks on any Critical/High Trivy
+   finding and on the embedded-Prometheus probe, pushes the canonical
+   `ghcr.io/wukongim/wukongim` image, attests provenance and per-platform
+   CycloneDX SBOMs, and copies the exact digest to `docker.io/wukongim/wukongim`
+   and `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`. Exact tags are
+   never overwritten; a stable tag advances `MAJOR.MINOR`, `MAJOR` and `latest`
+   only when it is the highest stable version in that range. In recovery it
+   reuses the canonical digest and fills only missing mirrors; when every
+   registry is already complete it verifies and succeeds, so a binary-only
+   recovery can rerun the whole workflow.
+3. **`binaries`** (Environment `binary-publish`) builds deterministic
+   Linux/macOS archives (both `wukongim` and `wkcli`) and unsigned Linux amd64
+   `.deb`/`.rpm`, one checksum file and one signed provenance statement, checks
+   that all three registries serve the Docker job's digest, and renders the
+   Release body from the exact `CHANGELOG.md` section plus machine facts. It
+   creates a draft, uploads and byte-verifies every asset, publishes the draft
+   once, then verifies GitHub sealed it as an immutable Release. Any existing
+   published Release fails closed; an incomplete one needs a new tag.
+
+Repository administrators configure:
+
+- Environment `docker-publish`: Variables `DOCKERHUB_USERNAME`,
+  `ALIYUNHUB_USERNAME`; Secrets `DOCKERHUB_TOKEN`, `ALIYUNHUB_TOKEN`; deployment
+  limited to trusted version tags; no reviewer.
+- Environment `binary-publish`: deployment limited to trusted version tags; no
+  reviewer.
+- Repository-level immutable Releases enabled. The Actions token cannot read
+  that setting, so verify it before pushing a release tag.
+
+For a user-visible pull request, add the release note under `Unreleased` in
+`CHANGELOG.md`; before tagging, check the exact section:
+
+```bash
+awk -v version=v3.0.0-beta.5 -f scripts/extract-release-notes.awk CHANGELOG.md >/dev/null
 ```
 
 ## Direct local chat-lifecycle repair
