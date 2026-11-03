@@ -471,31 +471,11 @@ export const cloudAnalysisMCPTools = [
   'config_read_redacted',
 ] as const;
 
-export const reviewCheckMCPTools = ['check_list', 'check_result', 'check_run'] as const;
-
-export const issueAgentCLICommands = [
-  'reconcile-github',
-  'recover-task',
-  'build-context',
-  'capture-candidate',
-  'verify-candidate',
-  'mint-app-token',
-  'publish-candidate',
-] as const;
-
-export const reviewAgentCLICommands = [
-  'normalize-review-result',
-  'reconcile-github',
-  'recover-review',
-  'build-context',
-  'verify-baseline',
-  'validate-review-result',
-  'validate-explanation',
-  'append-state',
-  'publish-review',
-] as const;
-
-export const reviewCheckSelectorCommands = [
+export const ciCheckSelectorCommands = [
+  'go-vet',
+  'flow-doc-contracts',
+  'agent-artifact-contracts',
+  'skill-focused-contracts',
   'go-format',
   'go-mod-tidy',
   'web',

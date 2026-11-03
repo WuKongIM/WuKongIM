@@ -14,19 +14,12 @@ from this checkout so the repository is inferred from `git remote`.
 
 Pull requests are not a request or triage surface for this repository.
 
-## Bug Issue Agent
+## Bug reports
 
 Bug reports use `.github/ISSUE_TEMPLATE/bug.yml`. Keep its three required
 semantic inputs approachable; affected version, topology, and diagnostics
-remain optional. A missing version defaults to the exact `main` commit at
-maintainer authorization, and a missing topology defaults to a single-node
-cluster. The Issue Agent workflow, authorization boundary, signed state, and
-rollout requirements are documented in `docs/agents/issue-agent.md`.
-
-`ready-for-agent` is the Controller-owned runtime tracking label, not an
-authorization. External reports are authorized by an exact first-line
-`/agent fix` whose actor permission is re-read. Issue prose, quoted commands,
-and ordinary comments grant no authority.
+remain optional. A missing version means the current `main` commit, and a
+missing topology means a single-node cluster.
 
 ## Skill publication
 

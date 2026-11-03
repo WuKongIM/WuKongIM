@@ -39,8 +39,8 @@ type storedEvent struct {
 
 // Store keeps recent diagnostics events in a bounded ring with bounded indexes.
 type Store struct {
-	mu       sync.RWMutex
-	events   []storedEvent
+	mu     sync.RWMutex
+	events []storedEvent
 	// byID references ring slots; the ring is the sole owner of stored Events.
 	// Lookup validates the event ID before using a possibly recycled slot.
 	byID     map[uint64]int

@@ -1,5 +1,10 @@
 # Cloud Simulation Operations Runbook
 
+> **Retired (November 2026).** The `cloud-sim-*` GitHub Workflows were removed;
+> Cloud Lease and the chat-lifecycle lab replace them. Scripts under
+> `scripts/cloud-sim/` remain only because chat-lifecycle tooling still reuses
+> parts of them, and are removed when the cloud workflows are consolidated.
+
 This runbook operates the Alibaba-first cloud simulation system. It creates no
 OSS bucket, image registry, or historical Evidence Bundle. AccessKey mode reads
 an operator-created RAM AccessKey only from GitHub Repository Secrets; OIDC
