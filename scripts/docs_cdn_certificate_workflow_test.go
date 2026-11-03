@@ -16,7 +16,7 @@ func TestDocsCDNCertificateWorkflowIsDefaultDisabledAndNarrowlyAuthorized(t *tes
 
 	for _, want := range []string{
 		"name: Safety Automation - Renew Documentation CDN Certificate",
-		`cron: "17 0,12 * * *"`,
+		`cron: "17 0 * * *"`,
 		"workflow_dispatch:",
 		"force_renew:",
 		"if: github.ref == 'refs/heads/main' && vars.DOCS_CDN_ENABLED == 'true'",
