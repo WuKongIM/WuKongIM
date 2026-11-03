@@ -1814,11 +1814,16 @@ specification, runbook, report, or module documentation; link to them when neede
   loss must not degrade into generic text and ordinary HTTP 400; unknown text,
   storage failures and caller cancellation do not acquire retryability.
 - Read [workflow contracts](../../.github/workflows/README.md) before invoking
-  Actions. Issue/Review Agent control files remain protected. Authorization, signed
-  generation identity, and exact source evidence cannot be replaced by event hints
-  or model output. Named checks and path selection are defined only by
-  [Review Agent policy](../../.github/review-agent/policy.json); focused Skill tests
-  are cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+  Actions. `ci.yml` is the only pull-request gate and `ci-ok` its only required
+  check; the Review Agent, Issue Agent and Cloud Simulation workflows were
+  retired in November 2026. Named checks are defined only by
+  [`cmd/wkcicheck`](../../cmd/wkcicheck/main.go); focused Skill tests are
+  cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+- GitHub-hosted runner allocations differ mainly in disk speed: AMD EPYC 9V74
+  runners showed ~3.5x slower writes and a 164 ms median channel-append p99
+  versus 7 ms on EPYC 7763 (388 runs, Oct-Nov 2026). Hosted-runner results
+  detect regressions (tmpfs data, allocations per operation, same-runner A/B);
+  they never certify absolute capacity, which needs fixed hardware.
 - Script integration `repoRoot(t)` also admits top-level tests to the bounded
   parallel scheduler. Resolve it before creating command contexts, starting
   processes, or allocating time-sensitive resources; queue time is not part of

@@ -491,92 +491,6 @@ func TestRunFocusedBatchesRegisteredTestsUnderSharedBudget(t *testing.T) {
 	}
 }
 
-func TestRunRejectsReviewPolicyWithoutFocusedSkillCheck(t *testing.T) {
-	root := newTestRepo(t)
-	writeMinimalSkill(t, root)
-	writeTestFile(t, root, ".github/review-agent/policy.json", `{
-  "trusted_checks": {
-    "agent-artifact-contracts": {
-      "arguments": ["go", "run", "./scripts/skillcheck"],
-      "working_dir": ".",
-      "timeout_seconds": 60,
-      "max_output_bytes": 1048576
-    }
-  },
-  "path_rules": [
-    {
-      "name": "agent-skills",
-      "paths": [".agents/skill-tests.json"],
-      "prefixes": [".agents/skills/"],
-      "checks": ["agent-artifact-contracts", "skill-focused-contracts"]
-    }
-  ]
-}
-`)
-
-	want := ".github/review-agent/policy.json: trusted check \"skill-focused-contracts\" is missing\n"
-	requireSkillcheckError(t, root, want)
-}
-
-func TestRunRejectsReviewPolicyWithoutSkillPathRouting(t *testing.T) {
-	root := newTestRepo(t)
-	writeMinimalSkill(t, root)
-	writeTestFile(t, root, ".github/review-agent/policy.json", `{
-  "trusted_checks": {
-    "agent-artifact-contracts": {
-      "arguments": ["go", "run", "./scripts/skillcheck"],
-      "working_dir": ".",
-      "timeout_seconds": 60,
-      "max_output_bytes": 1048576
-    },
-    "skill-focused-contracts": {
-      "arguments": ["go", "run", "./scripts/skillcheck", "--run-focused"],
-      "working_dir": ".",
-      "timeout_seconds": 60,
-      "max_output_bytes": 1048576
-    }
-  },
-  "path_rules": []
-}
-`)
-
-	want := ".github/review-agent/policy.json: must route .agents/skills/ and .agents/skill-tests.json through paired static and --run-focused checks\n"
-	requireSkillcheckError(t, root, want)
-}
-
-func TestRunRejectsReviewPolicyBeyondCombinedGateBudget(t *testing.T) {
-	root := newTestRepo(t)
-	writeMinimalSkill(t, root)
-	writeTestFile(t, root, ".github/review-agent/policy.json", `{
-  "trusted_checks": {
-    "agent-artifact-contracts": {
-      "arguments": ["go", "run", "./scripts/skillcheck"],
-      "working_dir": ".",
-      "timeout_seconds": 20,
-      "max_output_bytes": 1048576
-    },
-    "skill-focused-contracts": {
-      "arguments": ["go", "run", "./scripts/skillcheck", "--run-focused"],
-      "working_dir": ".",
-      "timeout_seconds": 41,
-      "max_output_bytes": 1048576
-    }
-  },
-  "path_rules": [
-    {
-      "name": "agent-skills",
-      "paths": [".agents/skill-tests.json"],
-      "prefixes": [".agents/skills/"],
-      "checks": ["agent-artifact-contracts", "skill-focused-contracts"]
-    }
-  ]
-}
-`)
-
-	want := ".github/review-agent/policy.json: paired skill checks \"agent-artifact-contracts\" and \"skill-focused-contracts\" declare 61 seconds, exceeding the 60-second gate budget\n"
-	requireSkillcheckError(t, root, want)
-}
-
 func TestRunRejectsFocusedTestsBeyondFastGateBudget(t *testing.T) {
 	root := newTestRepo(t)
 	writeMinimalSkill(t, root)
@@ -690,39 +604,6 @@ func TestRunRejectsNonDiscoverableFocusedTestFunction(t *testing.T) {
 			requireSkillcheckError(t, root, want)
 		})
 	}
-}
-
-func TestRunRejectsReviewPolicyThatReplacesSkillcheckCommand(t *testing.T) {
-	root := newTestRepo(t)
-	writeMinimalSkill(t, root)
-	writeTestFile(t, root, ".github/review-agent/policy.json", `{
-  "trusted_checks": {
-    "agent-artifact-contracts": {
-      "arguments": ["go", "run", "./scripts/othercheck"],
-      "working_dir": ".",
-      "timeout_seconds": 15,
-      "max_output_bytes": 1048576
-    },
-    "skill-focused-contracts": {
-      "arguments": ["go", "run", "./scripts/othercheck", "--run-focused"],
-      "working_dir": ".",
-      "timeout_seconds": 45,
-      "max_output_bytes": 1048576
-    }
-  },
-  "path_rules": [
-    {
-      "name": "agent-skills",
-      "paths": [".agents/skill-tests.json"],
-      "prefixes": [".agents/skills/"],
-      "checks": ["agent-artifact-contracts", "skill-focused-contracts"]
-    }
-  ]
-}
-`)
-
-	want := ".github/review-agent/policy.json: skill checks must invoke go run ./scripts/skillcheck with only an optional --run-focused argument\n"
-	requireSkillcheckError(t, root, want)
 }
 
 func writeTestFile(t *testing.T, root string, relative string, content string) {
