@@ -1,0 +1,41 @@
+# TEMPORARY: reproduce issue #1077 (3->5 migration Channel leader failover
+# answers 503 retry required until the deadline). Not for merge.
+name: Failover hunt
+on:
+  pull_request:
+    paths: [".github/workflows/failover-hunt.yml"]
+permissions:
+  contents: read
+jobs:
+  hunt:
+    name: Failover hunt lane ${{ matrix.lane }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Run the 3-to-5 migration failover subtest twice
+        env:
+          GOWORK: "off"
+        run: |
+          go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
+          mkdir -p "$RUNNER_TEMP/hunt"
+          for i in 1 2; do
+            WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" go test -tags=e2e ./test/e2e/migration/ordinary_history \
+              -run 'TestOriginalOrdinaryHistoryTopology/3_source_nodes_to_5_target_nodes' \
+              -count=1 -timeout=10m -p=1 -v >"$RUNNER_TEMP/hunt/run-$i.log" 2>&1 && echo "run $i: pass" || echo "run $i: FAIL"
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: failover-hunt-lane-${{ matrix.lane }}
+          path: ${{ runner.temp }}/hunt
+          retention-days: 7
