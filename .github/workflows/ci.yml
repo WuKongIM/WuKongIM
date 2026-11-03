@@ -157,14 +157,20 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Build one E2E server binary
-        run: |
-          echo "WK_E2E_BINARY=$RUNNER_TEMP/wukongim-e2e" >>"$GITHUB_ENV"
-          go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
+        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
+      # WK_E2E_BINARY is set per step, never job-wide: the server rejects every
+      # unknown WK_* variable as configuration.
       - name: Migration (all ordinary-history topologies)
+        env:
+          WK_E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
         run: go test -tags=e2e ./test/e2e/migration/ordinary_history -count=1 -timeout=12m -p=1 -parallel=1
       - name: Cross-node delivery
+        env:
+          WK_E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
         run: go test -tags=e2e ./test/e2e/message/cross_node_delivery -count=1 -timeout=2m -p=1
       - name: Self chat
+        env:
+          WK_E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
         run: go test -tags=e2e ./test/e2e/message/self_chat -count=1 -timeout=4m -p=1
       - name: Three-node 500 SEND/s correctness and drain smoke
         # Data lives on tmpfs: this is a correctness check, and runner disk
