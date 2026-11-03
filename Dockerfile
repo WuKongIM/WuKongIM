@@ -17,7 +17,11 @@ RUN set -eu; \
     tar -xzf /tmp/prometheus-source.tar.gz --strip-components=1 -C /prometheus; \
     GOWORK=off GOTOOLCHAIN=local go get \
       "golang.org/x/crypto@$PROMETHEUS_X_CRYPTO_VERSION" \
-      "google.golang.org/grpc@$PROMETHEUS_GRPC_VERSION"; \
+      "google.golang.org/grpc@$PROMETHEUS_GRPC_VERSION" \
+      "golang.org/x/net@$PROMETHEUS_X_NET_VERSION" \
+      "go.opentelemetry.io/otel/exporters/otlp/otlptrace@$PROMETHEUS_OTEL_OTLPTRACE_VERSION" \
+      "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc@$PROMETHEUS_OTEL_OTLPTRACE_VERSION" \
+      "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@$PROMETHEUS_OTEL_OTLPTRACE_VERSION"; \
     GOWORK=off GOTOOLCHAIN=local go mod verify
 
 FROM prometheus-source AS prometheus
