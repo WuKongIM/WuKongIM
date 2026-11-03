@@ -75,6 +75,8 @@ esac
 # this is the fixture's peak footprint; on runner disk it is an upper bound.
 used_kib() { df -Pk "$data_dir" | awk 'NR == 2 {print $3}'; }
 baseline_kib="$(used_kib)"
+# 0 means "measured, no growth"; a missing file means the sampler never ran.
+printf '0\n' >"$evidence/data-peak-kib.txt"
 (
   peak=0
   while :; do
