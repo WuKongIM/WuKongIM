@@ -6,9 +6,9 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Automatically upgrade registered v3 format-1 node directories before startup, retaining verified cold backups and crash-resumable metadata progress; preserve legacy UID bans through snapshot and Raft recovery. Requires a coordinated cold upgrade of all nodes. / 启动前自动迁移已登记的 v3 格式 1 数据，保留校验冷备并支持中断续跑；快照及 Raft 恢复保留旧用户禁令，须全节点统一停机升级。
-
 ### 🔧 Improvements / 改进
+
+- Automatically upgrade registered v3 format-1 node directories before startup, retaining verified cold backups and crash-resumable metadata progress; preserve legacy UID bans through snapshot and Raft recovery. Requires a coordinated cold upgrade of all nodes. / 启动前自动迁移已登记的 v3 格式 1 数据，保留校验冷备并支持中断续跑；快照及 Raft 恢复保留旧用户禁令，须全节点统一停机升级。
 
 - Temporarily suspend the hosted-runner channel-append CI performance check pending
   a controlled performance environment; retain other checks and prior failure evidence.
