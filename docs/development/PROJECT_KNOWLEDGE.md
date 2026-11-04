@@ -1,5 +1,10 @@
 # Project Knowledge
 
+- Breaking changes and upgrades require the user's explicit prior approval for
+  their disclosed compatibility impact and migration/backup/rollback plan; see
+  [AGENTS.md](../../AGENTS.md), “Breaking Changes and Upgrades”. General task
+  authorization does not approve an undisclosed compatibility break.
+
 - The operator temporarily suspended `channel-append` in the three-node hosted-runner
   performance matrix pending a controlled performance environment. Mixed SEND, TCP
   SENDACK, correctness/race and nightly lifecycle checks remain enabled. Existing
