@@ -396,8 +396,13 @@ start_profile_request() {
   case "$kind" in heap) max_bytes=16777216 ;; goroutine|context-*) max_bytes=4194304 ;; esac
   CAPTURE_STARTED+=("$(date -u +%Y-%m-%dT%H:%M:%SZ)")
   CAPTURE_REGISTERING=1
-  curl -fsS --connect-timeout "$CONNECT_TIMEOUT_SECONDS" --max-time "$max_time" --max-filesize "$max_bytes" \
-    --header @<(write_authorization_header) \
+  # The token reaches curl through a pipe (--header @- reads stdin), never
+  # argv or disk. A pipeline, unlike <(...) process substitution, needs no
+  # runtime parsing: a TERM arriving mid-parse of <(...) made bash 5 run the
+  # trap inside the parser and exit 2 with "unexpected EOF ... matching )".
+  # $! is the pipeline's last process, the curl request.
+  write_authorization_header | curl -fsS --connect-timeout "$CONNECT_TIMEOUT_SECONDS" --max-time "$max_time" --max-filesize "$max_bytes" \
+    --header @- \
     -H 'X-WK-Bench-Evidence: local-threshold-pprof' "$url" >"$temporary" 2>/dev/null &
   CAPTURE_PIDS+=("$!")
   CAPTURE_TMP_FILES+=("$temporary")
