@@ -292,6 +292,10 @@ One run executes three jobs in order:
    reuses the canonical digest and fills only missing mirrors; when every
    registry is already complete it verifies and succeeds, so a binary-only
    recovery can rerun the whole workflow.
+   Scanner setup runs before candidate builds and downloads Trivy 0.74.0 directly
+   from official GitHub assets, verifying both reviewed SHA-256 digests before
+   extracting or adding the executable to PATH. It does not use the vendor
+   redirect service; the two-platform CRITICAL/HIGH gates remain unchanged.
 3. **`binaries`** (Environment `binary-publish`) builds deterministic
    Linux/macOS archives (both `wukongim` and `wkcli`) and unsigned Linux amd64
    `.deb`/`.rpm`, one checksum file and one signed provenance statement, checks
