@@ -1804,6 +1804,11 @@ specification, runbook, report, or module documentation; link to them when neede
   60-second gate verdicts remain authoritative; profiler overhead is explicit.
   Go's 32 MiB/15-second retention settings are hints; exported trace bytes are
   independently capped at 64 MiB. See the workflow catalog for collection bounds.
+- Release scanner bootstrap uses the fixed official Trivy GitHub archive and
+  checksum assets with reviewed SHA-256 pins before candidate builds. Vendor
+  redirect availability is not a release dependency; both architecture scans
+  and the existing CRITICAL/HIGH rejection policy remain mandatory.
+
 - Release completion includes signed native package publication and exact-version
   public APT/RPM verification. Server and CLI artifacts share build identity;
   required same-tag acceptance gates precede publication. Follow
