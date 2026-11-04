@@ -18,7 +18,15 @@ _openapi:
       - content: Add Channel allowlist members
         id: add-channel-allowlist-members
     contents:
-      - content: Adds non-blank UIDs to the derived Channel allowlist.
+      - content: "Adds non-blank UIDs to the derived Channel allowlist. For
+          channel_type=1, channel_id is the whitelist owner UID: after the ACL
+          write, prepare both users' canonical person Memberships and refresh
+          only the owner's activated_at, preserving existing join/read/delete
+          boundaries. Personal UIDs cannot contain @. Duplicate peers are
+          prepared once; repeated adds refresh activation. Preparation or
+          activation failure can leave a durable prefix; retry the same request
+          to finish. Group allowlists retain ACL-only behavior;
+          empty-conversation display is unchanged."
         heading: add-channel-allowlist-members
       - content: >-
           POST /channel/whitelist_add
@@ -27,7 +35,15 @@ _openapi:
 
           Add Channel allowlist members
 
-          Adds non-blank UIDs to the derived Channel allowlist.
+          Adds non-blank UIDs to the derived Channel allowlist. For
+          channel_type=1, channel_id is the whitelist owner UID: after the ACL
+          write, prepare both users' canonical person Memberships and refresh
+          only the owner's activated_at, preserving existing join/read/delete
+          boundaries. Personal UIDs cannot contain @. Duplicate peers are
+          prepared once; repeated adds refresh activation. Preparation or
+          activation failure can leave a durable prefix; retry the same request
+          to finish. Group allowlists retain ACL-only behavior;
+          empty-conversation display is unchanged.
 
           ChannelAllowlistMutationRequest
 

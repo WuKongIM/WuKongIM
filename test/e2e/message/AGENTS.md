@@ -238,3 +238,8 @@ The separate `TestPermissionCallerFixedLoadV2` fixes the diagnostic input and
 evidence gaps with one worker/eight queued ordinals per caller, monotonic phase
 offsets, raw metrics/TOML retention and strict native CPU cut bounds. Consult
 `send_ban/AGENTS.md` for invocation; original V1/64-SEND verdicts remain unchanged.
+
+The `message/person_allowlist` scenario proves personal whitelist addition prepares
+both Memberships before SEND and activates only the owner in 256-Hash-Slot
+single-node and three-node clusters, preserving badge/history boundaries and
+whole-cluster restart state. Run `WK_E2E_PERSON_ALLOWLIST_REPORT_DIR=/absolute/report-directory GOWORK=off go test -tags=e2e ./test/e2e/message/person_allowlist -count=1 -timeout=5m -p=1 -v`; its per-topology JSON is written after process cleanup.

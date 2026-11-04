@@ -18,7 +18,10 @@ _openapi:
       - content: 添加 Channel 允许列表成员
         id: 添加-channel-允许列表成员
     contents:
-      - content: 把非空白 UID 加入派生 Channel 允许列表。
+      - content: 把非空白 UID 加入派生 Channel 允许列表。channel_type=1 时，channel_id 为白名单所属用户
+          UID：白名单写入成功后确保双方个人频道 Membership，再仅刷新所属用户的
+          activated_at，保留已有加入、已读及历史隐藏边界。个人 UID 不能含 @。重复 UID
+          仅准备一次；重复添加会刷新激活时间。目录准备或激活失败可能已提交部分步骤，应重试相同请求完成。群白名单仍仅修改权限，空会话显示规则不变。
         heading: 添加-channel-允许列表成员
       - content: >-
           POST /channel/whitelist_add
@@ -27,7 +30,10 @@ _openapi:
 
           添加 Channel 允许列表成员
 
-          把非空白 UID 加入派生 Channel 允许列表。
+          把非空白 UID 加入派生 Channel 允许列表。channel_type=1 时，channel_id 为白名单所属用户
+          UID：白名单写入成功后确保双方个人频道 Membership，再仅刷新所属用户的
+          activated_at，保留已有加入、已读及历史隐藏边界。个人 UID 不能含 @。重复 UID
+          仅准备一次；重复添加会刷新激活时间。目录准备或激活失败可能已提交部分步骤，应重试相同请求完成。群白名单仍仅修改权限，空会话显示规则不变。
 
           ChannelAllowlistMutationRequest
 

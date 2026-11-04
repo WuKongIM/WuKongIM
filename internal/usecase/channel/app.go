@@ -56,6 +56,17 @@ type CommittedTailReader interface {
 	CommittedChannelTail(ctx context.Context, channelID string, channelType int64) (uint64, error)
 }
 
+// PersonDirectory prepares both UID Memberships and the canonical person
+// Channel through the existing generation-fenced, create-if-absent workflow.
+type PersonDirectory interface {
+	AdmitPersonChannelDirectory(context.Context, string, int64) error
+}
+
+// MembershipActivation changes only the whitelist owner's activation priority.
+type MembershipActivation interface {
+	ActivateUserChannelMembership(context.Context, string, string, int64, int64, int64) error
+}
+
 // Options contains dependencies for the channel usecase.
 type Options struct {
 	// SendBanAudit receives explicit policy attempts with atomic old/new state.
@@ -65,6 +76,10 @@ type Options struct {
 	Store                Store
 	// MembershipIndex receives ordinary subscriber membership projections.
 	MembershipIndex MembershipIndex
+	// PersonDirectory ensures both person Memberships after a personal allowlist add.
+	PersonDirectory PersonDirectory
+	// MembershipActivation refreshes the allowlist owner's priority after preparation.
+	MembershipActivation MembershipActivation
 	// CommittedTail supplies the join visibility boundary for ordinary membership writes.
 	CommittedTail CommittedTailReader
 	// SubscriberPageLimit bounds internal subscriber pages and mutation chunks.
@@ -85,6 +100,8 @@ type App struct {
 	commandChannels               channelid.CommandCodec
 	store                         Store
 	membershipIndex               MembershipIndex
+	personDirectory               PersonDirectory
+	membershipActivation          MembershipActivation
 	committedTail                 CommittedTailReader
 	subscriberMutationObserver    SubscriberMutationObserver
 	subscriberPageLimit           int
@@ -111,6 +128,8 @@ func New(opts Options) *App {
 		commandChannels:               channelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		store:                         opts.Store,
 		membershipIndex:               opts.MembershipIndex,
+		personDirectory:               opts.PersonDirectory,
+		membershipActivation:          opts.MembershipActivation,
 		committedTail:                 opts.CommittedTail,
 		subscriberMutationObserver:    opts.SubscriberMutationObserver,
 		subscriberPageLimit:           limit,
@@ -462,9 +481,16 @@ func (a *App) RemoveAllDenylist(ctx context.Context, key ChannelKey) error {
 	return a.removeAllMemberList(ctx, denyListKind, key)
 }
 
-// AddAllowlist appends members to the allowlist.
+// AddAllowlist appends allowlist members, then prepares personal Memberships
+// and activates only the allowlist owner. Partial failures require caller retry.
 func (a *App) AddAllowlist(ctx context.Context, cmd MemberCommand) error {
-	return a.addMemberList(ctx, allowListKind, cmd.ChannelKey, cmd.UIDs)
+	if err := a.validatePersonalAllowlist(ctx, cmd); err != nil {
+		return err
+	}
+	if err := a.addMemberList(ctx, allowListKind, cmd.ChannelKey, cmd.UIDs); err != nil {
+		return err
+	}
+	return a.preparePersonalAllowlist(ctx, cmd)
 }
 
 // SetAllowlist replaces every member in the allowlist.

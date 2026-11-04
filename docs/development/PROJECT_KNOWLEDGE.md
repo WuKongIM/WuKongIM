@@ -770,7 +770,17 @@ specification, runbook, report, or module documentation; link to them when neede
   activating Channel runtimes or confirming quorum: failed SENDs can appear and
   previews can regress after failover. Any attempted read failure aborts the page;
   clients retain data and retry the original request/cursor.
-- `activated_at` records explicit navigation and unread-action priority; hide clears it.
+- Personal `/channel/whitelist_add` writes the owner's permission list, ensures
+  both canonical person Memberships through the same generation-fenced directory
+  used before SEND, then updates only the whitelist owner's `activated_at`.
+  Reverse addition activates the other user separately. Duplicate peers are
+  prepared once; repeated calls refresh priority without resetting join/read/
+  delete boundaries. Group lists, denylist, whitelist replacement and removal
+  remain ACL-only. Partial failures return an error; retry completes preparation
+  and activation even if the ACL entry already exists. No new durable format
+  or Raft command is required, and empty-conversation display is unchanged.
+- `activated_at` records explicit navigation, personal whitelist addition and
+  unread-action priority; hide clears it.
   Setting or clearing unread advances the badge when needed, then activates with
   existing cluster commands. An already-current badge still activates. A failed
   activation after a committed read advance returns an error; retry must finish

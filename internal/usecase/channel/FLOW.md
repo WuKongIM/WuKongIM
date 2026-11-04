@@ -32,11 +32,20 @@ It does not own entry protocols, concrete storage, cluster transport, or caches.
 3. Allowlist, denylist, and temporary members use stable derived channel IDs
    that preserve the legacy internal namespace; counted mutations require the
    parent and return exact requested and durable set-change counts.
+4. Personal `AddAllowlist` writes the ACL, prepares each distinct canonical pair
+   through the generation-fenced person directory, then activates only the
+   whitelist owner. Existing join/read/delete boundaries are preserved.
 
 ## Invariants and Failure Semantics
 
-- Only ordinary subscribers create user-channel membership projection rows and
-  observer events.
+- Ordinary subscribers create user-channel membership projections and observer
+  events. Personal allowlist addition separately ensures both person Memberships
+  through the person directory; it emits no ordinary subscriber observer event.
+- Personal add requires both directory and activation capabilities before ACL
+  mutation. Invalid pair identities fail before writes. Preparation/activation
+  failures return errors after the durable prefix; retry repeats both steps.
+  Group lists, denylist changes, replacement and removal keep their ACL-only
+  semantics. Empty-conversation display is unchanged.
 - Reset removes the old snapshot and adds the replacement under one mutation
   version.
 - Observer notification occurs only after durable mutation, projection, and

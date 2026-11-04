@@ -99,6 +99,10 @@ Stop or startup rollback
 - The normalized message system UID is injected consistently into user
   privilege checks, Product HTTP compatibility, legacy conversation projection,
   and plugin-origin default sends.
+- Personal whitelist addition and ordinary SEND share the same bounded
+  person-directory admission store, joined by existing Stop/startup rollback.
+  Channel management receives that directory port and the UID membership
+  activation adapter; business sequencing remains in the channel usecase.
 - The legacy conversation-sync adapter only translates sibling DTOs; directory
   scanning, filtering, whole-request failure, and message ordering stay in the
   conversation use case. It transfers the message usecase's already-detached

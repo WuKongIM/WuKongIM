@@ -21,7 +21,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/access/mqtt/FLOW.md](../../internal/access/mqtt/FLOW.md) | `package` | Maps MQTT gateway lifecycle, inbound publications and outbound exchange bindings to owner-fenced Session and message usecases. | 102 | warning |
 | [internal/access/node/FLOW.md](../../internal/access/node/FLOW.md) | `package` | Adapts versioned node RPC frames to local authority, runtime, and management ports. | 144 | warning |
 | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
-| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and tooling runtimes and owns their dependency-safe lifecycle ordering. | 146 | warning |
+| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and tooling runtimes and owns their dependency-safe lifecycle ordering. | 150 | warning |
 | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 128 | warning |
 | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 150 | warning |
 | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 54 | ok |
@@ -52,7 +52,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/runtime/webhook/FLOW.md](../../internal/runtime/webhook/FLOW.md) | `package` | Performs bounded node-local best-effort delivery of message, offline-recipient, and online-status webhooks. | 49 | ok |
 | [internal/usecase/backup/FLOW.md](../../internal/usecase/backup/FLOW.md) | `package` | Owns cluster-wide backup plan policy, job admission, archive lifecycle, retention, and current-cluster restore orchestration. | 67 | ok |
 | [internal/usecase/benchterminal/FLOW.md](../../internal/usecase/benchterminal/FLOW.md) | `package` | Owns one exact benchmark terminal drain, capability grant, and session-seal admission proof. | 68 | ok |
-| [internal/usecase/channel/FLOW.md](../../internal/usecase/channel/FLOW.md) | `package` | Orchestrates channel metadata, ordinary membership, derived member lists, versioning, projection, and bounded iteration. | 63 | ok |
+| [internal/usecase/channel/FLOW.md](../../internal/usecase/channel/FLOW.md) | `package` | Orchestrates channel metadata, ordinary membership, derived member lists, versioning, projection, and bounded iteration. | 72 | ok |
 | [internal/usecase/chatlifecyclerun/FLOW.md](../../internal/usecase/chatlifecyclerun/FLOW.md) | `package` | Materializes bounded repair, rehearsal, and formal chat-lifecycle run plans from reviewed templates and trusted context. | 73 | ok |
 | [internal/usecase/cloudanalysis/FLOW.md](../../internal/usecase/cloudanalysis/FLOW.md) | `package` | Validates exact-run Analysis MCP requests and returns bounded observations from narrow live sources. | 56 | ok |
 | [internal/usecase/clouddeploy/FLOW.md](../../internal/usecase/clouddeploy/FLOW.md) | `package` | Seals provider-neutral offline deployment bundles, exact Lease plans, host files, and typed readiness receipts. | 85 | ok |

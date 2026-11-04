@@ -295,11 +295,11 @@
       "post": {
         "operationId": "addChannelAllowlistMembers",
         "summary": "Add Channel allowlist members",
-        "description": "Adds non-blank UIDs to the Channel allowlist; the route retains its legacy whitelist name.",
+        "description": "Adds non-blank UIDs to the derived Channel allowlist. For channel_type=1, channel_id is the whitelist owner UID: after the ACL write, prepare both users' canonical person Memberships and refresh only the owner's activated_at, preserving existing join/read/delete boundaries. Personal UIDs cannot contain @. Duplicate peers are prepared once; repeated adds refresh activation. Preparation or activation failure can leave a durable prefix; retry the same request to finish. Group allowlists retain ACL-only behavior; empty-conversation display is unchanged.",
         "x-i18n": {
           "zh": {
             "summary": "添加 Channel 白名单成员",
-            "description": "向 Channel 允许列表添加非空白 UID；路由沿用 whitelist 命名。"
+            "description": "把非空白 UID 加入派生 Channel 允许列表。channel_type=1 时，channel_id 为白名单所属用户 UID：白名单写入成功后确保双方个人频道 Membership，再仅刷新所属用户的 activated_at，保留已有加入、已读及历史隐藏边界。个人 UID 不能含 @。重复 UID 仅准备一次；重复添加会刷新激活时间。目录准备或激活失败可能已提交部分步骤，应重试相同请求完成。群白名单仍仅修改权限，空会话显示规则不变。"
           }
         },
         "tags": ["Channels"],

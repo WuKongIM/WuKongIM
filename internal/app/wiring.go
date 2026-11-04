@@ -365,6 +365,9 @@ func (a *App) wireChannels() {
 		if node, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
 			metadata := a.ensureChannelAppendMetadataCache()
 			store := clusterinfra.NewChannelMetadataStore(node, metadata, a.goroutines)
+			// Share directory admission with SEND so Stop and startup rollback
+			// join the same owner before closing cluster dependencies.
+			a.messageChannelStore = store
 			channelOptions := channelusecase.Options{
 				SendBanAudit:                  a.sendBanAuditObserver,
 				CommandChannelSuffix:          a.cfg.Message.CMDChannelSuffix,
@@ -375,6 +378,12 @@ func (a *App) wireChannels() {
 			if _, ok := node.(clusterinfra.ChannelMembershipNode); ok {
 				channelOptions.MembershipIndex = store
 				channelOptions.CommittedTail = store
+			}
+			if _, ok := node.(clusterinfra.PersonDirectoryNode); ok {
+				channelOptions.PersonDirectory = store
+			}
+			if conversationNode, ok := a.cluster.(clusterinfra.ConversationNode); ok {
+				channelOptions.MembershipActivation = clusterinfra.NewConversationStore(conversationNode)
 			}
 			a.channels = channelusecase.New(channelOptions)
 		}
@@ -907,7 +916,10 @@ func (a *App) wireMessages() {
 			messageOpts.SendHook = a.plugins
 		}
 		if channelNode, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
-			channelStore := clusterinfra.NewChannelMetadataStore(channelNode, a.ensureChannelAppendMetadataCache(), a.goroutines)
+			channelStore := a.messageChannelStore
+			if channelStore == nil {
+				channelStore = clusterinfra.NewChannelMetadataStore(channelNode, a.ensureChannelAppendMetadataCache(), a.goroutines)
+			}
 			a.messageChannelStore = channelStore
 			messageOpts.PermissionStore = channelStore
 			if _, ok := channelNode.(clusterinfra.AuthoritativePermissionBatchNode); ok {
