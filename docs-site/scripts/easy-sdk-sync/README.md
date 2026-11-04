@@ -1,6 +1,6 @@
 # Web EasySDK documentation upgrade pilot
 
-The hourly `easy-sdk-web-docs-sync.yml` workflow proposes compatible released
+The daily `easy-sdk-web-docs-sync.yml` workflow proposes compatible released
 Web SDK upgrades. It does not publish SDKs or merge documentation PRs. Other
 languages still use the reviewed manifest maintenance process.
 
@@ -45,7 +45,7 @@ receipt are uploaded. A separate main-branch writer recreates those same three
 files from trusted source, compares their hashes, re-reads main, and creates a
 version-specific PR through the GitHub API. No npm package or artifact-provided
 code executes with write permission. A newer main defers publication until the
-next hourly check. An interrupted branch creation can be recovered only when
+next daily check. An interrupted branch creation can be recovered only when
 its complete tree and parent still match; differing branches are preserved for
 manual inspection. There are no force pushes, automatic approvals or merges.
 

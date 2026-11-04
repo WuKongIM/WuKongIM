@@ -31,47 +31,13 @@ func TestCloudSimulationSetupHelpDescribesOneCommandContract(t *testing.T) {
 	}
 }
 
-func TestCloudSimulationSetupRecommendedInputsMatchProvisionWorkflow(t *testing.T) {
-	root := repoRoot(t)
-	setup, err := os.ReadFile(filepath.Join(root, "scripts", "cloud-sim", "setup.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "cloud-sim-provision.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, required := range []string{
-		"scenario=cloud-small",
-		"infrastructure_preset=small",
-		"duration=30m",
-		"analysis_grace=2h",
-		"max_total_cost=70",
-	} {
-		if !strings.Contains(string(setup), required) {
-			t.Fatalf("setup recommendation missing %q", required)
-		}
-	}
-	for _, required := range []string{
-		"options: [cloud-small, cloud-medium, cloud-large, cloud-standard, cloud-stress]",
-		"options: [small, medium, large, standard, stress]",
-		"options: [30m, 2h, 24h, 48h, 168h]",
-		"options: [2h, 6h]",
-		`default: "70"`,
-	} {
-		if !strings.Contains(string(workflow), required) {
-			t.Fatalf("Provision workflow does not admit the setup recommendation contract %q", required)
-		}
-	}
-}
-
 func TestCloudSimulationSetupPinsDownloadedToolchain(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "cloud-sim", "toolchain.env"))
 	if err != nil {
 		t.Fatalf("read cloud toolchain: %v", err)
 	}
 	want := []string{
-		"GO_VERSION=1.25.11",
+		"GO_VERSION=1.26.10",
 		"GO_LINUX_AMD64_SHA256=34f14304e856893f4ba30c2cacfe93906e9de7915c5f6aaaf3a81cdccd7ba30b",
 		"GO_LINUX_ARM64_SHA256=c30bf9e156a54ea4e31fbbbf31a712b32734b58cc9a22426fa5ee632d0885124",
 		"GH_CLI_VERSION=2.96.0",

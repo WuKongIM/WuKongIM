@@ -4,17 +4,14 @@ import {
   benchHTTP,
   benchmarkWorkerHTTP,
   chatLifecycleWorkerHTTP,
+  ciCheckSelectorCommands,
   cloudAnalysisHTTP,
   cloudAnalysisMCPTools,
   debugHTTP,
-  issueAgentCLICommands,
   managerRoutes,
   nodeTransportServices,
   operationsMCPTools,
   pluginHostRPCPaths,
-  reviewAgentCLICommands,
-  reviewCheckMCPTools,
-  reviewCheckSelectorCommands,
   webhookEvents,
 } from './api-surface-contracts';
 
@@ -265,18 +262,10 @@ describe('MCP and agent-only contracts', () => {
     expect(cloudTools).toEqual([...cloudAnalysisMCPTools]);
   });
 
-  test('matches Review Check MCP and strict agent CLI selectors', async () => {
-    const [checkMCP, issueCLI, reviewCLI, selectorCLI] = await Promise.all([
-      source('../../internal/access/reviewagentcheckmcp/server.go'),
-      source('../../internal/access/issueagentcli/command.go'),
-      source('../../internal/access/reviewagentcli/command.go'),
-      source('../../cmd/wkreviewcheck/main.go'),
-    ]);
+  test('matches the named CI check selectors', async () => {
+    const selectorCLI = await source('../../cmd/wkcicheck/main.go');
 
-    expect(parseStringArray(checkMCP, 'toolNames')).toEqual([...reviewCheckMCPTools]);
-    expect(parseSwitchCases(issueCLI)).toEqual([...issueAgentCLICommands]);
-    expect(parseSwitchCases(reviewCLI)).toEqual([...reviewAgentCLICommands]);
-    expect(parseSwitchCases(selectorCLI)).toEqual([...reviewCheckSelectorCommands]);
+    expect(parseSwitchCases(selectorCLI)).toEqual([...ciCheckSelectorCommands]);
   });
 
   test('matches Cloud Analysis HTTP mounts', async () => {

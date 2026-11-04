@@ -1,0 +1,222 @@
+name: Performance
+# Performance regression detection on GitHub-hosted runners.
+#
+# Hosted runners differ between allocations: AMD EPYC 9V74 runners write to
+# disk ~3.5x slower than others, which made absolute p99 gates flaky. This
+# workflow therefore answers "did this change get slower?", not "can the
+# product sustain 500 QPS?" (that capacity question needs fixed hardware):
+#   - nightly: every seam on tmpfs and on runner disk, plus the ten-minute
+#     three-node qualification; each summary records the runner class;
+#   - `perf` label on a pull request: same-runner interleaved A/B against the
+#     PR base, compared on allocations/bytes per operation and p99 ratios;
+#   - manual: any of the above, or the fixed same-host SEND diagnosis.
+#
+# Observation mode: WK_PERF_ENFORCE is unset, so A/B regressions are reported
+# in the job summary without failing. Enable it after thresholds are
+# calibrated from nightly data.
+run-name: Performance ${{ github.event_name }} ${{ github.event.pull_request.number || github.ref_name }}
+
+on:
+  schedule:
+    - cron: "17 18 * * *"
+  pull_request:
+    types: [labeled, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: What to run
+        type: choice
+        default: seams
+        options: [seams, qualification, ab, send-diagnosis, conversation-qps]
+      base_ref:
+        description: Base revision for suite=ab (default origin/main)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOWORK: "off"
+
+jobs:
+  seams:
+    name: Seam ${{ matrix.seam }} (${{ matrix.data }})
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'seams')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    # Runner-disk runs are comparison data only: their variance is the known
+    # hosted-runner problem, so they never fail the workflow.
+    continue-on-error: ${{ matrix.data == 'disk' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        seam: [channel-append, mixed-send, tcp-sendack]
+        data: [tmpfs, disk]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26.10"
+      - name: Run the fixed 500 QPS seam
+        env:
+          SEAM: ${{ matrix.seam }}
+          WK_PERF_DATA: ${{ matrix.data }}
+        run: bash scripts/run-500qps-seam.sh "$SEAM" "$RUNNER_TEMP/seam"
+      - name: Summarize with runner class
+        if: always()
+        env:
+          SEAM: ${{ matrix.seam }}
+        run: |
+          [[ -d "$RUNNER_TEMP/seam" ]] || exit 0
+          python3 scripts/perf/summarize_seam.py "$RUNNER_TEMP/seam" >/dev/null
+          jq -r --arg seam "$SEAM" '"### \($seam) on \(.data_mode)\n\n| status | CPU | max window p99 ms | allocs/op | B/op | disk write ms | IO pressure % | data KiB |\n|---|---|---|---|---|---|---|---|\n| \(.status) | \(.cpu_model) | \(.max_window_p99_ms) | \(.allocs_per_op) | \(.bytes_per_op) | \(.disk_write_ms) | \(.io_pressure_pct) | \(.data_footprint_kib) |"' \
+            "$RUNNER_TEMP/seam/summary.json" >>"$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: seam-${{ matrix.seam }}-${{ matrix.data }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/seam
+          if-no-files-found: warn
+          retention-days: 30
+
+  ab:
+    name: A/B ${{ matrix.seam }} vs base
+    if: >-
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.suite == 'ab')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        seam: [channel-append, mixed-send, tcp-sendack]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26.10"
+      - name: Interleave base and head three times on this runner
+        env:
+          SEAM: ${{ matrix.seam }}
+          BASE_REF: ${{ github.event.pull_request.base.sha || inputs.base_ref || 'origin/main' }}
+          WK_PERF_DATA: tmpfs
+        run: bash scripts/perf/ab.sh "$SEAM" "$BASE_REF" 3 "$RUNNER_TEMP/ab" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: ab-${{ matrix.seam }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ab
+          if-no-files-found: warn
+          retention-days: 30
+
+  qualification:
+    name: Ten-minute three-node 500 QPS qualification
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'qualification')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # Runs on runner disk, so it is observation-only until it moves to fixed
+    # hardware or tmpfs; see the workflow header.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Record runner class
+        run: |
+          {
+            echo "### Runner"
+            echo
+            echo "CPU: \`$(lscpu | sed -n 's/^Model name: *//p')\`, data: \`$(findmnt -n -o SOURCE -T "$RUNNER_TEMP")\`"
+          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Run the ten-minute qualification
+        run: |
+          api_token="$(openssl rand -hex 32)"
+          worker_token="$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$api_token" "$worker_token"
+          export WK_BENCH_API_TOKEN="$api_token" WK_BENCH_WORKER_TOKEN="$worker_token"
+          mkdir -p "$RUNNER_TEMP/qualification"
+          scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh \
+            --run-dir "$RUNNER_TEMP/qualification/artifacts" --base-port 15000 --ready-timeout 180 \
+            --send-rate 500 --measure-seconds 600 --warmup-seconds 60 \
+            --drain-timeout 90 --hot-sendack-p99-ms 400 2>&1 | tee "$RUNNER_TEMP/qualification/driver.log"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qualification
+          if-no-files-found: warn
+          retention-days: 14
+
+  conversation-qps:
+    name: Conversation QPS release gate (early warning)
+    # The same gate the release workflow enforces on the exact tag; running it
+    # nightly on main surfaces a failing gate before release day.
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'conversation-qps')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - run: scripts/release/conversation-qps-gate.sh "$RUNNER_TEMP/conversation-qps"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: conversation-qps-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/conversation-qps/
+          if-no-files-found: warn
+          retention-days: 30
+
+  send-diagnosis:
+    name: Fixed same-host SEND diagnosis
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'send-diagnosis'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26.10"
+      - run: bash scripts/diagnose-mixed-send-linux.sh "$RUNNER_TEMP/mixed-send-diagnosis"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: mixed-send-diagnosis-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mixed-send-diagnosis
+          if-no-files-found: error
+          retention-days: 90
+
+  report:
+    name: Track nightly failures
+    needs: [seams, conversation-qps]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/report-nightly-failure.sh "Nightly performance"

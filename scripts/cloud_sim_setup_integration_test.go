@@ -221,7 +221,7 @@ esac
 set -euo pipefail
 printf 'go %s\n' "$*" >>"$WK_SETUP_CALL_LOG"
 if [[ "$*" == "env GOVERSION" ]]; then
-	printf '%s\n' go1.25.11
+	printf '%s\n' go1.26.10
 	exit 0
 fi
 if [[ "$*" == "env GOROOT" ]]; then
@@ -543,7 +543,7 @@ set -euo pipefail
 if [[ "$*" == "env GOVERSION" ]]; then
   : >"$WK_SETUP_SIGNAL_READY"
   /bin/sleep 1
-  printf '%s\n' go1.25.11
+  printf '%s\n' go1.26.10
   exit 0
 fi
 if [[ "$*" == "env GOROOT" ]]; then
@@ -634,7 +634,7 @@ exit 77
 		writeSetupExecutable(t, filepath.Join(bin, command), "#!/usr/bin/env bash\nexit 0\n")
 	}
 	writeSetupExecutable(t, filepath.Join(bin, "go"), `#!/usr/bin/env bash
-if [[ "$*" == "env GOVERSION" ]]; then printf '%s\n' go1.25.11; exit 0; fi
+if [[ "$*" == "env GOVERSION" ]]; then printf '%s\n' go1.26.10; exit 0; fi
 if [[ "$*" == "env GOROOT" ]]; then (cd "$(dirname "$0")/.." && pwd); exit 0; fi
 exit 0
 `)
@@ -718,12 +718,12 @@ if [[ "$*" == "env GOVERSION" ]]; then printf '%s\n' go1.24.0; exit 0; fi
 printf '%s\n' SYSTEM_GO_USED >&2
 exit 78
 `)
-	partialGo := filepath.Join(temp, "cache", "wukongim-cloud-sim", "go1.25.11", "go", "bin", "go")
+	partialGo := filepath.Join(temp, "cache", "wukongim-cloud-sim", "go1.26.10", "go", "bin", "go")
 	if err := os.MkdirAll(filepath.Dir(partialGo), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	writeSetupExecutable(t, partialGo, `#!/usr/bin/env bash
-if [[ "$*" == "env GOVERSION" ]]; then printf '%s\n' go1.25.11; exit 0; fi
+if [[ "$*" == "env GOVERSION" ]]; then printf '%s\n' go1.26.10; exit 0; fi
 printf '%s\n' PARTIAL_GO_USED >&2
 exit 79
 `)
@@ -744,7 +744,7 @@ exit 77
 	writeSetupGoTarGz(t, archive, []byte(`#!/usr/bin/env bash
 if [[ "$*" == "env GOVERSION" ]]; then
   printf '%s\n' PINNED_GO_VERSION_CHECK >&2
-  printf '%s\n' go1.25.11
+  printf '%s\n' go1.26.10
   exit 0
 fi
 if [[ "$*" == "env GOROOT" ]]; then
@@ -805,7 +805,7 @@ cp "$WK_SETUP_FAKE_GO_ARCHIVE" "$output"
 	if readErr != nil {
 		t.Fatal(readErr)
 	}
-	if !strings.Contains(string(calls), "mirrors.aliyun.com/golang/go1.25.11") {
+	if !strings.Contains(string(calls), "mirrors.aliyun.com/golang/go1.26.10") {
 		t.Fatalf("setup did not download the pinned Go archive from the preferred mirror:\n%s", calls)
 	}
 }
@@ -822,7 +822,7 @@ func TestCloudSimulationSetupRejectsChecksumMismatch(t *testing.T) {
 		}
 	}
 	writeSetupExecutable(t, filepath.Join(bin, "go"), `#!/usr/bin/env bash
-if [[ "$*" == "env GOVERSION" ]]; then printf '%s\n' go1.25.11; exit 0; fi
+if [[ "$*" == "env GOVERSION" ]]; then printf '%s\n' go1.26.10; exit 0; fi
 if [[ "$*" == "env GOROOT" ]]; then (cd "$(dirname "$0")/.." && pwd); exit 0; fi
 exit 0
 `)

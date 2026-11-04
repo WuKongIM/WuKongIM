@@ -1779,7 +1779,7 @@ if [[ " $* " == *' run ./cmd/wkclouddiagnosis validate '* && "${WK_ANALYZE_GO_VA
   wait "$child"
 fi
 if [[ "$*" == "env GOVERSION" ]]; then
-  printf '%s\n' go1.25.11
+  printf '%s\n' go1.26.10
 elif [[ "$*" == "env GOMODCACHE" ]]; then
   module_cache="$(cd "$(dirname "$0")/.." && pwd)/gomodcache"
   mkdir -p "$module_cache"

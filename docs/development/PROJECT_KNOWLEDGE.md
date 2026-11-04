@@ -153,6 +153,15 @@ wall timestamps are audit fields, not a reconstructed qualification clock.
 Current result and capacity consumers require v8 and reject missing offsets;
 historical v7 reports remain available for diagnosis without upgrading old evidence.
 
+Lifecycle driver `SDKAdmission` includes the entire `SessionPool.TrySend`,
+including its online-table read lock. Engine step-lock and owner-queue wait
+metrics do not measure that lock. Optional static runtime trace regions split
+`pool_lookup` from `client_try_send` on the same goroutine; they retain no UID.
+Runtime Running intervals are wall state, not measured CPU. A partial or evicted
+trace cannot explain a historical stall. Snapshot table capture runs on the
+same Engine owner as SEND; client queue probes run outside that owner and can
+contend with client admission. ACK drains may independently acquire pool locks.
+
 Lifecycle runtime probes are asynchronous node-local reads, not snapshots at a
 ticker instant. Each batch retains only its client request start/end interval,
 after concurrency admission, against the existing clock. An all-missing result
@@ -1820,11 +1829,16 @@ specification, runbook, report, or module documentation; link to them when neede
   loss must not degrade into generic text and ordinary HTTP 400; unknown text,
   storage failures and caller cancellation do not acquire retryability.
 - Read [workflow contracts](../../.github/workflows/README.md) before invoking
-  Actions. Issue/Review Agent control files remain protected. Authorization, signed
-  generation identity, and exact source evidence cannot be replaced by event hints
-  or model output. Named checks and path selection are defined only by
-  [Review Agent policy](../../.github/review-agent/policy.json); focused Skill tests
-  are cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+  Actions. `ci.yml` is the only pull-request gate and `ci-ok` its only required
+  check; the Review Agent, Issue Agent and Cloud Simulation workflows were
+  retired in November 2026. Named checks are defined only by
+  [`cmd/wkcicheck`](../../cmd/wkcicheck/main.go); focused Skill tests are
+  cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+- GitHub-hosted runner allocations differ mainly in disk speed: AMD EPYC 9V74
+  runners showed ~3.5x slower writes and a 164 ms median channel-append p99
+  versus 7 ms on EPYC 7763 (388 runs, Oct-Nov 2026). Hosted-runner results
+  detect regressions (tmpfs data, allocations per operation, same-runner A/B);
+  they never certify absolute capacity, which needs fixed hardware.
 - Script integration `repoRoot(t)` also admits top-level tests to the bounded
   parallel scheduler. Resolve it before creating command contexts, starting
   processes, or allocating time-sensitive resources; queue time is not part of

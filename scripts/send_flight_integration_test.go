@@ -16,11 +16,15 @@ func Test500QPSSeamPreservesVerdictAndRetainsInterruptedFlight(t *testing.T) {
 	for _, tc := range []struct {
 		name, benchmark, analysis string
 		pass                      bool
+		// dataMode is WK_PERF_DATA; empty keeps the default runner disk.
+		dataMode string
 	}{
-		{"failed_workload", "42", "0", false},
-		{"timeout_after_capture", "124", "0", false},
-		{"failed_analysis", "0", "1", true},
-		{"failed_retention", "0", "0", true},
+		{"failed_workload", "42", "0", false, ""},
+		{"timeout_after_capture", "124", "0", false, ""},
+		{"failed_analysis", "0", "1", true, ""},
+		{"failed_retention", "0", "0", true, ""},
+		{"tmpfs_data_pass", "0", "0", true, "tmpfs"},
+		{"tmpfs_data_failed_workload", "42", "0", false, "tmpfs"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -36,8 +40,8 @@ func Test500QPSSeamPreservesVerdictAndRetainsInterruptedFlight(t *testing.T) {
 				"timeout":   `shift; exec "$@"`,
 				"mktemp":    `exec "$WK_REAL_MKTEMP" -d "$WK_FAKE_SHM/wk-send-flight.XXXXXXXX"`,
 				"go": `case "$1 ${2:-}" in
- 'env GOVERSION') echo go1.25.11 ;;
- 'version '*) echo go1.25.11 ;;
+ 'env GOVERSION') echo go1.26.10 ;;
+ 'version '*) echo go1.26.10 ;;
  'test -c')
    cp "$WK_FAKE_BENCHMARK" "${@: -1}"
    chmod 700 "${@: -1}"
@@ -76,7 +80,8 @@ exit "$WK_FAKE_BENCHMARK_STATUS"
 			cmd := exec.Command("bash", "run-500qps-seam.sh", "mixed-send", out)
 			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"WK_FAKE_NAME="+tc.name, "WK_REAL_MKTEMP="+mktemp, "WK_FAKE_SHM="+root, "WK_FAKE_BENCHMARK="+fake,
-				"WK_FAKE_CALLS="+filepath.Join(root, "calls"), "WK_FAKE_BENCHMARK_STATUS="+tc.benchmark, "WK_FAKE_ANALYSIS_STATUS="+tc.analysis)
+				"WK_FAKE_CALLS="+filepath.Join(root, "calls"), "WK_FAKE_BENCHMARK_STATUS="+tc.benchmark, "WK_FAKE_ANALYSIS_STATUS="+tc.analysis,
+				"WK_PERF_DATA="+tc.dataMode)
 			log, err := cmd.CombinedOutput()
 			if (err == nil) != tc.pass {
 				t.Fatalf("wrong original verdict: %v %s", err, log)
@@ -104,9 +109,19 @@ exit "$WK_FAKE_BENCHMARK_STATUS"
 			if err != nil || string(calls) != "run\n" {
 				t.Fatalf("retried fixture: %q %v", calls, err)
 			}
+			// The fake mktemp stages both the flight and the tmpfs data directory;
+			// neither may survive a passing or failing run.
 			stages, err := filepath.Glob(filepath.Join(root, "wk-send-flight.*"))
 			if err != nil || len(stages) != 0 {
 				t.Fatalf("leaked staging: %v %v", stages, err)
+			}
+			wantMode := "disk"
+			if tc.dataMode != "" {
+				wantMode = tc.dataMode
+			}
+			mode, err := os.ReadFile(filepath.Join(out, "data-mode.txt"))
+			if err != nil || strings.TrimSpace(string(mode)) != wantMode {
+				t.Fatalf("data mode evidence = %q, %v; want %s", mode, err, wantMode)
 			}
 		})
 	}

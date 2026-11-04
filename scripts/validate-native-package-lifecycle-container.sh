@@ -96,6 +96,7 @@ run_bounded() {
   marker="$(mktemp "${TMPDIR:-/tmp}/wk-native-lifecycle-timeout.XXXXXX")"
   active_timeout_marker="$marker"
   (
+    trap - EXIT
     timer_pid=0
     timer_cancelled=0
     trap '' PIPE
@@ -152,6 +153,13 @@ failure_diagnostic() {
 
 cleanup() {
   status=$?
+  # Only the launcher owns the container. A forked watchdog subshell could run
+  # this inherited EXIT trap (about one in five Linux hard-cancel runs) and
+  # remove the live container mid-lifecycle. Each forked subshell clears the
+  # trap first; BASHPID (bash 4+, absent in macOS bash 3.2) is a second guard.
+  if [[ -n "${BASHPID:-}" && "$BASHPID" != "$$" ]]; then
+    exit "$status"
+  fi
   trap - EXIT HUP INT TERM
   if [[ -n "$active_timeout_marker" ]]; then
     rm -f "$active_timeout_marker"
@@ -190,6 +198,7 @@ trap 'exit 130' HUP INT TERM
 
 total_timeout_marker="$(mktemp "${TMPDIR:-/tmp}/wk-native-lifecycle-total-timeout.XXXXXX")"
 (
+  trap - EXIT
   timer_pid=0
   timer_cancelled=0
   trap 'cancel_watchdog_timer' TERM INT

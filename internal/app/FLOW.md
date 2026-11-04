@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering.
+summary: Composes product and tooling runtimes and owns their dependency-safe lifecycle ordering.
 ---
 
 # internal/app Flow
@@ -10,7 +10,7 @@ summary: Composes product and Agent runtimes and owns their dependency-safe life
 This package is the only composition root under `internal`. It converts
 validated configuration into product access adapters, use cases, node-local
 runtimes, infrastructure adapters, cluster/gateway services, observability,
-and lifecycle ownership. Agent/Analysis/View roots do not start the product cluster.
+and lifecycle ownership. Analysis/View roots do not start the product cluster.
 
 ## Boundaries
 
@@ -125,8 +125,6 @@ Stop or startup rollback
   restore-sensitive caches and side-effect runtimes are reactivated before
   Controller clears maintenance.
 - With Top disabled, metrics-only sampling refreshes resource/storage gauges without retaining Top history, cluster snapshots or alerts. Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain UIDs, Channel IDs, client message IDs, addresses, or secret material. Transport publishes exact bounded-label counter batches and one-in-32 latency samples, separating handler, service-queue and complete client RPC time. Its retained-memory gauge includes queued and executing request owners. Fixed direction/lane payload-byte counters retain Raft versus non-Raft traffic; they exclude wire headers and network overhead and materialize zero series. Channel-create coalescer gauges and closed delivery/post-commit terminal result partitions must materialize true zero series rather than imply them. - A Slot replica match index may exceed commit while replication is pending; its committed-entry lag is zero, not invalid or an unsigned underflow.
-- Issue/Review Agent composition keeps read, verification, signed-state, and
-  publication credentials separated and never joins the product cluster.
 - Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
 - Successful edit commits enqueue body-free identities through a nonblocking callback into that same worker. Its bounded volatile queue accelerates authoritative dispatch; stop/restore clears it and durable pending scans remain the recovery source.
 
@@ -142,9 +140,7 @@ Top ACK-binding counts use independent atomic publication while delivery seriali
 ## Read First
 - [app.go](app.go), [Presence wiring](presence_generation.go)
 - [backup.go](backup.go)
-- [issue_agent.go](issue_agent.go)
-- [review_agent.go](review_agent.go)
 ## Update Triggers
 - Dependency ownership or the sole-composition-root boundary changes.
 - Product startup, readiness, rollback, drain, or shutdown ordering changes.
-- Restore maintenance, side-effect fencing, optional wiring, or Agent authority changes.
+- Restore maintenance, side-effect fencing, or optional wiring changes.

@@ -27,7 +27,7 @@ def identity(h):
     require(h["MemoryLimit"] == 2**63-1 and h["RuntimeDebug"] == "", "unexpected Go runtime overrides")
     require(h["CPUModel"] and h["HostID"] and h["AllowedCPUs"], "missing host identity or CPU affinity")
     require(h["Source"] != "unspecified" and len(h["Source"]) == 40, "missing committed source identity")
-    require(len(h["BinarySHA256"]) == 64 and h["GoVersion"] == "go1.25.11", "binary/toolchain identity mismatch")
+    require(len(h["BinarySHA256"]) == 64 and h["GoVersion"] == "go1.26.10", "binary/toolchain identity mismatch")
     return tuple(h[k] for k in ("HostID", "BinarySHA256", "Source", "GoVersion", "CPUModel", "AllowedCPUs", "CPUCount", "Procs"))
 
 
