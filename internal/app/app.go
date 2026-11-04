@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,7 @@ import (
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/dataformat"
+	"github.com/WuKongIM/WuKongIM/pkg/db"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -237,6 +239,14 @@ type App struct {
 
 // New creates an internal App.
 func New(cfg Config, opts ...Option) (*App, error) {
+	return NewWithContext(context.Background(), cfg, opts...)
+}
+
+// NewWithContext permits startup migration to stop at a durable retry boundary.
+func NewWithContext(ctx context.Context, cfg Config, opts ...Option) (*App, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("startup context is nil")
+	}
 	app := &App{cfg: cfg}
 	constructionOK := false
 	defer func() {
@@ -260,6 +270,16 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	// Inspect freshness before a nested log directory can make the root nonempty.
 	// An injected cluster owns its own data-directory lifecycle.
 	if app.cluster == nil {
+		var lastStage string
+		var lastReport time.Time
+		if err := db.UpgradeFormat1(ctx, clusterCfg.DataDir, clusterCfg.Control.StateDir, func(stage string) {
+			if stage != lastStage || time.Since(lastReport) >= 5*time.Second {
+				fmt.Fprintf(os.Stderr, "wukongim: format 1 -> 2: %s\n", stage)
+				lastStage, lastReport = stage, time.Now()
+			}
+		}); err != nil {
+			return nil, err
+		}
 		if err := dataformat.EnsureFresh(clusterCfg.DataDir, clusterCfg.CreatedBy, clusterCfg.Control.StateDir); err != nil {
 			return nil, err
 		}

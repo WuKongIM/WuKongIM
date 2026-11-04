@@ -103,6 +103,8 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   JSONL export rejects durable MQTT metadata/replay/Will/funding evidence before
   creating or overwriting output; complete MQTT JSONL state transfer is unsupported.
 
+- Product startup upgrades registered directory format 1 before runtime admission. `UpgradeFormat1` owns exclusive cold backups, streamed SHA-256 manifests, retry identity and final format publication; archive-only backup repositories are excluded. Matching-node cold upgrade and full-generation rollback are required.
+
 ## Read First
 
 - [Root store](db.go)

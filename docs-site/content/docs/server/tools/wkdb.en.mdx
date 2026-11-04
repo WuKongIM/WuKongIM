@@ -85,7 +85,7 @@ wkcli db --data-dir ./node-1 \
 
 `info` opens no database or database lock, creates or writes no directory, and can run online. Missing paths or corrupt markers fail. Supply a node root or config without `--meta-path`, `--message-path`, or `--hash-slot-count`.
 
-Current format is `wukongim-v3` / `2`. Format 1 and nonempty unregistered directories are rejected, without automatic migration. Never edit `DATA-FORMAT.json` to bypass checks; preserve it in full backups. Archive restore retains target creation identity; older binaries do not guarantee safe rollback.
+Current format is `wukongim-v3` / `2`. Server startup automatically upgrades registered format-1 directories after a verified cold backup, with crash-resumable progress. Stop all nodes and replace their binaries together. CLI `info` only reads identity and never migrates; nonempty unregistered directories remain rejected. Retained backups live under `format-upgrade-v1-v2/backup/` in each node directory. Never edit `DATA-FORMAT.json` to bypass checks; preserve it in full backups. Archive restore retains target creation identity; older binaries do not guarantee safe rollback.
 
 <details>
   <summary>Complete data-version commands, identity, and compatibility</summary>
@@ -104,14 +104,14 @@ Every fresh empty node directory receives `DATA-FORMAT.json`. Migration targets 
 | --- | --- |
 | `registered` | Valid identity with a format supported by this tool |
 | `unregistered` | Directory exists without identity; neither v2/v3 nor creator is inferred |
-| `unsupported` | Identity is readable, but the current server rejects this format at startup |
+| `unsupported` | This tool cannot open the format directly; registered format 1 can be upgraded by server startup |
 
 `info` opens no database or database lock, creates no directory, and writes nothing. It can run while a node is online. Missing paths and corrupt markers fail; a successful read is not verification of business data. Supply the node root or config, without `--meta-path`, `--message-path`, or `--hash-slot-count`.
 
-Format 2 includes user/channel send policies and their versions. Format 1 and
-nonempty unregistered data directories are rejected before opening stores; this
-change does not migrate old data. Use matching server/CLI binaries and new or
-explicitly imported compatible directories. Do not change the marker to bypass
+Format 2 includes user/channel send policies and their versions. Server startup backs up and automatically upgrades registered format 1 before
+opening runtimes; CLI tools neither directly open nor migrate format 1.
+Nonempty unregistered directories remain rejected. Stop every cluster node
+and deploy matching server/CLI binaries together. Do not change the marker to bypass
 the check. Preserve the marker in full directory backups; restoring an archive
 keeps the target node's creation identity. Older binaries cannot use this marker
 to guarantee safe rollback.

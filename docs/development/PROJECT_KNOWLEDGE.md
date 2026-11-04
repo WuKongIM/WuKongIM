@@ -1496,8 +1496,9 @@ specification, runbook, report, or module documentation; link to them when neede
   reads; TTL applies only to auxiliary membership facts. System identities and
   plugins cannot bypass bans. Explicit policy writes are atomic, versioned and
   independent; credential/ordinary metadata writes preserve them. Format 2
-  requires matching binaries and new/imported data; no old-data migration is
-  included. Cross-ingress, non-replica, leader loss and isolated-leader rejection
+  requires matching binaries. Registered format-1 data now upgrades before
+  startup through verified cold backup and resumable conversion; mixed binaries
+  remain unsupported. Cross-ingress, non-replica, leader loss and isolated-leader rejection
   and single/three-node restore have process-level evidence. Real plugin processes
   also verify bans, restricted hook mutation and the in-flight boundary. The PDK
   SendResp has no reason field: rejected SENDs return RPC errors with public
@@ -3060,3 +3061,10 @@ completion, installation and provider-reference release.
 - Local hot-P95 with independent hot P999 reports use v9/thresholdv3 and P95-named gatev2 evidence; ordinary P99 stays v8/thresholdv2/gatev1, legacy v7 stays diagnostic-only. Strict schema/config/fraction/field matching rejects reheadered or mixed evidence; local v9 cannot enter formal/capacity continuation. Sealed failures never acquire a new policy.
 
 - An explicitly paired local shakeout/soak policy uses `hot_sendack: {p95: 600ms}`, `hot_attempt_timeout: 2s`, and `sync: {p95: 1s, p999: 3s}`. Hot P95<=600ms implies P95<=1s, so its redundant one-second condition is folded and has no active hot P999. Cold P99/P999 remain2s/5s; sync P999 remains0.1%; each P95 permits5% strictly above. Half-configurations and formal/capacity use are rejected. This policy emits reportv10/thresholdv4/gatev3; v7/v8/v9 retain their original meanings. Worker protocol19 isolates live counters, binds sync P95 to actual successful-sync histogram counts and rejects inactive-tail/drifting/regressing evidence. Optional hot samples without an active P999 use latest16 primary recency with no tail-policy label. Default LocalConfig stays unchanged, as do first-deadline/correctness/five-minute persistence/ten-minute duration and1000-per-class/five-second freshness requirements. A new policy never relabels sealed failures or proves a physical performance repair.
+
+
+## Automatic v3 format upgrade
+
+- Product startup supports registered format 1 to 2 through a verified retained cold backup, crash-atomic bounded metadata batches and final atomic format publication. All cluster nodes require matching binaries and a coordinated cold upgrade.
+- Old UID-person Channel SendBan means a UID-wide policy: project it into User state, including policy-only users, and clear that legacy source flag. Old snapshot rows and pre-policy-version TLV command replay must perform the same translation; live decoders remain strict.
+- Metadata global System 7 retains the migration cursor/witness outside Hash-Slot replacement. New Channel delete commands carry policy-version tag 8 to distinguish current semantics. Rollback restores complete per-node and external Controller generations. See `docs/development/DATA_FORMAT_UPGRADE.md`.

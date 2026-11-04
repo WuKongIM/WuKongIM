@@ -39,7 +39,9 @@ func runMain() int {
 		stdout:         os.Stdout,
 		stderr:         os.Stderr,
 		stdoutTerminal: isTerminal(os.Stdout),
-	}, newInternalApp)
+	}, func(cfg app.Config) (runtimeApp, error) {
+		return app.NewWithContext(ctx, cfg, app.WithBuildIdentity(dataformat.Build{Program: "wukongim", Version: buildVersion, Commit: buildCommit, BuildSource: buildSource}))
+	})
 	if err == nil {
 		return 0
 	}
