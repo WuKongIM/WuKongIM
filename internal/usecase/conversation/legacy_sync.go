@@ -22,6 +22,8 @@ var (
 )
 
 const (
+	// channelTypePerson identifies ordinary person conversations without entry-protocol types.
+	channelTypePerson                   = 1
 	legacyConversationSyncMaxCandidates = 1000
 	legacyMessageBatchMaxItems          = 200
 	legacyRecentMessageBudget           = 10000
@@ -365,21 +367,31 @@ func legacyEffectiveReadSeq(item Conversation) uint64 {
 	return readSeq
 }
 
-// listLegacyConversationCandidates first sorts the same bounded metadata set
-// used by the legacy full walk. The durable string index is length-prefixed,
-// so a directory prefix is not necessarily the legacy string-order prefix.
+// listLegacyConversationCandidates retains at most 1,000 memberships, preferring
+// persons among zero-activation rows before applying that bound. The unchanged
+// directory index can put those persons after arbitrarily many groups, so the
+// metadata-only walk shares the request deadline rather than a raw-row limit.
 func (a *App) listLegacyConversationCandidates(ctx context.Context, uid string, target int) ([]Conversation, error) {
-	rows := make([]metadb.UserChannelMembership, 0, maxListLimit)
+	preferred := make([]metadb.UserChannelMembership, 0, maxListLimit)
+	fallback := make([]metadb.UserChannelMembership, 0, maxListLimit)
 	cursor := metadb.UserChannelMembershipCursor{}
-	consumed := 0
-	for consumed < legacyConversationSyncMaxCandidates {
-		limit := min(maxListLimit, legacyConversationSyncMaxCandidates-consumed)
+	for len(preferred) < legacyConversationSyncMaxCandidates {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		limit := min(maxListLimit, legacyConversationSyncMaxCandidates-len(preferred))
 		page, next, done, err := a.directory.ListUserChannelMembershipPage(ctx, uid, cursor, limit)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, page...)
-		consumed += max(1, len(page))
+		for _, row := range page {
+			if row.ActivatedAt > 0 || row.ChannelType == channelTypePerson {
+				preferred = append(preferred, row)
+				fallback = fallback[:min(len(fallback), legacyConversationSyncMaxCandidates-len(preferred))]
+			} else if len(preferred)+len(fallback) < legacyConversationSyncMaxCandidates {
+				fallback = append(fallback, row)
+			}
+		}
 		if done {
 			break
 		}
@@ -388,9 +400,17 @@ func (a *App) listLegacyConversationCandidates(ctx context.Context, uid string, 
 		}
 		cursor = next
 	}
+	rows := append(preferred, fallback...)
 	sort.SliceStable(rows, func(i, j int) bool {
 		if rows[i].ActivatedAt != rows[j].ActivatedAt {
 			return rows[i].ActivatedAt > rows[j].ActivatedAt
+		}
+		if rows[i].ActivatedAt == 0 {
+			leftPerson := rows[i].ChannelType == channelTypePerson
+			rightPerson := rows[j].ChannelType == channelTypePerson
+			if leftPerson != rightPerson {
+				return leftPerson
+			}
 		}
 		if rows[i].ChannelID != rows[j].ChannelID {
 			return rows[i].ChannelID < rows[j].ChannelID
@@ -415,6 +435,13 @@ func sortLegacyConversations(items []Conversation) {
 	sort.SliceStable(items, func(left, right int) bool {
 		if items[left].ActiveAt != items[right].ActiveAt {
 			return items[left].ActiveAt > items[right].ActiveAt
+		}
+		if items[left].ActiveAt == 0 {
+			leftPerson := items[left].ChannelType == channelTypePerson
+			rightPerson := items[right].ChannelType == channelTypePerson
+			if leftPerson != rightPerson {
+				return leftPerson
+			}
 		}
 		if items[left].ChannelID != items[right].ChannelID {
 			return items[left].ChannelID < items[right].ChannelID

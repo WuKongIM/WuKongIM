@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,6 +28,8 @@ type legacySyncRequest struct {
 	Version         int64  `json:"version"`
 	LastMessageSeqs string `json:"last_msg_seqs"`
 	MessageCount    int    `json:"msg_count"`
+	Page            int    `json:"page,omitempty"`
+	PageSize        int    `json:"page_size,omitempty"`
 }
 
 type legacySyncRow struct {
@@ -67,6 +70,136 @@ type expectedLegacySync struct {
 	Unread       uint64
 	ReadToMsgSeq uint64
 	Message      committedMessage
+}
+
+func TestLegacyConversationSyncPrioritizesUnactivatedPersonBeyondCandidatePrefix(t *testing.T) {
+	for _, nodes := range []int{1, 3} {
+		name := "single-node-cluster"
+		if nodes == 3 {
+			name = "three-node-cluster"
+		}
+		t.Run(name, func(t *testing.T) {
+			var ingress suite.StartedNode
+			var diagnostics func() string
+			uid := "priority-offline-recipient"
+			if nodes == 1 {
+				node := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{
+					"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256",
+				}))
+				ingress, diagnostics = *node, node.DumpDiagnostics
+			} else {
+				cluster := suite.New(t).StartThreeNodeCluster(suite.WithManagerHTTP(),
+					suite.WithNodeConfigOverrides(1, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256"}),
+					suite.WithNodeConfigOverrides(2, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256"}),
+					suite.WithNodeConfigOverrides(3, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256"}),
+				)
+				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+				defer cancel()
+				require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+				_, err := cluster.WaitSlotLeadersStable(ctx, 2*time.Second)
+				require.NoError(t, err, cluster.DumpDiagnostics())
+				ingress, diagnostics = *cluster.MustNode(1), cluster.DumpDiagnostics
+				uid = uidOwnedByRemoteSlotLeader(t, cluster, ingress.Spec.ID, uid)
+			}
+			runUnactivatedPersonPriority(t, ingress, diagnostics, uid, nodes)
+		})
+	}
+}
+
+func runUnactivatedPersonPriority(t *testing.T, node suite.StartedNode, diagnostics func() string, uid string, nodes int) {
+	t.Helper()
+	const groups = 1001
+	const sender = "priority-person-sender-with-a-long-channel-identity"
+	var observations []map[string]any
+	t.Cleanup(func() {
+		dir := os.Getenv("WK_E2E_LEGACY_SYNC_REPORT_DIR")
+		if dir == "" {
+			dir = node.Spec.RootDir
+		}
+		path := filepath.Join(dir, fmt.Sprintf("unactivated-person-priority-%d-nodes.json", nodes))
+		body, err := json.MarshalIndent(map[string]any{
+			"scenario": "legacy_sync_unactivated_person_priority", "nodes": nodes, "hash_slots": 256,
+			"group_memberships": groups, "recipient_uid": uid, "person_peer": sender,
+			"passed": !t.Failed(), "observations": observations,
+		}, "", "  ")
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(path, append(body, '\n'), 0o644))
+		t.Logf("person priority evidence: %s", path)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+	defer cancel()
+	// Short group IDs precede the long canonical person ID in the existing
+	// length-prefixed directory index. Empty groups still consume candidates.
+	var workers sync.WaitGroup
+	errors := make(chan error, 8)
+	for worker := 0; worker < cap(errors); worker++ {
+		workers.Go(func() {
+			for index := worker; index < groups; index += cap(errors) {
+				err := suite.PostChannel(ctx, node.APIAddr(), map[string]any{
+					"channel_id": fmt.Sprintf("p-%04d", index), "channel_type": frame.ChannelTypeGroup,
+					"reset": 1, "subscribers": []string{uid, sender},
+				})
+				if err != nil {
+					errors <- fmt.Errorf("create group %d: %w", index, err)
+					return
+				}
+			}
+		})
+	}
+	workers.Wait()
+	close(errors)
+	for err := range errors {
+		require.NoError(t, err, diagnostics())
+	}
+	client := connectLegacySender(t, node, sender, diagnostics)
+	defer func() { require.NoError(t, client.Close()) }()
+	group := sendCommittedMessage(t, client, sender, "p-0000", frame.ChannelTypeGroup, 1, "priority-group", diagnostics)
+	person := sendCommittedMessage(t, client, sender, uid, frame.ChannelTypePerson, 2, "priority-person", diagnostics)
+	// Prove the fixture reaches beyond the original raw candidate prefix using
+	// public directory pages, and that both visible rows have zero activation.
+	cursor := ""
+	personPage := 0
+	for index := 1; index <= 7; index++ {
+		page, err := suite.PostConversationListPage(ctx, node.APIAddr(), suite.ConversationListRequest{UID: uid, Limit: 200, Cursor: cursor})
+		require.NoError(t, err, diagnostics())
+		for _, row := range page.Conversations {
+			require.Zero(t, row.ActiveAt)
+			if row.ChannelID == sender && row.ChannelType == int64(frame.ChannelTypePerson) {
+				personPage = index
+			}
+		}
+		if page.Done {
+			break
+		}
+		require.NotEmpty(t, page.NextCursor)
+		require.NotEqual(t, cursor, page.NextCursor)
+		cursor = page.NextCursor
+	}
+	observations = append(observations, map[string]any{"stage": "directory-precondition", "person_page": personPage, "candidate_page_size": 200})
+	require.Greater(t, personPage, 5, "fixture must put the person membership beyond 1,000 raw candidates")
+
+	check := func(stage string, req legacySyncRequest, expected []expectedLegacySync) {
+		t.Helper()
+		rows, err := postLegacySync(ctx, node.APIAddr(), req)
+		observations = append(observations, map[string]any{"stage": stage, "request": req, "response": rows})
+		require.NoError(t, err, diagnostics())
+		require.NoError(t, checkLegacySyncRows(rows, expected), diagnostics())
+		for index, want := range expected {
+			require.Equal(t, want.ChannelID, rows[index].ChannelID, "stage=%s order", stage)
+		}
+	}
+	personWant := expectedLegacySync{ChannelID: sender, ChannelType: frame.ChannelTypePerson, Unread: 1, Message: person}
+	groupWant := expectedLegacySync{ChannelID: "p-0000", ChannelType: frame.ChannelTypeGroup, Unread: 1, Message: group}
+	check("full", legacySyncRequest{UID: uid, MessageCount: 1}, []expectedLegacySync{personWant, groupWant})
+	check("first-page", legacySyncRequest{UID: uid, MessageCount: 1, Page: 1, PageSize: 1}, []expectedLegacySync{personWant})
+	check("second-page", legacySyncRequest{UID: uid, MessageCount: 1, Page: 2, PageSize: 1}, []expectedLegacySync{groupWant})
+	_, err := suite.PostJSON(ctx, "http://"+node.APIAddr()+"/conversations/activate", map[string]any{
+		"uid": uid, "channel_id": "p-0000", "channel_type": frame.ChannelTypeGroup,
+	}, nil)
+	require.NoError(t, err, diagnostics())
+	check("activated-group-first", legacySyncRequest{UID: uid, MessageCount: 1}, []expectedLegacySync{groupWant, personWant})
 }
 
 func TestLegacyConversationSyncSingleNodeCluster(t *testing.T) {

@@ -81,6 +81,12 @@ profiles afterward; see the scenario instructions for the fixed comparison.
 - The `chat_lifecycle` fixture explicitly disables Token authentication for its
   tokenless lifecycle clients; its ordering and reheat results do not qualify SDK authentication.
 
+The legacy-conversation-sync scenario also verifies zero-activation person
+priority before the 1,000 retained-candidate limit in single-node and three-node
+clusters. Its public directory precondition and full/paged response evidence are
+retained in `unactivated-person-priority-{1,3}-nodes.json`; badge commands retain
+their existing activation behavior.
+
 ## User and Channel send bans
 
 `send_ban` verifies independent user/source-Channel restrictions, cross-ingress

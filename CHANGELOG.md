@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Fixes / 修复
+
+- Prioritize person conversations when `activated_at` is zero in legacy `/conversation/sync`, including candidate selection beyond the first 1,000 raw memberships. / 旧版 `/conversation/sync` 在激活时间为零时优先选择并返回个人会话，避免私聊被前 1000 条原始成员目录记录挤出候选范围。
+
 ## [v3.0.0-beta.27] - 2026-11-04
 
 ### 🔧 Improvements / 改进

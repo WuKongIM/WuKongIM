@@ -26,16 +26,17 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 1. `List` scans one bounded UID membership page, emits tombstones as deletes,
    reads persisted previews for live candidates, and returns conversations,
    cursor, coverage, completion, and tombstone retention metadata.
-2. List admission is shared by all callers: at most 16 active list or legacy-sync requests, no waiting
-   queue, and a five-second deadline. Any item failure fails the entire page;
-   clients retain their original cursor and retry the same request.
-3. `SyncLegacy` first collects at most 1,000 candidates from the durable
-   directory, then sorts metadata by legacy activation/string-ID/type order.
-   Encoded length-prefixed directory order is not legacy string order. It
-   hydrates only the visible prefix through the requested page.
+2. List and legacy sync share 16 active requests, no waiting queue, and a
+   five-second deadline. Any read failure aborts the request; retry unchanged.
+3. `SyncLegacy` retains at most 1,000 candidates: positive activation first,
+   then zero-activation persons before other types, with legacy ID/type ties.
+   Metadata pages may pass 1,000 rows; retained candidates and hydration stay
+   bounded. The five-second deadline fails incomplete walks without partial rows.
+   The unchanged length-prefixed directory order differs from legacy ID order.
+   It hydrates only the visible prefix through the requested page.
    It replenishes directory-invisible candidates only; unread, excluded-type
    and empty-recents filtering occur after page selection without replenishment.
-   Unpaged requests retain the full bounded walk. It applies the v2.2
+   Unpaged requests use all retained candidates. It applies the v2.2
    version and per-Channel cursor semantics, then caps each recent-message query
    at `min(msg_count, floor(10000 / selected_channels))` when Channels remain.
    It reads recent persisted messages and their stream-event summaries in aligned
@@ -79,7 +80,6 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 - The opaque cursor contains `(ActivatedAt, ChannelID, ChannelType)` only.
 - Hydrated payload bytes are cloned once into usecase-owned immutable data and
   may then be transferred through synchronous response adapters without another copy.
-
 - Imported list-only hidden memberships remain accessible to history reads.
   They appear after a newer ordinary message or explicit activation, without
   modifying read/delete floors or native unread calculations.

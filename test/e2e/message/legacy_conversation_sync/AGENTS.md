@@ -24,7 +24,8 @@ test-generated request, expected messages, public response and success/failure.
   conversation projection, not authentication.
 
 - Keep assertions black-box through WKProto, public channel-management HTTP,
-  legacy `/conversation/sync`, and public Manager HTTP only.
+  conversation activation and directory HTTP, legacy `/conversation/sync`, and
+  public Manager HTTP only.
 - Keep recipients offline so this scenario isolates durable conversation sync
   from delivery and `RECV/RECVACK` behavior.
 - Exercise full sync followed by per-Channel cursor sync in one flow; do not
@@ -39,3 +40,15 @@ test-generated request, expected messages, public response and success/failure.
   `msg_count=10000` request for each of the sender and an offline recipient.
   Require both rows, exact latest-message identity/payload, badges and cursor
   behavior; do not retry the oversized request or create thousands of messages.
+
+## Zero-activation person priority
+
+`TestLegacyConversationSyncPrioritizesUnactivatedPersonBeyondCandidatePrefix`
+creates 1,001 empty/visible short-ID groups and one long-ID person conversation
+through public APIs in both single-node and three-node clusters. Use eight
+bounded fixture workers; join all before sending the two test messages. Verify
+the person starts beyond the first 1,000 raw directory candidates, is returned
+first in full and paginated legacy sync, and remains behind an explicitly
+activated group. The three-node recipient UID Slot Leader must be remote from
+the ingress. Retain `unactivated-person-priority-{1,3}-nodes.json` beside the
+budget reports, including fixture bounds, requests, exact responses and verdicts.

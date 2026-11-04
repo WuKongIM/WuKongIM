@@ -771,10 +771,15 @@ specification, runbook, report, or module documentation; link to them when neede
   previews can regress after failover. Any attempted read failure aborts the page;
   clients retain data and retry the original request/cursor.
 - `activated_at` records explicit navigation/hide priority, not last-message time.
-  Legacy sync sorts its bounded candidates by activation, string Channel ID, and
-  type. Canonical list uses its encoded directory cursor; only `done=true` ends a
+  Legacy sync sorts by activation; zero-activation person conversations precede
+  other zero-activation types, then string Channel ID and type break ties.
+  Canonical list uses its encoded directory cursor; only `done=true` ends a
   pass. Clients own pinning and final display order.
-- Legacy sync scans at most 1,000 directory candidates. After pagination and
+- Legacy sync retains at most 1,000 directory candidates. Zero-activation persons
+  take priority before this limit, so metadata-only paging can pass the first
+  1,000 raw memberships without changing the stored index or canonical cursor.
+  Retained candidates and hydration remain bounded; the shared five-second
+  deadline fails incomplete scans without a partial array. After pagination and
   unread/type filters select `N > 0` Channels, it bounds each recent-message
   query by `min(msg_count, floor(10000 / N))`; the record budget reduces message
   depth without dropping selected Channels. `msg_count <= 0` still returns an
