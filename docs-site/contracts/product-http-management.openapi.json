@@ -494,11 +494,11 @@
       "post": {
         "operationId": "clearConversationUnread",
         "summary": "Clear Conversation unread",
-        "description": "Advances read_seq to the latest committed Channel head. The contract omits legacy message_seq; the runtime ignores it.",
+        "description": "Advances read_seq to the latest committed Channel head. The contract omits legacy message_seq; the runtime ignores it. Refreshes activated_at even when already read. Missing or removed memberships and deleted Channels remain no-ops. If activation fails after the read position commits, retry the same request to finish activation.",
         "x-i18n": {
           "zh": {
             "summary": "清除会话未读",
-            "description": "把 read_seq 推进到最新已提交 Channel head；合同不发布旧 message_seq，运行时会忽略它。"
+            "description": "把 read_seq 推进到最新已提交 Channel head；合同不发布旧 message_seq，运行时会忽略它。已读位置不变时也刷新 activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。"
           }
         },
         "tags": ["Conversations"],
@@ -530,11 +530,11 @@
       "post": {
         "operationId": "setConversationUnread",
         "summary": "Set maximum Conversation unread",
-        "description": "Advances read_seq so no more than unread messages remain. It never increases the unread count.",
+        "description": "Advances read_seq so no more than unread messages remain. It never increases the unread count. Refreshes activated_at even when the read position does not advance. Missing or removed memberships and deleted Channels remain no-ops. If activation fails after the read position commits, retry the same request to finish activation.",
         "x-i18n": {
           "zh": {
             "summary": "设置会话未读上限",
-            "description": "推进 read_seq，使未读数不超过 unread；该操作不会增加未读数。"
+            "description": "推进 read_seq，使未读数不超过 unread；该操作不会增加未读数。已读位置不变时也刷新 activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。"
           }
         },
         "tags": ["Conversations"],
@@ -1109,8 +1109,8 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0,
-            "description": "Nanosecond timestamp of the last explicit activation; 0 means not explicitly activated.",
-            "x-i18n": { "zh": { "description": "最近一次显式激活的纳秒时间戳；0 表示未显式激活。" } }
+            "description": "Nanosecond timestamp of the last explicit activation or unread-count action; 0 means unset or cleared by hiding.",
+            "x-i18n": { "zh": { "description": "最近一次显式激活或未读数操作的纳秒时间戳；0 表示未设置或已被隐藏操作清零。" } }
           },
           "read_seq": {
             "type": "integer",

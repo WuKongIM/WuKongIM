@@ -43,8 +43,8 @@ It does not subscribe users, deliver messages, or implement storage and transpor
    batches of at most 200 Channels. An old empty-client-number head can be
    reread after an advanced legacy cursor to repair a missing preview; ordinary
    heads retain exclusive-cursor behavior and durable read/delete state is unchanged.
-4. Personal commands monotonically update `read_seq`, `deleted_to_seq`, or
-   `activated_at` after exact membership and Channel-head reads.
+4. Unread commands advance `read_seq` when needed, then refresh `activated_at`
+   using existing commands. Retry activation even if the badge already advanced.
 
 ## Invariants and Failure Semantics
 
@@ -73,9 +73,9 @@ It does not subscribe users, deliver messages, or implement storage and transpor
   first in the old raw-array envelope.
 - Inactive empty membership is omitted; explicit activation returns an empty
   conversation without a last message.
-- Unread commands are idempotent no-ops for missing/tombstoned memberships or
-  a confirmed deleted Channel; they never create membership. Failed metadata or
-  head reads remain errors, and delete-command absence semantics stay unchanged.
+- Unread actions refresh activation even without read advancement. Missing/
+  tombstoned memberships and deleted Channels remain no-ops; they never create
+  membership. Failed reads remain errors; delete-command absence is unchanged.
 - SEND, receive, delivery, and pull never mutate `read_seq` or `activated_at`.
 - The opaque cursor contains `(ActivatedAt, ChannelID, ChannelType)` only.
 - Hydrated payload bytes are cloned once into usecase-owned immutable data and

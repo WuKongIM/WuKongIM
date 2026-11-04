@@ -18,7 +18,8 @@ _openapi:
       - content: 清除会话未读
         id: 清除会话未读
     contents:
-      - content: 把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。
+      - content: 把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。已读位置不变时也刷新
+          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
         heading: 清除会话未读
       - content: >-
           POST /conversations/clearUnread
@@ -27,7 +28,8 @@ _openapi:
 
           清除会话未读
 
-          把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。
+          把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。已读位置不变时也刷新
+          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
 
           ConversationMutationRequest
 

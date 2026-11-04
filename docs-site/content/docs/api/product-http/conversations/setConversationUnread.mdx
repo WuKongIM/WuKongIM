@@ -18,7 +18,8 @@ _openapi:
       - content: 设置会话最大未读数
         id: 设置会话最大未读数
     contents:
-      - content: 单调推进 read_seq，使剩余未读消息不超过 unread。
+      - content: 单调推进 read_seq，使剩余未读消息不超过 unread。已读位置不变时也刷新
+          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
         heading: 设置会话最大未读数
       - content: >-
           POST /conversations/setUnread
@@ -27,7 +28,8 @@ _openapi:
 
           设置会话最大未读数
 
-          单调推进 read_seq，使剩余未读消息不超过 unread。
+          单调推进 read_seq，使剩余未读消息不超过 unread。已读位置不变时也刷新
+          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
 
           ConversationSetUnreadRequest
 

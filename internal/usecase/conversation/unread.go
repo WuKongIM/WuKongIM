@@ -7,7 +7,8 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ClearUnread marks a conversation as read through the latest known message.
+// ClearUnread marks a conversation as read through the latest known message and
+// refreshes directory activation even when the badge is already current.
 // An absent membership or deleted Channel is already read and needs no write.
 func (a *App) ClearUnread(ctx context.Context, cmd ClearUnreadCommand) error {
 	if a == nil {
@@ -23,14 +24,20 @@ func (a *App) ClearUnread(ctx context.Context, cmd ClearUnreadCommand) error {
 	if err != nil || !found {
 		return err
 	}
-	if head.ReadThroughSeq <= row.ReadSeq {
-		return nil
+	now := a.now().UnixNano()
+	if head.ReadThroughSeq > row.ReadSeq {
+		if err := a.memberships.AdvanceUserChannelMembershipReadSeq(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), head.ReadThroughSeq, now); err != nil {
+			return err
+		}
 	}
-	return a.memberships.AdvanceUserChannelMembershipReadSeq(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), head.ReadThroughSeq, a.now().UnixNano())
+	// Reuse existing cluster commands in order. If activation fails after the
+	// badge commits, an unchanged-badge retry must still complete activation.
+	return a.memberships.ActivateUserChannelMembership(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), now, now)
 }
 
-// SetUnread marks enough messages as read so at most cmd.Unread messages remain unread.
-// An absent conversation has zero unread messages; this command never creates one.
+// SetUnread marks enough messages as read so at most cmd.Unread messages remain
+// unread, and refreshes activation even when no read-position advance is needed.
+// An absent membership or deleted Channel needs no write; this never creates membership.
 func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	if a == nil {
 		return ErrStoreRequired
@@ -56,10 +63,13 @@ func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	if head.BoundaryComputed {
 		target = maxMembershipFloor(visibilityFloor, head.UnreadBoundary)
 	}
-	if target <= row.ReadSeq {
-		return nil
+	now := a.now().UnixNano()
+	if target > row.ReadSeq {
+		if err := a.memberships.AdvanceUserChannelMembershipReadSeq(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), target, now); err != nil {
+			return err
+		}
 	}
-	return a.memberships.AdvanceUserChannelMembershipReadSeq(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), target, a.now().UnixNano())
+	return a.memberships.ActivateUserChannelMembership(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), now, now)
 }
 
 // DeleteConversation durably hides a conversation through the latest known message.

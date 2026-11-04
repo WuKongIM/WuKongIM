@@ -1503,11 +1503,11 @@
       "post": {
         "operationId": "clearConversationUnread",
         "summary": "Clear Conversation unread",
-        "description": "Advances read_seq to the current committed head; unknown legacy fields such as message_seq are ignored.",
+        "description": "Advances read_seq to the current committed head; unknown legacy fields such as message_seq are ignored. Refreshes activated_at even when already read. Missing or removed memberships and deleted Channels remain no-ops. If activation fails after the read position commits, retry the same request to finish activation.",
         "x-i18n": {
           "zh": {
             "summary": "清除会话未读",
-            "description": "把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。"
+            "description": "把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。已读位置不变时也刷新 activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。"
           }
         },
         "tags": [
@@ -1535,11 +1535,11 @@
       "post": {
         "operationId": "setConversationUnread",
         "summary": "Set maximum Conversation unread",
-        "description": "Monotonically advances read_seq so no more than unread messages remain.",
+        "description": "Monotonically advances read_seq so no more than unread messages remain. Refreshes activated_at even when the read position does not advance. Missing or removed memberships and deleted Channels remain no-ops. If activation fails after the read position commits, retry the same request to finish activation.",
         "x-i18n": {
           "zh": {
             "summary": "设置会话最大未读数",
-            "description": "单调推进 read_seq，使剩余未读消息不超过 unread。"
+            "description": "单调推进 read_seq，使剩余未读消息不超过 unread。已读位置不变时也刷新 activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。"
           }
         },
         "tags": [

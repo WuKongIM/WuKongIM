@@ -84,8 +84,9 @@ profiles afterward; see the scenario instructions for the fixed comparison.
 The legacy-conversation-sync scenario also verifies zero-activation person
 priority before the 1,000 retained-candidate limit in single-node and three-node
 clusters. Its public directory precondition and full/paged response evidence are
-retained in `unactivated-person-priority-{1,3}-nodes.json`; badge commands retain
-their existing activation behavior.
+retained in `unactivated-person-priority-{1,3}-nodes.json`. The ordinary-directory
+scenario verifies set/clear unread activation, including unchanged read positions,
+in both topologies; `WK_E2E_UNREAD_ACTIVATION_REPORT_DIR` retains its JSON reports.
 
 ## User and Channel send bans
 

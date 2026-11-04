@@ -5,14 +5,164 @@ package conversation_directory
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
 )
+
+func TestUnreadActionsRefreshConversationActivation(t *testing.T) {
+	for _, topology := range []string{"single-node-cluster", "three-node-cluster"} {
+		t.Run(topology, func(t *testing.T) {
+			dir := os.Getenv("WK_E2E_UNREAD_ACTIVATION_REPORT_DIR")
+			if dir == "" {
+				dir = t.TempDir()
+			}
+			observations := make([]map[string]any, 0, 10)
+			var uidOwner uint64 = 1
+			uid := "unread-activation-user"
+			// Register before processes so evidence is written after they stop.
+			t.Cleanup(func() {
+				body, err := json.MarshalIndent(map[string]any{
+					"scenario": "unread_actions_refresh_activation", "topology": topology,
+					"hash_slots": 256, "ingress": 1, "uid_slot_leader": uidOwner,
+					"uid": uid, "uid_hash_slot": routing.HashSlotForKey(uid, 256),
+					"passed": !t.Failed(), "observations": observations,
+				}, "", "  ")
+				require.NoError(t, err)
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				path := filepath.Join(dir, topology+".json")
+				require.NoError(t, os.WriteFile(path, append(body, '\n'), 0o644))
+				t.Logf("unread activation evidence: %s", path)
+			})
+			var node *suite.StartedNode
+			if topology == "single-node-cluster" {
+				node = suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256"}))
+			} else {
+				cluster := suite.New(t).StartThreeNodeCluster(suite.WithManagerHTTP(),
+					suite.WithNodeConfigOverrides(1, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256"}),
+					suite.WithNodeConfigOverrides(2, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256"}),
+					suite.WithNodeConfigOverrides(3, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_CLUSTER_HASH_SLOT_COUNT": "256"}),
+				)
+				ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+				defer cancel()
+				require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+				_, err := cluster.WaitSlotLeadersStable(ctx, 2*time.Second)
+				require.NoError(t, err, cluster.DumpDiagnostics())
+				node = cluster.MustNode(1)
+				slots := cluster.ManagerClient(t, 1).MustSlots(t)
+				for candidate := 0; candidate < 10000 && uidOwner == 1; candidate++ {
+					value := fmt.Sprintf("unread-activation-user-%d", candidate)
+					hashSlot := routing.HashSlotForKey(value, 256)
+					for _, slot := range slots {
+						if slot.HashSlots == nil || slot.Runtime.LeaderID == 0 || slot.Runtime.LeaderID == 1 {
+							continue
+						}
+						for _, owned := range slot.HashSlots.Items {
+							if owned == hashSlot {
+								uid, uidOwner = value, slot.Runtime.LeaderID
+							}
+						}
+					}
+				}
+				require.NotEqual(t, uint64(1), uidOwner, "mutation must cross the UID Slot leader")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			const channel, other, empty, peer = "unread-activation-a", "unread-activation-b", "unread-activation-empty", "unread-activation-peer"
+			createGroup(t, ctx, *node, channel, uid, peer)
+			createGroup(t, ctx, *node, other, uid, peer)
+			var messages []suite.MessageSendResponse
+			for index := 0; index < 3; index++ {
+				messages = append(messages, sendGroupMessage(t, ctx, *node, peer, channel, fmt.Sprintf("unread-activation-%d", index)))
+			}
+			sendGroupMessage(t, ctx, *node, peer, other, "unread-activation-other")
+			mutate := func(path, channelID string, unread int) {
+				postConversationMutation(t, ctx, *node, path, map[string]any{"uid": uid, "channel_id": channelID, "channel_type": frame.ChannelTypeGroup, "unread": unread})
+			}
+			var activeAt int64
+			for _, step := range []struct {
+				name, path string
+				unread     int
+				readSeq    uint64
+				remaining  uint64
+			}{
+				{"set", "/conversations/setUnread", 1, messages[1].MessageSeq, 1},
+				{"set-without-read-advance", "/conversations/setUnread", 20, messages[1].MessageSeq, 1},
+				{"clear", "/conversations/clearUnread", 0, messages[2].MessageSeq, 0},
+				{"clear-already-read", "/conversations/clearUnread", 0, messages[2].MessageSeq, 0},
+			} {
+				mutate("/conversations/activate", other, 0)
+				before := requireFirstConversationPageEventually(t, *node, suite.ConversationListRequest{UID: uid, Limit: 1}, other)
+				mutate(step.path, channel, step.unread)
+				observed, err := suite.PostConversationListPage(ctx, node.APIAddr(), suite.ConversationListRequest{UID: uid, Limit: 10})
+				require.NoError(t, err)
+				observations = append(observations, map[string]any{"step": step.name, "path": step.path, "requested_unread": step.unread, "response": observed})
+				page := requireFirstConversationPageEventually(t, *node, suite.ConversationListRequest{UID: uid, Limit: 1}, channel)
+				row := page.Conversations[0]
+				require.Greater(t, row.ActiveAt, max(activeAt, before.Conversations[0].ActiveAt))
+				require.NoError(t, requireConversationState(row, step.readSeq, step.remaining, messages[2].MessageSeq, "unread-activation-2"))
+				var legacy []struct {
+					ChannelID  string `json:"channel_id"`
+					Unread     uint64 `json:"unread"`
+					LastMsgSeq uint64 `json:"last_msg_seq"`
+				}
+				_, err = suite.PostJSON(ctx, "http://"+node.APIAddr()+"/conversation/sync", map[string]any{"uid": uid, "msg_count": 1}, &legacy)
+				require.NoError(t, err)
+				observations = append(observations, map[string]any{"step": step.name + "-legacy-sync", "response": legacy})
+				require.Len(t, legacy, 2)
+				require.Equal(t, channel, legacy[0].ChannelID)
+				require.Equal(t, step.remaining, legacy[0].Unread)
+				require.Equal(t, messages[2].MessageSeq, legacy[0].LastMsgSeq)
+				activeAt = row.ActiveAt
+			}
+			createGroup(t, ctx, *node, empty, uid, peer)
+			// Keep an existing live Channel with no visible messages, rather than
+			// a new group whose message runtime has never been established.
+			emptyHead := sendGroupMessage(t, ctx, *node, peer, empty, "unread-activation-hidden")
+			mutate("/conversations/delete", empty, 0)
+			for _, path := range []string{"/conversations/setUnread", "/conversations/clearUnread"} {
+				mutate(path, empty, 0)
+				page := requireFirstConversationPageEventually(t, *node, suite.ConversationListRequest{UID: uid, Limit: 1}, empty)
+				row := page.Conversations[0]
+				observations = append(observations, map[string]any{"step": "live-empty" + path, "conversation": row})
+				require.Greater(t, row.ActiveAt, activeAt)
+				require.Equal(t, emptyHead.MessageSeq, row.ReadSeq)
+				require.Equal(t, emptyHead.MessageSeq, row.DeletedToSeq)
+				require.Nil(t, row.LastMessage)
+				activeAt = row.ActiveAt
+			}
+			mutate("/conversations/delete", channel, 0)
+			mutate("/conversations/clearUnread", channel, 0)
+			page := requireFirstConversationPageEventually(t, *node, suite.ConversationListRequest{UID: uid, Limit: 1}, channel)
+			row := page.Conversations[0]
+			observations = append(observations, map[string]any{"step": "hidden-history-floor", "conversation": row})
+			require.Greater(t, row.ActiveAt, activeAt)
+			require.Equal(t, messages[2].MessageSeq, row.DeletedToSeq)
+			require.Equal(t, messages[2].MessageSeq, row.ReadSeq)
+			require.Nil(t, row.LastMessage, "activation must not reveal hidden history")
+			postConversationMutation(t, ctx, *node, "/channel/subscriber_remove", map[string]any{"channel_id": channel, "channel_type": frame.ChannelTypeGroup, "subscribers": []string{uid}})
+			for _, path := range []string{"/conversations/setUnread", "/conversations/clearUnread"} {
+				mutate(path, channel, 0)
+				postConversationMutation(t, ctx, *node, path, map[string]any{"uid": "unread-activation-missing-user", "channel_id": channel, "channel_type": frame.ChannelTypeGroup})
+			}
+			requireConversationDeleteEventually(t, *node, uid, channel)
+			missing, err := suite.PostConversationListPage(ctx, node.APIAddr(), suite.ConversationListRequest{UID: "unread-activation-missing-user", Limit: 10})
+			require.NoError(t, err)
+			require.Empty(t, missing.Conversations)
+			require.Empty(t, missing.Deletes)
+			require.True(t, missing.Done)
+			observations = append(observations, map[string]any{"step": "absent-and-removed-remain-absent", "passed": true})
+		})
+	}
+}
 
 func TestWukongIMConversationDirectoryPaginatesByActivationWithoutMessageTimeReorder(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster()

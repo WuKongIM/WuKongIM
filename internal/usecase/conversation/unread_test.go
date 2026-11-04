@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -24,6 +25,9 @@ func TestClearUnreadAdvancesReadSeqToLatestMessage(t *testing.T) {
 	if !reflect.DeepEqual(store.readMutations, want) {
 		t.Fatalf("read mutations = %#v, want %#v", store.readMutations, want)
 	}
+	if len(store.activationMutations) != 1 || store.activationMutations[0].activatedAt != now.UnixNano() {
+		t.Fatalf("clear must activate at the same command time: %#v", store.activationMutations)
+	}
 }
 
 func TestSetUnreadAdvancesReadSeqToKeepRequestedUnreadTail(t *testing.T) {
@@ -38,6 +42,9 @@ func TestSetUnreadAdvancesReadSeqToKeepRequestedUnreadTail(t *testing.T) {
 
 	if len(store.readMutations) != 1 || store.readMutations[0].readSeq != 9 || store.readMutations[0].updatedAt != now.UnixNano() {
 		t.Fatalf("read mutations = %#v, want read seq 9 with fixed updated time", store.readMutations)
+	}
+	if len(store.activationMutations) != 1 || store.activationMutations[0].activatedAt != now.UnixNano() {
+		t.Fatalf("set must activate at the same command time: %#v", store.activationMutations)
 	}
 }
 
@@ -100,6 +107,8 @@ type conversationMutationStore struct {
 	readMutations       []membershipReadMutation
 	hideMutations       []membershipHideMutation
 	activationMutations []membershipActivationMutation
+	readErr             error
+	activationErr       error
 }
 
 func newConversationMutationStore() *conversationMutationStore {
@@ -120,7 +129,7 @@ func (s *conversationMutationStore) HydrateConversationHeads(_ context.Context, 
 
 func (s *conversationMutationStore) AdvanceUserChannelMembershipReadSeq(_ context.Context, uid, channelID string, channelType int64, readSeq uint64, updatedAt int64) error {
 	s.readMutations = append(s.readMutations, membershipReadMutation{uid: uid, channelID: channelID, channelType: channelType, readSeq: readSeq, updatedAt: updatedAt})
-	return nil
+	return s.readErr
 }
 
 func (s *conversationMutationStore) HideUserChannelMembership(_ context.Context, uid, channelID string, channelType int64, deletedToSeq uint64, updatedAt int64) error {
@@ -130,11 +139,11 @@ func (s *conversationMutationStore) HideUserChannelMembership(_ context.Context,
 
 func (s *conversationMutationStore) ActivateUserChannelMembership(_ context.Context, uid, channelID string, channelType int64, activatedAt, updatedAt int64) error {
 	s.activationMutations = append(s.activationMutations, membershipActivationMutation{uid: uid, channelID: channelID, channelType: channelType, activatedAt: activatedAt, updatedAt: updatedAt})
-	return nil
+	return s.activationErr
 }
 
 func TestUnreadEmptyConversationIsIdempotent(t *testing.T) {
-	for _, state := range []string{"missing", "tombstone", "missing channel", "empty channel"} {
+	for _, state := range []string{"missing", "tombstone", "missing channel"} {
 		t.Run(state, func(t *testing.T) {
 			store := newConversationMutationStore()
 			switch state {
@@ -187,10 +196,80 @@ func TestUnreadEmptyConversationDoesNotHideFailures(t *testing.T) {
 			if err := app.SetUnread(context.Background(), SetUnreadCommand{UID: "u1", ChannelID: "g1", ChannelType: 2}); !errors.Is(err, want) {
 				t.Fatalf("set error = %v, want %v", err, want)
 			}
-			if len(store.readMutations) != 0 {
+			if len(store.readMutations)+len(store.activationMutations) != 0 {
 				t.Fatal("failed read caused mutation")
 			}
 		})
+	}
+}
+
+// Unread actions must activate caught-up and live empty conversations; failures
+// must stop before activation or remain retryable after the badge write commits.
+func TestUnreadActionsActivateWithoutAdvancingReadPosition(t *testing.T) {
+	for _, readSeq := range []uint64{0, 12} {
+		t.Run(fmt.Sprintf("read-seq-%d", readSeq), func(t *testing.T) {
+			store := newConversationMutationStore()
+			store.membership.ReadSeq = readSeq
+			store.head.ReadThroughSeq = readSeq
+			app := New(Options{Hydrator: store, MembershipMutations: store, Now: func() time.Time { return time.Unix(0, 456) }})
+			if err := app.ClearUnread(context.Background(), ClearUnreadCommand{UID: "u1", ChannelID: "g1", ChannelType: 2}); err != nil {
+				t.Fatal(err)
+			}
+			if err := app.SetUnread(context.Background(), SetUnreadCommand{UID: "u1", ChannelID: "g1", ChannelType: 2, Unread: 20}); err != nil {
+				t.Fatal(err)
+			}
+			if len(store.readMutations) != 0 || len(store.activationMutations) != 2 {
+				t.Fatalf("unchanged badge must only activate: read=%#v activate=%#v", store.readMutations, store.activationMutations)
+			}
+			for _, mutation := range store.activationMutations {
+				if mutation.activatedAt != 456 || mutation.updatedAt != 456 {
+					t.Fatalf("activation = %#v, want fixed command time 456", mutation)
+				}
+			}
+		})
+	}
+}
+
+func TestUnreadWriteFailuresKeepActivationRetryable(t *testing.T) {
+	for _, action := range []string{"clear", "set"} {
+		for _, failure := range []string{"read", "activation"} {
+			t.Run(action+"/"+failure, func(t *testing.T) {
+				store := newConversationMutationStore()
+				store.head.ReadThroughSeq = 12
+				writeErr := errors.New("membership write failed")
+				if failure == "read" {
+					store.readErr = writeErr
+				} else {
+					store.activationErr = writeErr
+				}
+				app := New(Options{Hydrator: store, MembershipMutations: store})
+				invoke := func() error {
+					if action == "clear" {
+						return app.ClearUnread(context.Background(), ClearUnreadCommand{UID: "u1", ChannelID: "g1", ChannelType: 2})
+					}
+					return app.SetUnread(context.Background(), SetUnreadCommand{UID: "u1", ChannelID: "g1", ChannelType: 2})
+				}
+				if err := invoke(); !errors.Is(err, writeErr) {
+					t.Fatalf("error = %v, want %v", err, writeErr)
+				}
+				if failure == "read" {
+					if len(store.activationMutations) != 0 {
+						t.Fatal("activation followed a rejected badge write")
+					}
+					return
+				}
+				// Retry after an acknowledged badge write: its position is already
+				// current, but activation must still be attempted and succeed.
+				store.membership.ReadSeq = 12
+				store.activationErr = nil
+				if err := invoke(); err != nil {
+					t.Fatal(err)
+				}
+				if len(store.readMutations) != 1 || len(store.activationMutations) != 2 {
+					t.Fatalf("retry read=%#v activate=%#v", store.readMutations, store.activationMutations)
+				}
+			})
+		}
 	}
 }
 

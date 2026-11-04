@@ -770,7 +770,12 @@ specification, runbook, report, or module documentation; link to them when neede
   activating Channel runtimes or confirming quorum: failed SENDs can appear and
   previews can regress after failover. Any attempted read failure aborts the page;
   clients retain data and retry the original request/cursor.
-- `activated_at` records explicit navigation/hide priority, not last-message time.
+- `activated_at` records explicit navigation and unread-action priority; hide clears it.
+  Setting or clearing unread advances the badge when needed, then activates with
+  existing cluster commands. An already-current badge still activates. A failed
+  activation after a committed read advance returns an error; retry must finish
+  activation without regressing that read position. Missing/removed memberships
+  and deleted Channels remain no-ops; activation never reveals hidden history.
   Legacy sync sorts by activation; zero-activation person conversations precede
   other zero-activation types, then string Channel ID and type break ties.
   Canonical list uses its encoded directory cursor; only `done=true` ends a

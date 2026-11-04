@@ -19,7 +19,10 @@ _openapi:
         id: clear-conversation-unread
     contents:
       - content: Advances read_seq to the current committed head; unknown legacy fields
-          such as message_seq are ignored.
+          such as message_seq are ignored. Refreshes activated_at even when
+          already read. Missing or removed memberships and deleted Channels
+          remain no-ops. If activation fails after the read position commits,
+          retry the same request to finish activation.
         heading: clear-conversation-unread
       - content: >-
           POST /conversations/clearUnread
@@ -29,7 +32,10 @@ _openapi:
           Clear Conversation unread
 
           Advances read_seq to the current committed head; unknown legacy fields
-          such as message_seq are ignored.
+          such as message_seq are ignored. Refreshes activated_at even when
+          already read. Missing or removed memberships and deleted Channels
+          remain no-ops. If activation fails after the read position commits,
+          retry the same request to finish activation.
 
           ConversationMutationRequest
 
