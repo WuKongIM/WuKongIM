@@ -806,7 +806,7 @@ func EncodeDeleteChannelCommand(channelID string, channelType int64) []byte {
 	off := headerSize
 	off = putStringField(buf, off, tagChannelID, channelID)
 	putInt64Field(buf, off, tagChannelType, channelType)
-	return buf
+	return appendUint64TLVField(buf, tagChannelSendBanVersion, 0)
 }
 
 // EncodeUpsertChannelRuntimeMetaCommand encodes channel runtime metadata into a binary command.

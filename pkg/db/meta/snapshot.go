@@ -438,11 +438,12 @@ func (db *MetaDB) importHashSlotSnapshot(ctx context.Context, snap SlotSnapshot,
 			}
 		}
 	}
+	legacy := &snapshotFormat1{}
 	if err := visitParsedSlotSnapshotPayload(decoded, body, func(key, value []byte) error {
 		if err := contextErr(ctx); err != nil {
 			return err
 		}
-		return db.stageSlotSnapshotEntry(batch, snapshotEntry{Key: key, Value: value}, normalized, preserveMigrationMeta)
+		return db.stageSlotSnapshotEntry(batch, snapshotEntry{Key: key, Value: value}, normalized, preserveMigrationMeta, legacy)
 	}); err != nil {
 		return err
 	}
@@ -522,7 +523,7 @@ func hashSlotAllDataSpans(hashSlot HashSlot) []Span {
 	}
 }
 
-func (db *MetaDB) stageSlotSnapshotEntry(batch *engine.Batch, entry snapshotEntry, hashSlots []HashSlot, preserveMigrationMeta bool) error {
+func (db *MetaDB) stageSlotSnapshotEntry(batch *engine.Batch, entry snapshotEntry, hashSlots []HashSlot, preserveMigrationMeta bool, legacy *snapshotFormat1) error {
 	if !snapshotEntryInHashSlots(entry.Key, hashSlots) {
 		return dberrors.ErrInvalidArgument
 	}
@@ -531,7 +532,7 @@ func (db *MetaDB) stageSlotSnapshotEntry(batch *engine.Batch, entry snapshotEntr
 			return err
 		}
 	}
-	return batch.Set(entry.Key, entry.Value)
+	return legacy.stage(batch, entry.Key, entry.Value)
 }
 
 func snapshotEntryInHashSlots(key []byte, hashSlots []HashSlot) bool {

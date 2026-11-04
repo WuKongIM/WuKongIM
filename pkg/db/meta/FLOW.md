@@ -120,6 +120,8 @@ Metadata table 28 stores the one bounded, body-free MQTT storage ledger. Encoded
   directory generations and no active write fence. No new row format is added. Format 2 requires
   matching binaries; offline transfers preserve exact policy values and versions.
 
+- Format-1 startup conversion uses bounded synchronous batches and global System-7 progress. Legacy UID-person bans become User policies without losing credentials. Snapshot installation normalizes exact old User/Channel rows with batch-local user overlays; live decoders stay strict.
+
 ## Read First
 
 - [Metadata database](db.go), [Schema registry](schema.go), [Transaction helpers](tx_helpers.go), [Snapshots](snapshot.go)
