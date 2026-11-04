@@ -274,6 +274,9 @@ commandLoop:
 			}
 			return nil, fmt.Errorf("%w: apply command slot=%d hash_slot=%d command_type=%d", err, m.slot, hashSlot, commandTypeForDiagnostics(cmd.Data))
 		}
+		if err := replayFormat1Policy(wb, hashSlot, decoded, cmd.Data); err != nil {
+			return nil, err
+		}
 		if shouldMarkAppliedDelta {
 			if err := wb.MarkAppliedHashSlotDelta(appliedDeltaRecord); err != nil {
 				return nil, err

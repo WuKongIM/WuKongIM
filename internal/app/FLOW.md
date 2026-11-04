@@ -23,7 +23,7 @@ second implementation of those layers.
 ## Main Flows
 
 ```text
-validated Config + build identity -> format guard and fresh-directory provenance before logging
+validated Config + build identity + signal Context -> verified/resumable format-1 cold upgrade -> format guard and fresh-directory provenance before logging
   -> construct cluster and shared runtime foundations
   -> construct use cases and infrastructure ports
   -> bind the user use case's durable device-token verifier into Gateway CONNECT authentication

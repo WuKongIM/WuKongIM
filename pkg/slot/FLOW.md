@@ -138,10 +138,10 @@ plugin, migration, message projections, and MQTT session state.
   coverage excludes count-paused scheduling time and separately records budget fallback scopes and drain/Save-admission/synchronous-work subsets; non-budget fences use a disjoint scope with closed cause bits. A separate optional five-phase record measures same-Slot count pauses through owner resumption, including late read registration and cancellation clipping; it does not identify append/apply causes. Explicit owner tokens exclude ordinary async Save; missing fields remain unknown, and overlapping pause/Save/owner scopes or parent/subsets must not be added.
   The RPC trace retains only its longest barrier group, publishing it whole within 32 spans or reporting drops. Cancellation closes observation without releasing
   its still-unconfirmed Raft read budget or changing late results.
-
 Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.
-
 Send-permission replies optionally carry a coherent person Ready/runtime proof; partial, wrong-kind or mismatched-generation proofs fail closed. Legacy absence grants policy only.
+- Migrated metadata carries a global witness outside Hash-Slot snapshots. Recovery translates pre-policy-version Channel TLV commands into the original UID ban semantics after their conditional apply. New deletes carry policy-version tag 8 and retain current semantics.
+
 ## Read First
 
 - [Boundary](BOUNDARY.md), [Multi-Raft API](multiraft/api.go), [Raft worker](multiraft/slot.go), [FSM](fsm/statemachine.go), [Proxy](proxy/store.go)

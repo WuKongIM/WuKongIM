@@ -206,6 +206,7 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 		}
 	}
 	batch := newBatch()
+	legacy := &snapshotFormat1{load: db.engine.Get}
 	batchEntries := 0
 	batchBytes := 0
 	flush := func() error {
@@ -222,6 +223,7 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 		installedBytes += int64(batchBytes)
 		report(SnapshotRestoreProgress{Stage: "snapshot_install", Bytes: installedBytes, TotalBytes: size, Entries: installedEntries, TotalEntries: int64(entryCount)})
 		batch = newBatch()
+		legacy = &snapshotFormat1{load: db.engine.Get}
 		batchEntries = 0
 		batchBytes = 0
 		return nil
@@ -242,10 +244,10 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 			}
 		}
 		if preserveMigrationMeta {
-			if err := db.stageSlotSnapshotEntry(batch, entry, normalized, true); err != nil {
+			if err := db.stageSlotSnapshotEntry(batch, entry, normalized, true, legacy); err != nil {
 				return err
 			}
-		} else if err := batch.Set(entry.Key, entry.Value); err != nil {
+		} else if err := legacy.stage(batch, entry.Key, entry.Value); err != nil {
 			return err
 		}
 		batchEntries++
