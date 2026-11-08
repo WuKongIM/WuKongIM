@@ -1,6 +1,6 @@
 # Issue #1077：已提升的副本替换任务阻塞 leader 故障转移
 
-状态：设计待审阅，尚未实现。
+状态：设计已获批准并按本文实现。E2E 与本文 7.1 节的差异：历史校验改为通过路由的 `/channel/messagesync` 在每个运行节点上进行，因为 manager 消息读取是节点本地读，不承载该 Slot 的节点会返回 404。
 
 来源：https://github.com/WuKongIM/WuKongIM/issues/1077 ，根因分析见 [issue 评论](https://github.com/WuKongIM/WuKongIM/issues/1077#issuecomment-6605537336)。
 
