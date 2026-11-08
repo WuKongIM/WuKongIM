@@ -631,6 +631,11 @@ specification, runbook, report, or module documentation; link to them when neede
   nothing was written. Retry with the original message identity. Raw idempotency
   indexes may include uncommitted proposals; success requires an exact payload
   and identity match in the current Leader's committed history.
+- Controller Raft durability is the WAL alone: one fsync per Ready. `meta.json`
+  and voter `cluster-state.json` are checkpoints that recovery replays the WAL
+  over (every v3 version does). Any code that releases WAL history must first
+  checkpoint both to at least the release point, so even pre-beta.20 recovery
+  never needs a deleted entry. Issue #1098.
 - Failover preserves every observed suffix until exact chain evidence resolves
   it. Highest LEO, stale HW, or an unavailable replica cannot authorize truncation.
   Recovery converges compatible prefixes through bounded append-only repair,

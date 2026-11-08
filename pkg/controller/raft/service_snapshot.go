@@ -100,6 +100,14 @@ func (s *Service) compactLogAt(ctx context.Context, store *raftstore.Store, appl
 	result.Compacted = true
 	result.AfterSnapshotIndex = applied
 	if applied > s.cfg.SnapshotCatchUpEntries {
+		// Released WAL history must already be covered by the state file, so
+		// any v3 recovery, including one that never restores a Raft snapshot,
+		// replays from it (issue #1098).
+		if err := checkpointStateMachine(ctx, s.cfg.StateMachine); err != nil {
+			result.Error = err.Error()
+			s.recordCompactionStatus(trigger, result, err)
+			return result, err
+		}
 		if err := store.Compact(ctx, applied-s.cfg.SnapshotCatchUpEntries); err != nil {
 			result.Error = err.Error()
 			s.recordCompactionStatus(trigger, result, err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
@@ -11,8 +12,16 @@ import (
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controller/sync"
 )
 
+// Voter state files are bounded-lag checkpoints of WAL-recoverable state, so a
+// Controller entry costs one WAL fsync instead of eight (issue #1098). Raft
+// checkpoints before WAL compaction and on shutdown; these bound replay.
+const (
+	voterStateCheckpointEntries  = 4096
+	voterStateCheckpointInterval = 30 * time.Second
+)
+
 func (r *Runtime) startVoter(ctx context.Context) error {
-	sm, err := fsm.New(r.store)
+	sm, err := fsm.New(r.store, fsm.WithCheckpointPolicy(voterStateCheckpointEntries, voterStateCheckpointInterval))
 	if err != nil {
 		return err
 	}
