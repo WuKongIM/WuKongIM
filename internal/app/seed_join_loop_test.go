@@ -717,3 +717,26 @@ func sameSeedJoinUint64s(left, right []uint64) bool {
 	}
 	return true
 }
+
+// Issue #1097: a leaving node that restarts during scale-in is still a member
+// that must come back to finish draining. Treating it as unadmitted blocked
+// its startup forever (the Controller rejects re-joins of a leaving node),
+// and other nodes' presence activation then timed out waiting on it.
+func TestSeedJoinAdmissionByJoinState(t *testing.T) {
+	for _, tc := range []struct {
+		state control.NodeJoinState
+		want  bool
+	}{
+		{control.NodeJoinStateJoining, true},
+		{control.NodeJoinStateActive, true},
+		{control.NodeJoinStateLeaving, true},
+		{control.NodeJoinStateRemoved, false},
+	} {
+		snapshots := &fakeSeedJoinSnapshotReader{}
+		snapshots.set(control.Snapshot{Revision: 3, Nodes: []control.Node{{NodeID: 4, Addr: "10.0.0.4:11110", JoinState: tc.state}}})
+		loop := newSeedJoinLoop(seedJoinLoopConfig{NodeID: 4, AdvertiseAddr: "10.0.0.4:11110", Interval: time.Millisecond}, &fakeSeedJoinClient{}, snapshots, wklog.NewNop())
+		if got := loop.joinObserved(context.Background()); got != tc.want {
+			t.Errorf("joinObserved(%s) = %v, want %v", tc.state, got, tc.want)
+		}
+	}
+}
