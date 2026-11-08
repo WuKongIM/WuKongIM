@@ -248,7 +248,11 @@ func (l *seedJoinLoop) joinObserved(ctx context.Context) bool {
 			return false
 		}
 		switch node.JoinState {
-		case "", control.NodeJoinStateJoining, control.NodeJoinStateActive:
+		// A leaving node is still a member: after a restart during scale-in it
+		// must start to finish draining. The Controller rejects its re-join,
+		// so waiting for another state would block startup forever (#1097).
+		// Only a removed node stays unadmitted.
+		case "", control.NodeJoinStateJoining, control.NodeJoinStateActive, control.NodeJoinStateLeaving:
 			return true
 		default:
 			return false

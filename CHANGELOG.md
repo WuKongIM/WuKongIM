@@ -8,6 +8,7 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- A dynamic data node that restarts while it is leaving (during scale-in) now finishes starting and resumes draining. Previously its startup waited forever for a re-join the Controller rejects, and healthy nodes could then reject client connections while presence activation waited on it. / 修复缩容过程中处于 leaving 状态的动态数据节点重启后无法完成启动的问题：此前它会无限等待一次会被 Controller 拒绝的重新加入，健康节点上的 presence 激活也会因等待它而拒绝客户端连接；现在它会正常启动并继续排空。
 - Restore Channel writes when the leader stops while a replica replacement is verifying its already-committed membership; the replacement now completes and normal leader failover proceeds instead of returning `503 retry required` until the old leader returns. No data format or protocol change. / 修复副本替换在校验已提交成员时 leader 宕机导致频道持续返回 `503 retry required` 的问题：该替换任务改为直接完成，随后照常进行 leader 故障转移；数据格式与协议不变。
 
 ### 🔧 Improvements / 改进

@@ -5,7 +5,6 @@ package dynamic_node_faults
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -64,12 +63,6 @@ func TestScaleInSlotDrainSurvivesDelayedLeaderTransfer(t *testing.T) {
 
 func TestLeavingNodeRestartDuringScaleInSlotDrainRecovers(t *testing.T) {
 	requireGofailDynamicNodeEnabled(t)
-	// Known product failure: stable nodes reject WKProto connects with presence
-	// "stale generation" after the leaving node restarts. Remove this skip once
-	// https://github.com/WuKongIM/WuKongIM/issues/1097 is fixed.
-	if os.Getenv("WK_E2E_INCLUDE_KNOWN_FAILURES") != "1" {
-		t.Skip("issue #1097: set WK_E2E_INCLUDE_KNOWN_FAILURES=1 to run")
-	}
 
 	const joinToken = "e2e-gofail-scale-in-slot-drain-restart-token"
 	f := startFaultableDynamicCluster(t, joinToken)
@@ -182,6 +175,12 @@ func waitStableFaultableClusterReady(t testing.TB, f faultableDynamicCluster, ti
 		}
 		// The process-owned probe provisions a token; token auth stays enabled.
 		if err := node.Process.WaitWKProtoReady(ctx, node.GatewayAddr()); err != nil {
+			// Keep the stuck node's stacks in diagnostics (issue #1097).
+			if path, dumpErr := node.Process.CaptureGoroutineDump(); dumpErr != nil {
+				t.Logf("stable node %d goroutine dump unavailable: %v", nodeID, dumpErr)
+			} else {
+				t.Logf("stable node %d goroutine dump: %s", nodeID, path)
+			}
 			t.Fatalf("stable node %d wkproto not ready: %v\n%s", nodeID, err, f.cluster.DumpDiagnostics())
 		}
 	}
