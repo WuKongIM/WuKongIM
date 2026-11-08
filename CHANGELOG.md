@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Restore Channel writes when the leader stops while a replica replacement is verifying its already-committed membership; the replacement now completes and normal leader failover proceeds instead of returning `503 retry required` until the old leader returns. No data format or protocol change. / 修复副本替换在校验已提交成员时 leader 宕机导致频道持续返回 `503 retry required` 的问题：该替换任务改为直接完成，随后照常进行 leader 故障转移；数据格式与协议不变。
+
 ## [v3.0.0-beta.27] - 2026-11-04
 
 ### 🔧 Improvements / 改进

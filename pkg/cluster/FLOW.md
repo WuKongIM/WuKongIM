@@ -38,10 +38,10 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    adapter; it grants no Slot/Channel authority or proof on uncertain replies.
    Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
-   Planned transfers and replacement require fresh coverage at cutover and fence clearing.
+   Planned transfers and replacement require fresh coverage at cutover and fence clearing, except the dead-leader completion below, whose failover proves replay.
    Graceful drain applies/probes the fenced source; temporary catch-up yields without Slot writes.
    Failover selects a native leader before requiring replay; dead leaders preempt unpromoted replacement through guarded abort and rescan;
-   promoted tasks stay protected, and failover proof renewal never drains the dead source.
+   promoted (VerifyMembership) tasks never roll back but complete via the ordinary fence clear, then rescan; proof renewal never drains the dead source.
 4. Committed conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Conversation codec 10 carries UID-owned
    badge floors, excluded internal-position counts, and optional set-unread

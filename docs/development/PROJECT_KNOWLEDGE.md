@@ -636,6 +636,14 @@ specification, runbook, report, or module documentation; link to them when neede
   Recovery converges compatible prefixes through bounded append-only repair,
   obtains fresh quorum proof, and writes a current-authority barrier before
   admitting writes. Installing authority under a migration fence does not clear it.
+- A dead Channel leader must never stay hidden behind an active migration task:
+  failover is itself a migration task, one per Channel. Unpromoted replica
+  replacements abort and roll back their learner; a promoted one
+  (VerifyMembership) only completes through the ordinary fence-clear command,
+  because its membership change is committed. Issue #1077.
+- Manager `/manager/messages?channel_id=` reads node-local Slot metadata and
+  Channel storage. A node outside the Slot or Channel replica set returns 404 or
+  stale history; E2E history proofs use routed `/channel/messagesync`.
 - Committed reads use current authority and recovered quorum HW. Cold or stale
   runtimes require bounded authoritative recovery; local `HW == LEO` alone proves
   nothing. Authority, corruption, and I/O failures must not become empty or
