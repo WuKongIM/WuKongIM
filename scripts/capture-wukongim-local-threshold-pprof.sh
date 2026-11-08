@@ -316,7 +316,23 @@ terminate_children() {
   done
   for pid in "${CAPTURE_PIDS[@]}"; do
     [[ -n "$pid" ]] || continue
+    signal_until_exited "$pid"
     wait "$pid" 2>/dev/null || true
+  done
+}
+
+# signal_until_exited re-sends TERM while pid still runs, for at most ~2 s.
+# A TERM that lands after fork but before the child execs curl is discarded
+# by bash while it resets inherited traps, so curl would otherwise run until
+# --max-time. An unreaped child keeps its PID, so re-signaling cannot hit an
+# unrelated process. Without ps this degrades to the single kill above.
+signal_until_exited() {
+  local pid="$1" round state
+  for (( round = 0; round < 100; round++ )); do
+    state="$(ps -o stat= -p "$pid" 2>/dev/null)" || state=""
+    [[ -z "$state" || "$state" == Z* ]] && return 0
+    sleep 0.02
+    kill "$pid" 2>/dev/null || true
   done
 }
 
