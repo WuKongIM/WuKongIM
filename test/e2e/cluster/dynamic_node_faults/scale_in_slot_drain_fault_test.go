@@ -173,7 +173,8 @@ func waitStableFaultableClusterReady(t testing.TB, f faultableDynamicCluster, ti
 		if err := suite.WaitHTTPReady(ctx, node.APIAddr(), "/readyz"); err != nil {
 			t.Fatalf("stable node %d http not ready: %v\n%s", nodeID, err, f.cluster.DumpDiagnostics())
 		}
-		if err := suite.WaitWKProtoReady(ctx, node.GatewayAddr()); err != nil {
+		// The process-owned probe provisions a token; token auth stays enabled.
+		if err := node.Process.WaitWKProtoReady(ctx, node.GatewayAddr()); err != nil {
 			t.Fatalf("stable node %d wkproto not ready: %v\n%s", nodeID, err, f.cluster.DumpDiagnostics())
 		}
 	}
