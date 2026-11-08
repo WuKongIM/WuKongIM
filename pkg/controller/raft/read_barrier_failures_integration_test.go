@@ -186,7 +186,9 @@ func TestReadBarrierApplyFailureNeverReturnsOldSnapshot(t *testing.T) {
 }
 
 func TestReadBarrierDurabilityWriteFailuresDoNotGrantProgress(t *testing.T) {
-	for _, target := range []string{"materialized_state", "applied_marker"} {
+	// Since issue #1098 the applied marker is a WAL append and meta.json is a
+	// checkpoint; see TestReadBarrierProgressDoesNotDependOnMetadataCheckpoint.
+	for _, target := range []string{"materialized_state"} {
 		t.Run(target, func(t *testing.T) {
 			c, gate := newReadBarrierGatedCluster(t)
 			node := c.nodes[0]
@@ -197,9 +199,6 @@ func TestReadBarrierDurabilityWriteFailuresDoNotGrantProgress(t *testing.T) {
 			read := startReadBarrierCall(t, node.service, context.Background())
 			assertReadBarrierPending(t, read, "read escaped the actual pending durable write")
 			path := node.statePath
-			if target == "applied_marker" {
-				path = filepath.Join(node.raftDir, "meta.json")
-			}
 			// This is an actual filesystem rename failure, not a forged applied
 			// value or injected success. WAL/commit already precede the held FSM.
 			require.NoError(t, os.Rename(path, path+".fixture-before-failure"))
@@ -208,18 +207,38 @@ func TestReadBarrierDurabilityWriteFailuresDoNotGrantProgress(t *testing.T) {
 			require.Error(t, proposal.wait(t))
 			require.Error(t, read.wait(t).err)
 			snapshot := node.stateMachine.Snapshot(context.Background())
-			if target == "applied_marker" {
-				require.Equal(t, "new-state-before-marker", findTestNode(t, snapshot, 1).Name,
-					"fixture must reach the real marker after FSM publication")
-			} else {
-				require.NotEqual(t, "new-state-before-marker", findTestNode(t, snapshot, 1).Name)
-			}
+			require.NotEqual(t, "new-state-before-marker", findTestNode(t, snapshot, 1).Name)
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			_, err := node.service.ReadBarrier(ctx)
 			require.Error(t, err, "partially updated in-memory metadata is not a durable read watermark")
 		})
 	}
+}
+
+// An unwritable metadata checkpoint must not block commits, the applied
+// marker or read barriers: their durability is the Raft WAL (issue #1098).
+func TestReadBarrierProgressDoesNotDependOnMetadataCheckpoint(t *testing.T) {
+	c, gate := newReadBarrierGatedCluster(t)
+	node := c.nodes[0]
+	block := gate.holdNext(nil)
+	t.Cleanup(block.release)
+	proposal := startReadBarrierProposal(t, node, testUpsertNodeCommand(1, 1, "state-without-metadata-checkpoint"))
+	waitReadBarrierSignal(t, block.entered, "command never reached the persistent FSM port")
+	path := filepath.Join(node.raftDir, "meta.json")
+	require.NoError(t, os.Rename(path, path+".fixture-before-failure"))
+	require.NoError(t, os.Mkdir(path, 0o700))
+	t.Cleanup(func() {
+		_ = os.Remove(path)
+		_ = os.Rename(path+".fixture-before-failure", path)
+	})
+	block.release()
+	require.NoError(t, proposal.wait(t))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := node.service.ReadBarrier(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "state-without-metadata-checkpoint", findTestNode(t, node.stateMachine.Snapshot(context.Background()), 1).Name)
 }
 
 func TestReadBarrierCanceledIssuedTokensKeepThe64Bound(t *testing.T) {

@@ -23,6 +23,12 @@ snapshots and with one snapshotless neighbor, then prove two further restarts
 reuse every anchored Slot while credentials continue changing. Await both HTTP
 and WKProto readiness; dynamic restart starts its static seeds before the joined node.
 
+`TestController*` (issue #1098) prove that a 256-hash-slot single-node cluster
+with token auth meets the 10 s readiness budget, that SIGKILL with a lagging
+Controller checkpoint restarts to the same Slot assignment and credentials, and
+(opt-in with `WK_E2E_STARTUP_OLDER_BINARY`) that a pre-#1098 binary starts on
+that data. `WK_E2E_CONTROLLER_CHECKPOINT_REPORT` names the JSON artifacts.
+
 The opt-in Linux scale scenario creates three million user/device records
 through public HTTP. Freeze the cleanly stopped fixture before comparing
 baseline/candidate runs under real 2/4 GiB cgroup limits with swap disabled.

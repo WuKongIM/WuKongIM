@@ -39,8 +39,8 @@ not depend on `pkg/cluster`.
    FIFO apply. Already-waiting proposals and peer Steps use separate bounded
    Ready batches; kinds never mix, preserving exact local future association.
    Charge original peer bytes before Raft can rewrite shared entry headers.
-   The scheduler batches commands, applies FSM semantics, saves one
-   final state file, publishes it, then persists the applied boundary.
+   The scheduler batches commands, applies FSM semantics, publishes the batch, then
+   appends the applied boundary; only the Raft WAL Ready write is fsynced per entry.
 2. Startup restores the latest snapshot when materialized state is absent or older, replays the
    committed suffix, and automatic/manual compaction snapshots only applied
    materialized state before trimming covered WAL history.
@@ -57,9 +57,9 @@ not depend on `pkg/cluster`.
 
 ## Invariants and Failure Semantics
 
-- The Raft WAL plus applied-boundary metadata is authoritative. The JSON file
-  is its materialized state and is saved before publication and applied-index
-  advancement.
+- The Raft WAL is authoritative. `meta.json` and voter `cluster-state.json` are
+  checkpoints (first state, 4096 entries/30 s, compaction, clean stop) that recovery
+  replays the WAL over; both must cover any WAL prefix before it is released.
 - New WAL segments have versioned, independently checksummed headers; prefix
   compaction deletes only fully covered segments after persisting any legacy
   successor anchor and syncs each prefix deletion.
@@ -77,12 +77,12 @@ not depend on `pkg/cluster`.
   payloads and cloned snapshots stay immutable, with detached public results.
   Successful persistence publishes the cut; failed writes and empty/no-op paths
   do not. Applied-only publication reuses the suffix. ReadIndex still waits for
-  fresh quorum and the successful FSM/durable-applied watermark.
+  fresh quorum and the successful FSM apply watermark over WAL-durable entries.
 - `Revision` versions logical cluster state; `AppliedRaftIndex` versions Raft
   materialization. Empty probes and health reports may advance applied state
   without advancing logical revision.
 - Presence control reads use leader-only quorum ReadIndex, then wait for the
-  actual FSM save and durable applied marker; RawNode Advance is not that proof.
+  actual FSM apply of WAL-committed entries; RawNode Advance is not that proof.
   The current term must commit before issuing reads. At most 64 protocol tokens
   exist, including canceled issued tokens until quorum retirement or term reset;
   tombstones retain no caller context. Peer-forwarded read requests/responses

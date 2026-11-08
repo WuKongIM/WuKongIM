@@ -1,6 +1,6 @@
 # Issue #1098：Controller 每条日志只保留一次 WAL fsync
 
-状态：设计待审阅，尚未实现。
+状态：已按本文实现。实现中的补充：Raft 服务的 `Stop`/`Start` 现在会等待自行失败退出的运行协程完成持久化收尾，以免关闭检查点在 `Stop` 返回后才写入，或与重新打开的存储竞争（回归测试 `TestStopAfterRunFailureJoinsDurableShutdown`）。实测普通磁盘上 256 哈希槽单节点集群就绪由 25–27 秒降至 4.6–6.6 秒。
 
 来源：https://github.com/WuKongIM/WuKongIM/issues/1098 ，根因证据见 [issue 评论](https://github.com/WuKongIM/WuKongIM/issues/1098#issuecomment-6723684532)。
 

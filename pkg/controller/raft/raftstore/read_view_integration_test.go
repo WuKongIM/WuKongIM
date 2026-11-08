@@ -124,11 +124,12 @@ func TestStoreFailedMutationKeepsPreviousPublishedCut(t *testing.T) {
 			s, cfg := viewStore(t, 4096)
 			require.NoError(t, s.SaveReady(ctx, raftpb.HardState{Term: 1, Vote: 1, Commit: 1}, []raftpb.Entry{{Index: 1, Term: 1, Data: []byte("one")}}, raftpb.Snapshot{}))
 			require.NoError(t, s.MarkAppliedBatch(ctx, 1))
-			meta := filepath.Join(cfg.Dir, "meta.json")
-			backup := meta + ".retained"
+			// The durable step of Ready and applied persistence is the WAL
+			// write (metadata is a checkpoint since issue #1098), so the
+			// fault is a WAL write failure.
+			restore := func() {}
 			if op != "canceled" {
-				require.NoError(t, os.Rename(meta, backup))
-				require.NoError(t, os.Mkdir(meta, 0700))
+				restore = breakWAL(t, s)
 			}
 			var err error
 			switch op {
@@ -145,7 +146,9 @@ func TestStoreFailedMutationKeepsPreviousPublishedCut(t *testing.T) {
 			// A nil no-op is not a new successful durability boundary.
 			require.NoError(t, s.SaveReady(ctx, raftpb.HardState{}, nil, raftpb.Snapshot{}))
 			if op == "applied" {
-				require.NoError(t, s.MarkAppliedBatch(ctx, 2))
+				// Retrying while the fault persists must fail again, not
+				// treat the failed attempt's watermark as already durable.
+				require.Error(t, s.MarkAppliedBatch(ctx, 2))
 			}
 			hs, _, e := s.InitialState()
 			require.NoError(t, e)
@@ -154,10 +157,8 @@ func TestStoreFailedMutationKeepsPreviousPublishedCut(t *testing.T) {
 			require.Equal(t, raftpb.HardState{Term: 1, Vote: 1, Commit: 1}, hs, "failed mutation published future hard state")
 			require.Equal(t, uint64(1), last, "failed mutation published future suffix")
 			require.Equal(t, uint64(1), s.AppliedIndex(), "failed mutation published future applied watermark")
-			if op != "canceled" {
-				require.NoError(t, os.Remove(meta))
-				require.NoError(t, os.Rename(backup, meta))
-			}
+			restore()
+			_ = cfg
 		})
 	}
 }
@@ -170,12 +171,12 @@ func TestStoreFailedConfStateWriteCannotMutatePublishedMembership(t *testing.T) 
 		require.NoError(t, err)
 		require.NoError(t, s.SaveReady(ctx, raftpb.HardState{Term: 1, Vote: 1, Commit: id}, []raftpb.Entry{{Index: id, Term: 1, Type: raftpb.EntryConfChange, Data: data}}, raftpb.Snapshot{}))
 	}
-	meta := filepath.Join(cfg.Dir, "meta.json")
-	require.NoError(t, os.Rename(meta, meta+".old"))
-	require.NoError(t, os.Mkdir(meta, 0700))
+	_ = cfg
+	restore := breakWAL(t, s)
 	data, err := (&raftpb.ConfChange{Type: raftpb.ConfChangeRemoveNode, NodeID: 2}).Marshal()
 	require.NoError(t, err)
 	require.Error(t, s.SaveReady(ctx, raftpb.HardState{Term: 1, Vote: 1, Commit: 4}, []raftpb.Entry{{Index: 4, Term: 1, Type: raftpb.EntryConfChange, Data: data}}, raftpb.Snapshot{}))
+	restore()
 	require.NoError(t, s.SaveReady(ctx, raftpb.HardState{}, nil, raftpb.Snapshot{}))
 	_, conf, err := s.InitialState()
 	require.NoError(t, err)
@@ -184,8 +185,11 @@ func TestStoreFailedConfStateWriteCannotMutatePublishedMembership(t *testing.T) 
 
 // Compact changes retained physical history, not the successful logical cut.
 // A nil compaction must not make an earlier failed metadata write visible.
+// Since issue #1098 only a snapshot boundary writes metadata synchronously;
+// Ready and applied-marker persistence never touch it (see
+// TestStoreHotPathSurvivesUnwritableMetadataAndCompactionFailsClosed).
 func TestStoreCompactionCannotPublishFailedMetadata(t *testing.T) {
-	for _, op := range []string{"ready", "applied", "snapshot"} {
+	for _, op := range []string{"snapshot"} {
 		t.Run(op, func(t *testing.T) {
 			ctx := context.Background()
 			s, cfg := viewStore(t, 4096)
@@ -195,15 +199,7 @@ func TestStoreCompactionCannotPublishFailedMetadata(t *testing.T) {
 			meta := filepath.Join(cfg.Dir, "meta.json")
 			require.NoError(t, os.Rename(meta, meta+".retained"))
 			require.NoError(t, os.Mkdir(meta, 0700))
-			var err error
-			switch op {
-			case "ready":
-				err = s.SaveReady(ctx, raftpb.HardState{Term: 2, Vote: 1, Commit: 3}, []raftpb.Entry{{Index: 3, Term: 2}}, raftpb.Snapshot{})
-			case "applied":
-				err = s.MarkAppliedBatch(ctx, 2)
-			case "snapshot":
-				err = s.SaveSnapshot(ctx, raftpb.Snapshot{Data: []byte("one"), Metadata: raftpb.SnapshotMetadata{Index: 1, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}})
-			}
+			err := s.SaveSnapshot(ctx, raftpb.Snapshot{Data: []byte("one"), Metadata: raftpb.SnapshotMetadata{Index: 1, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}})
 			require.Error(t, err)
 			require.NoError(t, os.Remove(meta))
 			require.NoError(t, os.Rename(meta+".retained", meta))
@@ -301,4 +297,58 @@ func TestStoreAppliedPublicationDoesNotCloneRetainedPayloads(t *testing.T) {
 	runtime.ReadMemStats(&after)
 	require.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(8<<20), "watermark publication copied retained log/snapshot payload")
 	require.Equal(t, uint64(24), s.AppliedIndex())
+}
+
+// The per-entry hot path no longer depends on derived metadata, while the
+// compaction checkpoint fails closed: no WAL segment is released without it.
+func TestStoreHotPathSurvivesUnwritableMetadataAndCompactionFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	s, cfg := viewStore(t, 256)
+	for i := uint64(1); i <= 12; i++ {
+		require.NoError(t, s.SaveReady(ctx, raftpb.HardState{Term: 1, Vote: 1, Commit: i}, []raftpb.Entry{{Index: i, Term: 1, Data: make([]byte, 64)}}, raftpb.Snapshot{}))
+	}
+	require.NoError(t, s.SaveSnapshot(ctx, raftpb.Snapshot{Data: []byte("snapshot"), Metadata: raftpb.SnapshotMetadata{Index: 10, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}))
+	meta := filepath.Join(cfg.Dir, "meta.json")
+	require.NoError(t, os.Rename(meta, meta+".retained"))
+	require.NoError(t, os.Mkdir(meta, 0700))
+
+	require.NoError(t, s.SaveReady(ctx, raftpb.HardState{Term: 2, Vote: 1, Commit: 13}, []raftpb.Entry{{Index: 13, Term: 2}}, raftpb.Snapshot{}))
+	require.NoError(t, s.MarkAppliedBatch(ctx, 13))
+	before, err := walSegmentFiles(filepath.Join(cfg.Dir, "wal"))
+	require.NoError(t, err)
+	require.Greater(t, len(before), 1, "the compaction must have a prefix to release")
+
+	require.Error(t, s.Compact(ctx, 10))
+	after, err := walSegmentFiles(filepath.Join(cfg.Dir, "wal"))
+	require.NoError(t, err)
+	require.Equal(t, before, after, "a failed checkpoint must not release WAL history")
+
+	require.NoError(t, os.Remove(meta))
+	require.NoError(t, os.Rename(meta+".retained", meta))
+	require.NoError(t, s.Compact(ctx, 10))
+	require.NoError(t, s.Close())
+	reopened, err := Open(ctx, cfg)
+	require.NoError(t, err)
+	defer reopened.Close()
+	hs, _, err := reopened.InitialState()
+	require.NoError(t, err)
+	require.Equal(t, raftpb.HardState{Term: 2, Vote: 1, Commit: 13}, hs)
+}
+
+// breakWAL makes every WAL write fail until the returned restore runs, without
+// writing a partial record: the active segment handle is swapped for a closed file.
+func breakWAL(t *testing.T, s *Store) func() {
+	t.Helper()
+	closed, err := os.CreateTemp(t.TempDir(), "closed-wal")
+	require.NoError(t, err)
+	require.NoError(t, closed.Close())
+	s.wal.mu.Lock()
+	real := s.wal.file
+	s.wal.file = closed
+	s.wal.mu.Unlock()
+	return func() {
+		s.wal.mu.Lock()
+		s.wal.file = real
+		s.wal.mu.Unlock()
+	}
 }

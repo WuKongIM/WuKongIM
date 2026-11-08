@@ -144,6 +144,7 @@ func (s *Service) Start(ctx context.Context) error {
 	cfg := s.cfg
 
 	s.mu.Lock()
+	s.joinFinishedRunLocked()
 	defer s.mu.Unlock()
 	if s.stopping {
 		return ErrStopped
@@ -214,6 +215,9 @@ func (s *Service) Start(ctx context.Context) error {
 func (s *Service) Stop() error {
 	s.mu.Lock()
 	if !s.started {
+		// A run that failed on its own may still be checkpointing and closing
+		// its store; Stop returns only after that durable shutdown completes.
+		s.joinFinishedRunLocked()
 		s.mu.Unlock()
 		return nil
 	}
@@ -569,4 +573,20 @@ func (s *Service) recordCompactionStatus(trigger string, result LogCompactionRes
 	st.Compaction = status
 	s.status = st
 	s.statusMu.Unlock()
+}
+
+// joinFinishedRunLocked waits, without holding s.mu, until a run loop that
+// already left the started state (it failed on its own) finishes its deferred
+// durable shutdown. A new Start must not open the store while the previous
+// owner may still write its checkpoint. The caller holds s.mu.
+func (s *Service) joinFinishedRunLocked() {
+	for !s.started && s.doneCh != nil {
+		doneCh := s.doneCh
+		s.mu.Unlock()
+		<-doneCh
+		s.mu.Lock()
+		if s.doneCh == doneCh {
+			s.doneCh = nil
+		}
+	}
 }

@@ -24,6 +24,9 @@ const (
 func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, compactCh <-chan compactRequest, readRequests <-chan *readBarrierRequest, readWake chan struct{}, initCh chan<- error) {
 	defer close(doneCh)
 	defer store.Close()
+	// Deferred calls run in reverse: this runs after the apply scheduler has
+	// stopped and joined, and before the store writes its own checkpoint.
+	defer func() { _ = checkpointStateMachine(context.Background(), s.cfg.StateMachine) }()
 	rawNode, err := s.newRawNode(store, startup)
 	if err != nil {
 		initCh <- err

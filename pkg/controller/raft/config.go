@@ -79,6 +79,20 @@ type stateMachine interface {
 	ApplyBatch(context.Context, []fsm.AppliedCommand) (fsm.BatchApplyResult, error)
 }
 
+// stateCheckpointer is implemented by state machines whose state file is a
+// checkpoint of WAL-recoverable state rather than a per-batch durability step.
+type stateCheckpointer interface {
+	Checkpoint(context.Context) error
+}
+
+// checkpointStateMachine writes the state file checkpoint when supported.
+func checkpointStateMachine(ctx context.Context, sm stateMachine) error {
+	if checkpointer, ok := sm.(stateCheckpointer); ok {
+		return checkpointer.Checkpoint(ctx)
+	}
+	return nil
+}
+
 // Config configures one Controller Raft service instance.
 type Config struct {
 	// NodeID is the local Controller Raft node ID.
