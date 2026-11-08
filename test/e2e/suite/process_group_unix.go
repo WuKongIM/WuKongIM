@@ -50,3 +50,9 @@ func signalProcessGroup(process *os.Process, signal syscall.Signal) error {
 	}
 	return err
 }
+
+// signalGoroutineDump sends SIGQUIT, which makes the Go runtime write every
+// goroutine stack to stderr and exit.
+func signalGoroutineDump(process *os.Process) error {
+	return process.Signal(syscall.SIGQUIT)
+}
