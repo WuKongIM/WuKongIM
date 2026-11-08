@@ -432,6 +432,23 @@ func (a *App) PrepareControllerVoter(ctx context.Context, req accessnode.Prepare
 	return resp, nil
 }
 
+// startupRequiresClusterWriteReady reports whether startup must wait for
+// cluster write readiness. A joining node waits for activation instead; a
+// leaving node only finishes its drain while its own Slot may be moving
+// without a leader, so waiting would make a restart exit and leave a presence
+// owner missing (issue #1097). Unknown membership stays strict.
+func startupRequiresClusterWriteReady(node control.Node, known bool) bool {
+	if !known {
+		return true
+	}
+	switch node.JoinState {
+	case control.NodeJoinStateJoining, control.NodeJoinStateLeaving:
+		return false
+	default:
+		return true
+	}
+}
+
 func (a *App) seedJoinPreActivationMode(ctx context.Context) bool {
 	node, ok := a.seedJoinLocalControlNode(ctx)
 	return ok && node.JoinState == control.NodeJoinStateJoining
