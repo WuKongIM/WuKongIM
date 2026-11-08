@@ -10,6 +10,10 @@ move those entries into a version section named for that exact tag.
 
 - Restore Channel writes when the leader stops while a replica replacement is verifying its already-committed membership; the replacement now completes and normal leader failover proceeds instead of returning `503 retry required` until the old leader returns. No data format or protocol change. / 修复副本替换在校验已提交成员时 leader 宕机导致频道持续返回 `503 retry required` 的问题：该替换任务改为直接完成，随后照常进行 leader 故障转移；数据格式与协议不变。
 
+### 🔧 Improvements / 改进
+
+- Manager now downloads only the active language's text, cutting the login page's initial JavaScript by about a third (222 KB to 148 KB gzip), and shows Chinese labels for MQTT, storage, startup readiness and diagnostics node configuration entries. / 管理后台只加载当前语言的文案，登录页首屏 JavaScript 减少约三分之一（gzip 222 KB 降至 148 KB）；节点配置页补全 MQTT、存储、启动就绪与诊断配置项的中文标签。
+
 ## [v3.0.0-beta.27] - 2026-11-04
 
 ### 🔧 Improvements / 改进
