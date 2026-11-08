@@ -41,7 +41,7 @@ func run(args []string) error {
 var Selectors = []string{
 	"go-format", "go-vet", "go-mod-tidy",
 	"flow-doc-contracts", "agent-artifact-contracts", "skill-focused-contracts",
-	"web", "demo", "docs", "docs-integration", "three-node",
+	"web", "demo", "docs", "docs-integration", "three-node", "gofail-e2e",
 }
 
 func runCICheck(
@@ -80,6 +80,8 @@ func runCICheck(
 		return checkDocumentationIntegration(ctx, root, commands)
 	case "three-node":
 		return checkThreeNode(ctx, root, commands)
+	case "gofail-e2e":
+		return checkGofailE2E(ctx, root, commands)
 	default:
 		return errors.New("unknown CI check selector")
 	}

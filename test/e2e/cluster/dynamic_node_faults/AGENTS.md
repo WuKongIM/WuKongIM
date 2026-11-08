@@ -21,6 +21,8 @@ This package contains opt-in gofail-backed internal dynamic-node fault tests.
 
 ## Running
 
+Nightly `ci.yml` runs this package through `go run ./cmd/wkcicheck gofail-e2e`, which builds one binary with every failpoint package. Locally:
+
 ```bash
 scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internal/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out /tmp/wukongim-gofail
 WK_E2E_BINARY=/tmp/wukongim-gofail WK_E2E_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_faults -count=1 -timeout 15m -p=1

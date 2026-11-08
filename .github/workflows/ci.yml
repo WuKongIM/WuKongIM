@@ -15,7 +15,8 @@ on:
     branches: [main]
   schedule:
     # Nightly full coverage: race on every listed package, all integration
-    # tests and every E2E suite. Not part of the pull-request gate.
+    # tests, every E2E suite and every gofail fault-injection E2E suite. Not
+    # part of the pull-request gate.
     - cron: "37 17 * * *"
   workflow_dispatch:
 
@@ -332,7 +333,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [race, integration, e2e]
+        suite: [race, integration, e2e, gofail-e2e]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -349,7 +350,18 @@ jobs:
                     ./pkg/gateway/... ./pkg/transport/... ./pkg/channel/... ./pkg/cluster/... ./pkg/slot/... -count=1 -p=1 -timeout=50m ;;
             integration) go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=50m ;;
             e2e) go test -tags=e2e ./test/e2e/... -count=1 -timeout=50m -p=1 ;;
+            gofail-e2e) go run ./cmd/wkcicheck gofail-e2e ;;
           esac
+      - name: Upload gofail E2E evidence
+        if: always() && matrix.suite == 'gofail-e2e'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gofail-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .ci-output/gofail-e2e
+            !.ci-output/gofail-e2e/wukongim-gofail
+          if-no-files-found: ignore
+          retention-days: 14
 
   nightly-report:
     name: Track nightly failures

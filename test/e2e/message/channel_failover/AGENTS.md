@@ -39,7 +39,7 @@ the replaced source as the only spare; assert task completion, not its absence.
 GOWORK=off go test -tags=e2e ./test/e2e/message/channel_failover -count=1 -timeout 6m -p=1
 ```
 
-Issue #1077 gofail case (opt-in, needs a gofail-enabled binary):
+Issue #1077 gofail case (opt-in, needs a gofail-enabled binary; nightly `ci.yml` runs it through `go run ./cmd/wkcicheck gofail-e2e`):
 
 ```bash
 scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package pkg/cluster/channels --out /tmp/wukongim-gofail-channels

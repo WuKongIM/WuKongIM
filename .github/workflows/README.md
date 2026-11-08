@@ -16,7 +16,7 @@ selector list in `cmd/wkcicheck/main.go` is the single catalog of named checks.
 
 | File | Display name | Purpose |
 | --- | --- | --- |
-| `ci.yml` | `CI` | Pull-request and `main` correctness: lint, Go unit, race, scripts integration, E2E, Manager web, demo, documentation and package jobs selected by changed paths, aggregated into the single required check `ci-ok`; nightly full race/integration/E2E |
+| `ci.yml` | `CI` | Pull-request and `main` correctness: lint, Go unit, race, scripts integration, E2E, Manager web, demo, documentation and package jobs selected by changed paths, aggregated into the single required check `ci-ok`; nightly full race/integration/E2E and gofail fault-injection E2E |
 | `perf.yml` | `Performance` | 500 QPS seams on tmpfs and runner disk with runner-class summaries, same-runner A/B for pull requests labeled `perf`, the ten-minute three-node qualification, the nightly conversation QPS release gate as early warning, and the fixed SEND diagnosis |
 | `compat.yml` | `Compatibility` | Nightly native deb/rpm build plus four-distribution install and systemd lifecycle, and released EasySDK Android/iOS/Flutter acceptance |
 | `conversation-qps-diagnose.yml` | `Agent Tool - Diagnose Conversation QPS` | Read-only four-CPU AMD64 fixed mixed-load attribution with separate driver/server profiles; never publication evidence |
@@ -60,8 +60,14 @@ change runs them. Without this, a route change once broke documentation
 publishing on `main` for six days.
 
 The nightly schedule additionally runs race on every listed package,
-`-tags=integration ./internal/... ./pkg/...` and every E2E suite. A nightly
-failure opens or updates one `[nightly] ... failing` Issue.
+`-tags=integration ./internal/... ./pkg/...`, every E2E suite and
+`wkcicheck gofail-e2e`. The last builds one server with every discovered
+failpoint package and runs every E2E package that references a
+`WK_E2E_GOFAIL_*` gate with those gates enabled, uploading its evidence (not
+the binary). MQTT gofail suites are excluded while MQTT is a default-off
+preview: their documented budgets (up to 65 minutes each) exceed one nightly
+job; run them by hand from `test/e2e/AGENTS.md`. A nightly failure opens or updates one `[nightly] ... failing`
+Issue.
 
 ## Performance
 

@@ -108,6 +108,9 @@ func TestEverySelectorRunsOnlyPinnedTools(t *testing.T) {
 	require.NoError(t, os.MkdirAll(sampleRoot, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(sampleRoot, "package-lock.json"), lockfile, 0o600))
 	lockHash := sha256.Sum256(lockfile)
+	// gofail-e2e fails closed without a failpoint package and a gated suite.
+	writeGofailFixture(t, root, "pkg/a/a.go", "package a\n// gofail: var wkA string\n")
+	writeGofailFixture(t, root, "test/e2e/x/x_test.go", `package x // WK_E2E_GOFAIL_ALPHA`)
 
 	for _, selector := range selectors {
 		selector := selector
