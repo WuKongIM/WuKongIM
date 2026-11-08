@@ -32,7 +32,8 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
    product MQTT feature and provision credentials. Raw WebSocket helpers use Paho
    packet encoding and stream binary messages without business retries.
 2. Migration helpers observe bounded CLI success/refusal and start caller-configured product
-   nodes on already imported data, without opening storage inside the harness.
+   nodes on already imported data, without opening storage inside the harness. A prepared
+   node without `LogDir` logs under `<RootDir>/logs`, where diagnostics read it.
 3. Wait for readiness, stable Slot authority, or active Channel runtime metadata
    through public evidence; restart or reconfigure only after previous
    process-group cleanup completes.
