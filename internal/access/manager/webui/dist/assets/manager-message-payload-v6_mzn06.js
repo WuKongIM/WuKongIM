@@ -1,0 +1,1 @@
+var e=new TextDecoder(`utf-8`,{fatal:!0});function t(e){for(let t of e){let e=t.codePointAt(0)??0;if(!(e===9||e===10||e===13)&&(e<32||e>=127&&e<=159))return!0}return!1}function n(n){if(!n)return``;try{let r=atob(n),i=Uint8Array.from(r,e=>e.charCodeAt(0)),a=e.decode(i);return t(a)?n:a}catch{return n}}export{n as t};
