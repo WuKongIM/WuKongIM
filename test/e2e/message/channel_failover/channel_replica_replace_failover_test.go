@@ -56,6 +56,7 @@ func TestChannelLeaderFailoverDuringPromotedReplicaReplace(t *testing.T) {
 		endpoint := suite.ReserveGofailEndpoint(t)
 		failpoints[nodeID] = endpoint
 		opts = append(opts, suite.WithNodeEnv(nodeID, endpoint.Env()))
+		t.Logf("node %d gofail endpoint %s", nodeID, endpoint.Addr)
 	}
 	opts = append(opts, suite.WithDynamicJoinToken("join-secret"))
 	if dir := os.Getenv("WK_E2E_REPLICA_REPLACE_LOG_ROOT"); dir != "" {
