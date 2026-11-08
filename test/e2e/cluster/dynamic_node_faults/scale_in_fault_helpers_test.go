@@ -294,3 +294,16 @@ func testingT(t testing.TB) *testing.T {
 	require.True(t, ok, "helper requires *testing.T")
 	return tt
 }
+
+// connectWithProvisionedToken registers a device token through public HTTP on
+// node and completes an authenticated WKProto handshake with it.
+func connectWithProvisionedToken(t testing.TB, cluster *suite.StartedCluster, client *suite.WKProtoClient, node *suite.StartedNode, uid, deviceID string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	token := uid + "-token"
+	require.NoError(t, suite.RegisterUserToken(ctx, node.APIAddr(), uid, token), cluster.DumpDiagnostics())
+	_, err := client.ConnectWithTokenContext(ctx, node.GatewayAddr(), uid, deviceID, token)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+}

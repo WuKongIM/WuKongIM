@@ -51,6 +51,7 @@ func TestJoiningNodeRestartDuringOnboardingRecovers(t *testing.T) {
 	manager.EventuallyNodeReadiness(t, 4, true, 20*time.Second)
 	manager.MustActivateNode(t, 4)
 	manager.EventuallyNodeJoinState(t, 4, "active", 20*time.Second)
+	manager.EventuallyNodeSchedulable(t, 4, 20*time.Second)
 
 	activeReadyCtx, activeReadyCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer activeReadyCancel()
@@ -85,7 +86,7 @@ func TestJoiningNodeRestartDuringOnboardingRecovers(t *testing.T) {
 	client, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
-	require.NoError(t, client.Connect(node4.GatewayAddr(), "gofail-restart-onboarding-user", "gofail-restart-onboarding-device"), cluster.DumpDiagnostics())
+	connectWithProvisionedToken(t, cluster, client, node4, "gofail-restart-onboarding-user", "gofail-restart-onboarding-device")
 }
 
 func TestDisablePromoteDelayEndpointOnlyToleratesDisabledAfterRestart(t *testing.T) {
