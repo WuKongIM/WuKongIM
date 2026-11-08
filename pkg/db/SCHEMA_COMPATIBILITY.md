@@ -25,14 +25,20 @@ as a format migration and gate it behind an explicit rollout plan.
 ## Send-policy format 2
 
 User SendBan/SendBanVersion and Channel SendBanVersion use strict appended
-fields in directory format 2. This feature explicitly excludes old-data migration
-and mixed binaries: format 1 and nonempty unregistered directories are rejected
-before opening writable stores. Never edit the marker to bypass this check.
-Use new directories or an explicitly prepared compatible import. No cleanup
-script may delete existing data automatically. Snapshots and JSONL transfers
-preserve both policy values and revisions. Slot commands 67, 68 and 69 are permanent.
-Generic online FSM upserts retain existing policy; exact low-level Shard upserts
-remain offline import primitives and must not become online policy writers.
+fields in directory format 2. Product startup now upgrades explicitly registered
+format-1 directories after a verified cold backup. `db.UpgradeFormat1` owns the
+backup/publication boundary; `meta.DB.UpgradeFormat1` owns bounded conversion and
+its crash-atomic global System-7 cursor. This witness survives Hash-Slot restores.
+Legacy UID-person Channel bans project into User policy, preserving credentials;
+legacy snapshot rows and pre-policy-version TLV commands receive the same
+translation during recovery. New delete commands carry policy-version tag 8 so
+later deletions do not accidentally clear User policy. Current live decoders
+remain strict. Unknown/unregistered data, mixed binaries and direct old-binary
+rollback stay unsupported; restore the full cold generation for rollback.
+See [operator procedure](../../docs/development/DATA_FORMAT_UPGRADE.md).
+Snapshots and JSONL transfers preserve policy values and revisions. Slot commands
+67, 68 and 69 remain permanent. Generic online FSM upserts retain policy; exact
+low-level Shard upserts remain offline import primitives.
 
 ## Stable Durable IDs
 

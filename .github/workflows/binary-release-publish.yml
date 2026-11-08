@@ -391,6 +391,9 @@ jobs:
             echo "digest=" >>"$GITHUB_OUTPUT"
           fi
 
+      - name: Set up Trivy
+        run: scripts/release/install-trivy.sh
+
       - name: Build amd64 security scan candidate
         if: steps.publication.outputs.recovery != 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -455,12 +458,6 @@ jobs:
           for arch in amd64 arm64; do
             bash scripts/verify-docker-prometheus.sh "wukongim-release-scan:$arch" "linux/$arch"
           done
-
-      - name: Set up Trivy
-        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
-        with:
-          version: v0.74.0
-          cache: true
 
       - name: Scan local release candidates
         if: steps.publication.outputs.recovery != 'true'

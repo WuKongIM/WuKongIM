@@ -23,11 +23,35 @@ The strict case also pages all acknowledged history with a two-message limit,
 using only More and the oldest visible sequence to cross hidden recovery barriers.
 Do not weaken this gate or treat the safety case as proof of availability.
 
+The opt-in Issue #1077 case `TestChannelLeaderFailoverDuringPromotedReplicaReplace`
+holds a manager-started replica replacement at `verify_membership` through the
+`wkChannelReplicaReplaceVerifyMembershipError` gofail point, stops the Channel
+leader, then requires a write within 30 seconds, identical routed
+`/channel/messagesync` history on every running node, and a successful write
+through the restarted former leader. It must fail on binaries without the fix.
+Manager message reads are node-local, so this case proves history only through
+routed `/channel/messagesync`. A follower repair of the dead leader may re-add
+the replaced source as the only spare; assert task completion, not its absence.
+
 ## Run
 
 ```bash
 GOWORK=off go test -tags=e2e ./test/e2e/message/channel_failover -count=1 -timeout 6m -p=1
 ```
+
+Issue #1077 gofail case (opt-in, needs a gofail-enabled binary):
+
+```bash
+scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package pkg/cluster/channels --out /tmp/wukongim-gofail-channels
+WK_E2E_BINARY=/tmp/wukongim-gofail-channels WK_E2E_GOFAIL_CHANNEL_MIGRATION=1 \
+  WK_E2E_REPLICA_REPLACE_FAILOVER_REPORT=/tmp/replica-replace-failover.json \
+  GOWORK=off go test -tags=e2e ./test/e2e/message/channel_failover \
+  -run TestChannelLeaderFailoverDuringPromotedReplicaReplace -count=1 -timeout 8m -p=1
+```
+
+`WK_E2E_REPLICA_REPLACE_FAILOVER_REPORT` writes the JSON artifact (held task,
+write-recovery time, post-failover topology and final history);
+`WK_E2E_REPLICA_REPLACE_LOG_ROOT` optionally retains node logs.
 
 ## Maintenance Rules
 

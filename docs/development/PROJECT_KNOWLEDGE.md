@@ -1,5 +1,10 @@
 # Project Knowledge
 
+- Breaking changes and upgrades require the user's explicit prior approval for
+  their disclosed compatibility impact and migration/backup/rollback plan; see
+  [AGENTS.md](../../AGENTS.md), “Breaking Changes and Upgrades”. General task
+  authorization does not approve an undisclosed compatibility break.
+
 - The operator temporarily suspended `channel-append` in the three-node hosted-runner
   performance matrix pending a controlled performance environment. Mixed SEND, TCP
   SENDACK, correctness/race and nightly lifecycle checks remain enabled. Existing
@@ -631,6 +636,14 @@ specification, runbook, report, or module documentation; link to them when neede
   Recovery converges compatible prefixes through bounded append-only repair,
   obtains fresh quorum proof, and writes a current-authority barrier before
   admitting writes. Installing authority under a migration fence does not clear it.
+- A dead Channel leader must never stay hidden behind an active migration task:
+  failover is itself a migration task, one per Channel. Unpromoted replica
+  replacements abort and roll back their learner; a promoted one
+  (VerifyMembership) only completes through the ordinary fence-clear command,
+  because its membership change is committed. Issue #1077.
+- Manager `/manager/messages?channel_id=` reads node-local Slot metadata and
+  Channel storage. A node outside the Slot or Channel replica set returns 404 or
+  stale history; E2E history proofs use routed `/channel/messagesync`.
 - Committed reads use current authority and recovered quorum HW. Cold or stale
   runtimes require bounded authoritative recovery; local `HW == LEO` alone proves
   nothing. Authority, corruption, and I/O failures must not become empty or
@@ -1491,8 +1504,9 @@ specification, runbook, report, or module documentation; link to them when neede
   reads; TTL applies only to auxiliary membership facts. System identities and
   plugins cannot bypass bans. Explicit policy writes are atomic, versioned and
   independent; credential/ordinary metadata writes preserve them. Format 2
-  requires matching binaries and new/imported data; no old-data migration is
-  included. Cross-ingress, non-replica, leader loss and isolated-leader rejection
+  requires matching binaries. Registered format-1 data now upgrades before
+  startup through verified cold backup and resumable conversion; mixed binaries
+  remain unsupported. Cross-ingress, non-replica, leader loss and isolated-leader rejection
   and single/three-node restore have process-level evidence. Real plugin processes
   also verify bans, restricted hook mutation and the in-flight boundary. The PDK
   SendResp has no reason field: rejected SENDs return RPC errors with public
@@ -1798,6 +1812,11 @@ specification, runbook, report, or module documentation; link to them when neede
   60-second gate verdicts remain authoritative; profiler overhead is explicit.
   Go's 32 MiB/15-second retention settings are hints; exported trace bytes are
   independently capped at 64 MiB. See the workflow catalog for collection bounds.
+- Release scanner bootstrap uses the fixed official Trivy GitHub archive and
+  checksum assets with reviewed SHA-256 pins before candidate builds. Vendor
+  redirect availability is not a release dependency; both architecture scans
+  and the existing CRITICAL/HIGH rejection policy remain mandatory.
+
 - Release completion includes signed native package publication and exact-version
   public APT/RPM verification. Server and CLI artifacts share build identity;
   required same-tag acceptance gates precede publication. Follow
@@ -3055,3 +3074,10 @@ completion, installation and provider-reference release.
 - Local hot-P95 with independent hot P999 reports use v9/thresholdv3 and P95-named gatev2 evidence; ordinary P99 stays v8/thresholdv2/gatev1, legacy v7 stays diagnostic-only. Strict schema/config/fraction/field matching rejects reheadered or mixed evidence; local v9 cannot enter formal/capacity continuation. Sealed failures never acquire a new policy.
 
 - An explicitly paired local shakeout/soak policy uses `hot_sendack: {p95: 600ms}`, `hot_attempt_timeout: 2s`, and `sync: {p95: 1s, p999: 3s}`. Hot P95<=600ms implies P95<=1s, so its redundant one-second condition is folded and has no active hot P999. Cold P99/P999 remain2s/5s; sync P999 remains0.1%; each P95 permits5% strictly above. Half-configurations and formal/capacity use are rejected. This policy emits reportv10/thresholdv4/gatev3; v7/v8/v9 retain their original meanings. Worker protocol19 isolates live counters, binds sync P95 to actual successful-sync histogram counts and rejects inactive-tail/drifting/regressing evidence. Optional hot samples without an active P999 use latest16 primary recency with no tail-policy label. Default LocalConfig stays unchanged, as do first-deadline/correctness/five-minute persistence/ten-minute duration and1000-per-class/five-second freshness requirements. A new policy never relabels sealed failures or proves a physical performance repair.
+
+
+## Automatic v3 format upgrade
+
+- Product startup supports registered format 1 to 2 through a verified retained cold backup, crash-atomic bounded metadata batches and final atomic format publication. All cluster nodes require matching binaries and a coordinated cold upgrade.
+- Old UID-person Channel SendBan means a UID-wide policy: project it into User state, including policy-only users, and clear that legacy source flag. Old snapshot rows and pre-policy-version TLV command replay must perform the same translation; live decoders remain strict.
+- Metadata global System 7 retains the migration cursor/witness outside Hash-Slot replacement. New Channel delete commands carry policy-version tag 8 to distinguish current semantics. Rollback restores complete per-node and external Controller generations. See `docs/development/DATA_FORMAT_UPGRADE.md`.

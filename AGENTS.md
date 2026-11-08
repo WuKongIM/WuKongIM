@@ -45,6 +45,21 @@ The keywords `MUST`, `MUST NOT`, `SHOULD`, and `MAY` define requirement levels:
 
 ## Design and Implementation
 
+### Breaking Changes and Upgrades
+
+- Breaking changes or upgrades MUST receive explicit approval from the repository
+  owner (the user) before implementation, release, or deployment.
+- This includes incompatible persisted data, protocols, APIs or configuration;
+  upgrades requiring existing data migration before continued use; and changes
+  that remove supported behavior
+  or prevent direct rollback to the previous version.
+- Before requesting approval, explain the affected versions and behavior,
+  compatibility impact, migration and backup/rollback plan, required downtime,
+  and any data-loss risk.
+- A general feature, optimization, bug-fix, release or upgrade request MUST NOT
+  be treated as approval for an undisclosed compatibility break. Approval applies
+  only to the disclosed scope; material changes require renewed approval.
+
 ### Internal Architecture
 
 | Path | Responsibility |

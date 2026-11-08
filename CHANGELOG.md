@@ -6,6 +6,24 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Restore Channel writes when the leader stops while a replica replacement is verifying its already-committed membership; the replacement now completes and normal leader failover proceeds instead of returning `503 retry required` until the old leader returns. No data format or protocol change. / 修复副本替换在校验已提交成员时 leader 宕机导致频道持续返回 `503 retry required` 的问题：该替换任务改为直接完成，随后照常进行 leader 故障转移；数据格式与协议不变。
+
+## [v3.0.0-beta.27] - 2026-11-04
+
+### 🔧 Improvements / 改进
+
+- Automatically upgrade registered v3 format-1 node directories before startup, retaining verified cold backups and crash-resumable metadata progress; preserve legacy UID bans through snapshot and Raft recovery. Requires a coordinated cold upgrade of all nodes. / 启动前自动迁移已登记的 v3 格式 1 数据，保留校验冷备并支持中断续跑；快照及 Raft 恢复保留旧用户禁令，须全节点统一停机升级。
+
+- Restore release vulnerability scanning when the vendor download redirect is unavailable, using SHA-256-pinned official GitHub assets for the unchanged scanner version. / 扫描工具下载中转不可用时，改用经固定 SHA-256 校验的官方 GitHub 资产，保持扫描版本和安全门禁不变。
+
+## [v3.0.0-beta.26] - 2026-11-04
+
+### 🔧 Improvements / 改进
+
+- Automatically upgrade registered v3 format-1 node directories before startup, retaining verified cold backups and crash-resumable metadata progress; preserve legacy UID bans through snapshot and Raft recovery. Requires a coordinated cold upgrade of all nodes. / 启动前自动迁移已登记的 v3 格式 1 数据，保留校验冷备并支持中断续跑；快照及 Raft 恢复保留旧用户禁令，须全节点统一停机升级。
+
 ## [v3.0.0-beta.25] - 2026-11-03
 
 ### 🔒 Security / 安全
