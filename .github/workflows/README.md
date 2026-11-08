@@ -48,7 +48,7 @@ jobs as passing. `scripts/ci/changes.sh` maps changed paths to areas:
 | Lint | always | gofmt, go vet, `go mod tidy -diff`, FLOW and Skill contracts, actionlint |
 | Go unit | Go changed | `go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/...` |
 | Go race | Go changed | messaging hot-path race tests |
-| Scripts integration | Go changed | `go test -tags=integration ./scripts/...` |
+| Scripts integration | Go changed | `go test -tags=integration ./scripts/...`; the chat-lifecycle shakeout's latency/first-attempt-rate misses on the shared runner are advisory (job summary) when every send is acknowledged without loss, duplicate, corruption or regression |
 | E2E | Go changed | one `e2e` server binary: ordinary-history migration, cross-node delivery, self chat, and the three-node 500 SEND/s correctness/drain smoke |
 | Manager web | Manager front end or back end changed | `wkcicheck web` plus the real three-node Chromium smoke |
 | Chat demo | `demo/` changed | `wkcicheck demo` |
