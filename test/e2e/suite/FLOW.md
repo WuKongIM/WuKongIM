@@ -51,6 +51,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 
 - One `NodeProcess` owns the only leader `Wait`; readiness fails immediately on
   child exit. Restart never reuses ports/data before prior group cleanup.
+- A node still running after a failed suite readiness wait gets SIGQUIT; its
+  goroutine dump lands in `goroutines.txt` beside stderr and diagnostics print a
+  bounded grouped summary. The node does not survive; process-level waits never do this.
 - Binary publication is atomic. Plugin runtime is disabled by default and
   enabled only by plugin scenarios.
 - Managed-process WKProto readiness registers a dedicated device token through

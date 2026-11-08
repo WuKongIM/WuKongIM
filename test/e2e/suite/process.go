@@ -387,6 +387,7 @@ func (p *NodeProcess) DumpDiagnostics() string {
 		fmt.Fprintf(&b, "error-log: %s\n", filepath.Join(logDir, "error.log"))
 		appendLogTail(&b, "error-log", filepath.Join(logDir, "error.log"))
 	}
+	appendGoroutineDumpSummary(&b, p.Spec)
 	return b.String()
 }
 
