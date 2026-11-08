@@ -101,3 +101,14 @@ test("keeps authenticated route modules out of the login entry bundle", async ()
 
   expect(initialGzipBytes).toBeLessThanOrEqual(initialGzipBudgetBytes)
 })
+
+// Both message catalogs once shipped in the login bundle, so every new page's
+// text grew it. Each catalog must stay a lazy chunk loaded per active locale.
+test("loads locale message catalogs lazily instead of in the login entry bundle", () => {
+  const entryId = Object.entries(manifest).find(([, candidate]) => candidate.isEntry)?.[0]
+  const initialFiles = collectStaticFiles(manifest, entryId)
+  for (const catalog of ["src/i18n/messages/en.ts", "src/i18n/messages/zh-CN.ts"]) {
+    expect(manifest[catalog]?.isDynamicEntry, catalog).toBe(true)
+    expect(initialFiles.has(manifest[catalog].file), catalog).toBe(false)
+  }
+})

@@ -1,1 +1,0 @@
-function e(e,t,n){return e.some(e=>e.resource!==t&&e.resource!==`*`?!1:e.actions.includes(n)||e.actions.includes(`*`))}export{e as t};
