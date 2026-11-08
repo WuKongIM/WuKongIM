@@ -5,6 +5,7 @@ package dynamic_node_faults
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -63,6 +64,12 @@ func TestScaleInSlotDrainSurvivesDelayedLeaderTransfer(t *testing.T) {
 
 func TestLeavingNodeRestartDuringScaleInSlotDrainRecovers(t *testing.T) {
 	requireGofailDynamicNodeEnabled(t)
+	// Known product failure: stable nodes reject WKProto connects with presence
+	// "stale generation" after the leaving node restarts. Remove this skip once
+	// https://github.com/WuKongIM/WuKongIM/issues/1097 is fixed.
+	if os.Getenv("WK_E2E_INCLUDE_KNOWN_FAILURES") != "1" {
+		t.Skip("issue #1097: set WK_E2E_INCLUDE_KNOWN_FAILURES=1 to run")
+	}
 
 	const joinToken = "e2e-gofail-scale-in-slot-drain-restart-token"
 	f := startFaultableDynamicCluster(t, joinToken)

@@ -483,6 +483,7 @@ export const ciCheckSelectorCommands = [
   'docs',
   'docs-integration',
   'three-node',
+  'gofail-e2e',
 ] as const;
 
 export const cloudAnalysisHTTP: readonly HTTPSurface[] = [

@@ -86,7 +86,7 @@ Cloud View 是 Simulation Viewer 的无认证反向代理：`ANY /cloud-view/sta
 
 ## Agent 与 benchmark 控制面
 
-- `wkcicheck`：`go-vet`, `flow-doc-contracts`, `agent-artifact-contracts`, `skill-focused-contracts`, `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`。
+- `wkcicheck`：`go-vet`, `flow-doc-contracts`, `agent-artifact-contracts`, `skill-focused-contracts`, `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`, `gofail-e2e`。
 - Generic benchmark worker：14 条 `/healthz`、`/v1/*` 控制路由；除 Health 外要求 Control Token，或显式启用 insecure control。
 - Chat-lifecycle worker：12 条 `/healthz`、`/v1/info`、`/v1/chat-lifecycle/*` 路由；包括 Health 在内全部要求 Bearer。
 
