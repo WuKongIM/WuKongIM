@@ -352,6 +352,16 @@ func (l *quorumLog) beginLocked(ctx context.Context, state *quorumChannel, propo
 
 // resolveRoundLocked applies one terminal durability result to the sequencer.
 func (l *quorumLog) resolveRoundLocked(ctx context.Context, state *quorumChannel, retained retainedProposal, result durableRoundResult, err error) (Receipt, error) {
+	if err != nil && errors.Is(err, ch.ErrStaleMeta) {
+		// A replica refused this authority for a newer one: this sequencer is a
+		// stale owner. Unknown local debt stays pending until a reinstall, which
+		// a newer promise also refuses.
+		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
+			state.pending = nil
+		}
+		state.ready = false
+		return Receipt{}, ch.ErrStaleMeta
+	}
 	if err != nil {
 		// Definitively unwritten rounds release pending sequencing, never unknown debt.
 		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {

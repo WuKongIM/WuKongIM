@@ -160,7 +160,11 @@ func TestPromiseInstallFailsClosedOnHigherPromise(t *testing.T) {
 }
 
 func TestStaleLeaderCannotCommitAfterPromiseQuorum(t *testing.T) {
-	for _, staleActive := range []bool{false, true} {
+	for _, tc := range []struct {
+		staleActive  bool
+		stalePromise bool
+	}{{false, true}, {true, true}, {false, false}, {true, false}} {
+		staleActive := tc.staleActive
 		harness := newReplicaHarness(t, 1, 2, 3)
 		old := promiseTestAuthority("promise-stale", 1)
 		stale := promiseTestLog(t, harness, 1, staleActive)
@@ -173,15 +177,25 @@ func TestStaleLeaderCannotCommitAfterPromiseQuorum(t *testing.T) {
 		next := old
 		next.ID.LeaderTerm++
 		next.Leader = 2
+		// stalePromise=false: the paused old leader missed the new promise and
+		// only the two followers fence it.
+		harness.probeDown = map[ch.NodeID]bool{1: !tc.stalePromise}
 		if installed, err := promiseTestLog(t, harness, 2, true).Install(context.Background(), next); err != nil || installed.LEO != 1 {
 			t.Fatalf("Install(new leader) = %+v, %v", installed, err)
 		}
-		if receipt, err := stale.Commit(context.Background(), promiseTestProposal(old, 2)); err == nil {
-			t.Fatalf("stale leader (promise mode %v) committed %+v after the new promise quorum", staleActive, receipt)
+		harness.probeDown = nil
+		// The stale owner must learn it is stale (retryable after a route
+		// refresh), not report an unavailable quorum.
+		if receipt, err := stale.Commit(context.Background(), promiseTestProposal(old, 2)); !errors.Is(err, ch.ErrStaleMeta) {
+			t.Fatalf("stale leader %+v commit = %+v, %v; want ErrStaleMeta", tc, receipt, err)
+		}
+		if stale.existingChannel(old.Key).ready {
+			t.Fatalf("stale leader %+v still ready after a stale round", tc)
 		}
 		for voter, store := range harness.stores {
 			loaded, err := store.Load(context.Background(), LoadBatch{Items: []LoadRequest{{ChannelKey: old.Key, ChannelID: old.ChannelID}}})
-			if err != nil || loaded.Items[0].State.LEO != 1 {
+			// Only the old leader's own store may hold its unpromised local write.
+			if err != nil || (voter != 1 && loaded.Items[0].State.LEO != 1) {
 				t.Fatalf("voter %d frontier = %+v, %v; stale write must not land", voter, loaded, err)
 			}
 		}

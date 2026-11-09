@@ -113,12 +113,30 @@ probe and the barrier write.
    becomes ready without writing any log entry. The next business message is
    `N+1`. Without a promise quorum, Install fails and the Channel stays not
    ready, as with a failed barrier today.
-5. **Missed voters:** the leader keeps re-sending a promising probe to them in
-   the background, like trailing deferred writes.
+5. **Missed voters:** a voter that missed the promising probe is promised by
+   the first append it accepts from the new leader, because every append after
+   activation carries the writer authority and raises a lower promise (see
+   Append-side enforcement). No separate background loop is needed: safety
+   only requires the promise on a quorum.
 
 The promising probe reuses the existing probe dispatch (local executor and peer
-batcher), bounded pages and deadlines. Only the first page carries the
-authority and becomes a durable write.
+batcher), bounded pages and deadlines. Every probe page of the installation
+carries the authority; after the first page the promise is equal and only
+re-checked, so later pages write nothing.
+
+**Implementation notes (step 3):**
+
+- On the wire, a promising probe and a writer-fenced append use two new item
+  kinds of exchange version 7. Unfenced items keep their original kinds byte
+  for byte, so peers that predate promises never receive the new kinds. A
+  refused promise replies with the existing `ReplicateStaleFence` status, so
+  sibling items in the batch still complete.
+- An exact append without a writer authority is fenced by its own proposal
+  authority and never raises the promise. This keeps a stale leader that has
+  not yet observed activation fenced, and creates no promise before activation.
+- Committed replica refresh may replay a tail written under an older
+  authority when the installation was proven by a promise quorum. Leader
+  failover verification depends on this.
 
 ### Append-side enforcement
 

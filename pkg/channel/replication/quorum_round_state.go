@@ -40,6 +40,9 @@ type durableRound struct {
 	completed             map[ch.NodeID]bool
 	result                durableRoundResult
 	conflict, localFailed bool
+	// stale records a definitely-unwritten vote refused for a newer authority
+	// (a follower's stale fence or this replica's own authority promise).
+	stale bool
 	// dispatching fences callbacks against submissions that have been planned but
 	// have not yet transferred ownership to the local/peer dispatcher.
 	dispatching                   int
@@ -250,6 +253,8 @@ func (r *durableRound) onResult(voter ch.NodeID, c durabilityCompletion) {
 			r.result.outcome = ch.AppendOutcomeUnknown
 		case c.outcome == ch.AppendOutcomeConflict:
 			r.conflict = true
+		case c.outcome == ch.AppendOutcomeDefinitelyNotWritten && errors.Is(c.err, ch.ErrStaleMeta):
+			r.stale = true
 		}
 		switch {
 		case r.result.localDurable && r.result.durableVotes >= r.quorum:
@@ -270,6 +275,11 @@ func (r *durableRound) onResult(voter ch.NodeID, c durabilityCompletion) {
 			}
 			r.terminal = true
 			r.terminalErr = errDurableQuorumUnavailable
+			if r.stale {
+				// A replica already refused this authority: the owner is stale,
+				// which callers retry after a route refresh.
+				r.terminalErr = errors.Join(ch.ErrStaleMeta, errDurableQuorumUnavailable)
+			}
 		}
 	}
 	finish := r.finishLocked()
