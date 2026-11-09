@@ -753,7 +753,26 @@ func classifyActivationError(err error) error {
 		class = "activation_context_deadline"
 	}
 	if class == "" {
-		return err
+		// Unclassified failures (for example stale generation) keep the
+		// generic class but still project the recovery evidence they carry,
+		// so operators see the failed step and owner coverage (#1097).
+		if !hasActivationEvidence(err) {
+			return err
+		}
+		class = "activation_error"
 	}
 	return activationAuthFailureError{class: class, err: err}
+}
+
+// hasActivationEvidence reports whether err carries immutable recovery or
+// route evidence worth projecting into the gateway auth-failure log.
+func hasActivationEvidence(err error) bool {
+	if _, ok := presence.FullRecoveryFailure(err); ok {
+		return true
+	}
+	if _, ok := presence.RecoveryProviderFailure(err); ok {
+		return true
+	}
+	_, ok := presence.ActivationFailureRouteHash(err)
+	return ok
 }
