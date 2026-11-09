@@ -245,6 +245,13 @@ type AppendBatchItem struct {
 	ExpectedBaseOffset uint64
 	// Proposal is the immutable durable identity required by exact appends.
 	Proposal DurableProposalManifest
+	// WriterAuthority, when set, is the authority of the leader issuing this
+	// exact append. It is fenced against the replica's durable promise: a lower
+	// writer is rejected with ErrStaleAuthority, and a higher writer raises the
+	// promise atomically with the append. It binds the writer, not Proposal's
+	// own authority, so the current leader may repair old-authority entries.
+	// Nil keeps the barrier-mode behavior and never reads or writes a promise.
+	WriterAuthority *AuthorityPromise
 }
 
 // AppendBatchResult is the per-item result returned by StoreAppendBatch.
@@ -1046,8 +1053,19 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		stagedEntries := make(map[uint64]quorumlog.EntryIdentity, totalRecords)
 		var previousStaged quorumlog.EntryIdentity
 		var combined preparedCommitRows
+		var (
+			promiseLoaded  bool
+			promisePresent bool
+			promiseErr     error
+			promise        AuthorityPromise
+			stagedPromise  *AuthorityPromise
+		)
 		for _, index := range entryIndexes {
 			item := items[index]
+			if item.WriterAuthority != nil && !promiseLoaded {
+				promise, promisePresent, promiseErr = entry.loadAuthorityPromiseLocked()
+				promiseLoaded = true
+			}
 			mode := AppendStrict
 			if item.ServerAllocatedMessageIDs {
 				mode = AppendServerAllocatedMessageID
@@ -1055,7 +1073,10 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 			var prepared preparedCommitRows
 			var prepareErr error
 			itemDetail := prepareDetail.BeginItemPrepare()
-			if item.ExactBaseOffset {
+			writerFence := authorityWriterFence(item, promise, promisePresent, promiseErr)
+			if writerFence != nil {
+				prepareErr = writerFence
+			} else if item.ExactBaseOffset {
 				switch {
 				case item.ExpectedBaseOffset > virtualLEO:
 					prepareErr = &exactAppendGapError{needFrom: virtualLEO + 1}
@@ -1105,6 +1126,10 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 					results[index] = AppendBatchResult{Outcome: quorumlog.AppendOutcomeDefinitelyNotWritten, Err: err}
 					continue
 				}
+				if writer := item.WriterAuthority; writer != nil && (!promisePresent || writer.Compare(promise) > 0) {
+					raised := *writer
+					promise, promisePresent, stagedPromise = raised, true, &raised
+				}
 			}
 			pendingResults = append(pendingResults, pendingAppendResult{index: index, successOutcome: successOutcome})
 			commitObservation = rpctrace.CombineCommitObservations(commitObservation, item.CommitObservation)
@@ -1123,6 +1148,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 			}
 		}
 		if combined.hasWrites() {
+			combined.promise = stagedPromise
 			if _, ok := lockedCheckpoints[entry]; ok {
 				combined.checkpointLocked = true
 			}
@@ -2205,6 +2231,8 @@ type preparedCommitRows struct {
 	nextLEO          uint64
 	alreadyDurable   bool
 	dependsOnCommit  bool
+	// promise is a raised authority promise committed with these rows.
+	promise *AuthorityPromise
 }
 
 type exactAppendGapError struct {
@@ -2224,6 +2252,8 @@ type preparedCommitMutation struct {
 	proposals  []durableProposalRecord
 	entries    []quorumlog.EntryIdentity
 	nextLEO    uint64
+	// promise is a raised authority promise staged with these rows.
+	promise *AuthorityPromise
 }
 
 func (p preparedCommitRows) hasWrites() bool {
@@ -3252,6 +3282,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 			proposals:  item.proposals,
 			entries:    item.entries,
 			nextLEO:    item.nextLEO,
+			promise:    item.promise,
 		})
 	}
 	var commitObservation rpctrace.CommitObservation
@@ -3272,6 +3303,11 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 				if err := mutation.entry.stageMQTTStorageConsumption(batch, mutation.proposals); err != nil {
 					return err
 				}
+				if mutation.promise != nil {
+					if err := mutation.entry.stageAuthorityPromise(batch, *mutation.promise); err != nil {
+						return err
+					}
+				}
 				if err := stageMQTTStorageCharges(batch, mutation.entry.key, reservations[i].charges); err != nil {
 					return err
 				}
@@ -3281,6 +3317,9 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		Publish: func() error {
 			for _, mutation := range mutations {
 				mutation.entry.publishCommittedRows(mutation.rows, mutation.nextLEO, mutation.proposals, mutation.entries)
+				if mutation.promise != nil {
+					mutation.entry.publishAuthorityPromiseLocked(*mutation.promise)
+				}
 			}
 			return nil
 		},
@@ -3947,4 +3986,23 @@ func copyCommitCohortRef(ref *rpctrace.CommitCohortRef) *rpctrace.CommitCohortRe
 	}
 	copy := *ref
 	return &copy
+}
+
+// authorityWriterFence rejects an exact append whose writer authority is lower
+// than the replica's durable promise. Items without a writer are unaffected.
+func authorityWriterFence(item AppendBatchItem, promise AuthorityPromise, present bool, loadErr error) error {
+	writer := item.WriterAuthority
+	if writer == nil {
+		return nil
+	}
+	if !item.ExactBaseOffset || writer.IsZero() {
+		return channel.ErrInvalidArgument
+	}
+	if loadErr != nil {
+		return toChannelError(loadErr)
+	}
+	if present && writer.Compare(promise) < 0 {
+		return channel.ErrStaleAuthority
+	}
+	return nil
 }

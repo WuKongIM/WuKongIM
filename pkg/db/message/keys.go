@@ -183,6 +183,10 @@ func encodeCommittedCursorKey(channelKey ChannelKey, name string) []byte {
 	return keycodec.AppendString(key, name)
 }
 
+func encodeAuthorityPromiseKey(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDAuthorityPromise)
+}
+
 func encodeCheckpointKey(channelKey ChannelKey) []byte {
 	return encodeMessageSystemPrefix(channelKey, messageSystemIDCheckpoint)
 }
