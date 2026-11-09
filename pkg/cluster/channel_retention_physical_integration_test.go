@@ -112,9 +112,8 @@ func TestReadLocalLatestMessagesRecoversMinISROneLeaderLEO(t *testing.T) {
 	seedChannelRetentionCatalogAndMeta(t, node, id, 1, 2, 0)
 	route := waitRouteKeyLeaderReady(t, node, id.ID)
 	shard := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot)
-	if err := shard.DeleteChannelRuntimeMeta(context.Background(), id.ID, int64(id.Type)); err != nil {
-		t.Fatalf("DeleteChannelRuntimeMeta(): %v", err)
-	}
+	// Widen the replica set in place: a deleted runtime row keeps its
+	// authority high water and rejects plain recreation (see metadb).
 	err := shard.UpsertChannelRuntimeMeta(context.Background(), metadb.ChannelRuntimeMeta{
 		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
 		RouteGeneration: 1, Replicas: []uint64{node.NodeID(), 2}, ISR: []uint64{node.NodeID(), 2},

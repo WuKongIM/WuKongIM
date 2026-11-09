@@ -53,10 +53,15 @@ func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*clust
 	require.NoError(t, e)
 	require.Len(t, cursors.DeliveryCursors, 1)
 	original := cursors.DeliveryCursors[0]
-	require.Eventually(t, func() bool {
+	// Report the last learner observation on failure, not only a timeout.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		view, e := nodes[0].ProbeChannel(ctx, 3, id.ID, id.Type)
-		return e == nil && view.ReplayReadiness != nil && view.ReplayReadiness.AnchorPosition > 0 && !view.ReplayReadiness.Covered
-	}, 10*time.Second, 30*time.Millisecond, "learner must independently show missing shared content")
+		require.NoError(c, e)
+		require.NotNil(c, view.ReplayReadiness, "learner replay readiness")
+		readiness := *view.ReplayReadiness
+		require.Positive(c, readiness.AnchorPosition, "learner anchor: %+v", readiness)
+		require.False(c, readiness.Covered, "learner must independently show missing shared content: %+v", readiness)
+	}, 10*time.Second, 30*time.Millisecond)
 	_, e = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: ids.Next(), FromUID: "alice", Payload: []byte("after pending subscription"), ServerTimestampMS: time.Now().UnixMilli()}})
 	require.NoError(t, e)
 	resumed, e := sessions[2].Connect(ctx, cmd)
