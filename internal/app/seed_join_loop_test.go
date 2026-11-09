@@ -740,3 +740,24 @@ func TestSeedJoinAdmissionByJoinState(t *testing.T) {
 		}
 	}
 }
+
+// Issue #1097 (second layer): a restarted leaving node only finishes its drain;
+// its own Slot may still be moving without a leader, so waiting for cluster
+// write readiness made it exit at startup and left presence owners missing.
+func TestStartupWriteReadinessByJoinState(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		node  control.Node
+		known bool
+		want  bool
+	}{
+		{"joining waits for activation instead", control.Node{JoinState: control.NodeJoinStateJoining}, true, false},
+		{"leaving only finishes its drain", control.Node{JoinState: control.NodeJoinStateLeaving}, true, false},
+		{"active serves writes", control.Node{JoinState: control.NodeJoinStateActive}, true, true},
+		{"unknown membership stays strict", control.Node{}, false, true},
+	} {
+		if got := startupRequiresClusterWriteReady(tc.node, tc.known); got != tc.want {
+			t.Errorf("%s: startupRequiresClusterWriteReady = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

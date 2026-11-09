@@ -17,7 +17,7 @@ This package contains opt-in gofail-backed internal dynamic-node fault tests.
 - Stage 10A coverage must prove a dropped Controller state event does not permanently hide a lifecycle transition after later health/report wakeups.
 - Stage 10A coverage must prove concurrent scale-in advancement under delayed Slot drain produces at most one task and bounded conflicts, not 500s.
 - Runtime summary faults use `wkClusterNetCallShardFault` with the `manager_connections` alias. The alias is plural because it comes from the manager connection service alias.
-- Restart-during-scale-in proves durable Slot task recovery. A restarted leaving node is admitted by its seed join loop (issue #1097); the case stays skipped unless `WK_E2E_INCLUDE_KNOWN_FAILURES=1` until its startup write-readiness exit (the second layer of #1097) is fixed. Gateway drain admission is runtime state, so the scenario may re-apply drain after restart before final remove.
+- Restart-during-scale-in proves durable Slot task recovery. A restarted leaving node is admitted by its seed join loop and does not wait for cluster write readiness at startup, because its own Slot may still be moving (issue #1097). The case stays skipped unless `WK_E2E_INCLUDE_KNOWN_FAILURES=1` until the remaining presence stale-generation layer of #1097 is fixed. Gateway drain admission is runtime state, so the scenario may re-apply drain after restart before final remove.
 
 ## Running
 

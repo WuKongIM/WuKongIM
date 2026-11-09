@@ -110,7 +110,7 @@ func (a *App) Start(ctx context.Context) error {
 			return errors.Join(err, stopErr)
 		}
 	}
-	if !a.seedJoinPreActivationMode(ctx) {
+	if startupRequiresClusterWriteReady(a.seedJoinLocalControlNode(ctx)) {
 		if err := a.waitClusterWriteReady(ctx); err != nil {
 			stopErr := a.rollbackStarted(ctx)
 			a.logLifecycleError("cluster_write_ready", "start", err)
