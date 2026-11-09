@@ -70,7 +70,7 @@ func connectedDynamicDeliveryClient(t *testing.T, node *suite.StartedNode, uid s
 
 	client, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
-	require.NoError(t, client.Connect(node.GatewayAddr(), uid, uid+"-device"), node.DumpDiagnostics())
+	require.NoError(t, client.ConnectProvisioned(node, uid, uid+"-device"), node.DumpDiagnostics())
 	return client
 }
 

@@ -36,7 +36,7 @@ func startTrafficWorker(t testing.TB, cluster *suite.StartedCluster, node *suite
 	client, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
 	uid := prefix + "-sender"
-	require.NoError(t, client.Connect(node.GatewayAddr(), uid, uid+"-device"), node.DumpDiagnostics())
+	require.NoError(t, client.ConnectProvisioned(node, uid, uid+"-device"), node.DumpDiagnostics())
 
 	worker := &trafficWorker{client: client, stop: make(chan struct{}), done: make(chan struct{})}
 	channelID := prefix + "-recipient"
