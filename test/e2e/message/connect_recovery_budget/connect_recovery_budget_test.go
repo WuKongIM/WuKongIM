@@ -147,6 +147,14 @@ func runConnectBudget(t *testing.T, topology string, nodes int) {
 	require.NoError(t, err, "actual Slot authority did not stabilize")
 	slots := cluster.ManagerClient(t, 1).MustSlots(t)
 	target, hashSlot, slot, authority := freshRemoteUID(t, slots, convergence.Leaders, nodes)
+	if nodes == 3 {
+		// Since startup Presence preparation (3c834610a), every Slot leader
+		// recovers its Hash Slots before business admission, so the first
+		// CONNECT would find a warm generation. Moving this Slot to the other
+		// remote node makes the new leader claim a fresh generation on demand,
+		// which is the cold owner Begin this budget covers.
+		authority = transferSlotLeaderToOtherRemote(t, ctx, cluster, slot, authority)
+	}
 	report.HashSlot, report.SlotID, report.Authority = hashSlot, slot, authority
 	report.Phase = "receiver"
 	receiverUID := "e2e-budget-receiver-" + topology
@@ -320,4 +328,43 @@ func verifyMessage(t *testing.T, sender, receiver *suite.WKProtoClient, from, to
 	require.True(t, bytes.Equal(recv.Payload, payload), "RECV payload mismatch")
 	require.True(t, recv.MessageID == ack.MessageID && recv.MessageSeq == ack.MessageSeq, "RECV message identity mismatch")
 	require.True(t, receiver.RecvAck(recv.MessageID, recv.MessageSeq) == nil, "WKProto RECVACK failed")
+}
+
+// transferSlotLeaderToOtherRemote moves slotID to the node that is neither
+// the ingress (node 1) nor the current authority, then waits for stability.
+func transferSlotLeaderToOtherRemote(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, slotID uint32, current uint64) uint64 {
+	t.Helper()
+	next := uint64(0)
+	for candidate := uint64(2); candidate <= 3; candidate++ {
+		if candidate != current {
+			next = candidate
+		}
+	}
+	require.NotZero(t, next)
+	require.Eventually(t, func() bool {
+		for _, node := range cluster.Nodes {
+			call, stop := context.WithTimeout(ctx, 3*time.Second)
+			_, err := suite.PostJSON(call, fmt.Sprintf("http://%s/manager/slots/%d/leader-transfer", node.ManagerAddr(), slotID), map[string]any{"target_node": next}, nil)
+			stop()
+			if err == nil {
+				return true
+			}
+		}
+		return false
+	}, 20*time.Second, 200*time.Millisecond, "Slot leader transfer was not accepted")
+	require.Eventually(t, func() bool {
+		wait, done := context.WithTimeout(ctx, 5*time.Second)
+		defer done()
+		convergence, err := cluster.WaitSlotLeadersStable(wait, time.Second)
+		if err != nil {
+			return false
+		}
+		for _, leader := range convergence.Leaders {
+			if leader.SlotID == slotID {
+				return leader.LeaderID == next
+			}
+		}
+		return false
+	}, 30*time.Second, 200*time.Millisecond, "Slot leader did not move to the other remote node")
+	return next
 }
