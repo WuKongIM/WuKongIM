@@ -32,7 +32,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
    append in order and local or quorum progress completes aligned futures. Optional first-effect observation separately times reserve, submit and future wait; the wait includes reactor/quorum completion and preserves each original owner's item outcome, never implying pure storage time.
    Borrowed payload and publication-metadata bytes are cloned at admission; an adapter-owned append
    may explicitly transfer immutable payloads that downstream state, quorum, and storage submissions share while copying record metadata.
-   With `DurableQuorumLog`, leader activation first installs a recovered authority frontier and current-term barrier, then each caller append is one
+   With `DurableQuorumLog`, leader activation first installs a recovered authority frontier (fenced by a current-term barrier before Controller activation, by a durable authority promise on the probe quorum after it, consuming no log index), then each caller append is one
    immutable exact quorum proposal rather than a transient worker batch. Optional sampled storage ownership follows each mutation and both batch/fallback Adapters; filtering never shifts owners. Exact DB preparation chooses request membership. A capped local cohort sidecar does not enter peer frames or change quorum/durability; partial or dropped observation remains unknown.
 2. Followers pull continuous records, apply and return ACK progress, and use a
    bounded checkpoint path; idle leaders and caught-up followers coordinate checkpointed stop before either runtime can be evicted.
@@ -66,7 +66,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   for outstanding voters; convergence rechecks require all previously observed
   tails, while ordinary identity pages retain stable quorum supporters. A fresh
   quorum-identical prefix proof precedes append-only local repair; authority
-  recovery completes only after the deterministic current-term barrier. Non-ISR learners receive quorum-proven exact proposals through the
+  recovery completes only after the deterministic current-term barrier, or, once promises are active, after a promise quorum; appends and repairs then carry the writer authority and committed refresh may replay an older-authority tail. Non-ISR learners receive quorum-proven exact proposals through the
   bounded repair workers without contributing votes; page progress survives
   retry deadlines. Recovery can complete under a transfer write fence for new-leader
   verification; business Commit stays blocked until the fence is cleared.

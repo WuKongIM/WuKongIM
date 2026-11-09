@@ -639,6 +639,10 @@ func (b *peerBatcher) exchange(node ch.NodeID, class peerWorkClass, items []queu
 			}
 			results[index].replicate = result.Replicate
 		case ExchangeProbe:
+			if promiseProbeStale(item.probe, result) {
+				errs[index] = ch.ErrStaleMeta
+				continue
+			}
 			if result.Funding != (StorageFundingResult{}) || result.Replicate != (ReplicateResult{}) || !zeroFetchResult(result.Fetch) || !validPeerProbeResult(item.probe, result.Probe) {
 				return invalidExchangeResults(items, results, errs)
 			}

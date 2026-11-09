@@ -33,6 +33,15 @@ Manager message reads are node-local, so this case proves history only through
 routed `/channel/messagesync`. A follower repair of the dead leader may re-add
 the replaced source as the only spare; assert task completion, not its absence.
 
+`TestChannelLeaderChangeKeepsMessageSeqContiguous` waits for the Controller's
+one-way `cluster.channel_promise.activated` app-log event, kills a Channel
+leader and restarts it, and requires routed `/channel/messagesync` history to be
+exactly `message_seq` 1..N with every acknowledged message at its sequence: the
+distributed log sequence is `message_seq`, so a leader change must consume no
+sequence. It fails on barrier-mode replication (observed `[1 2 5]`). Set
+`WK_E2E_CHANNEL_SEQ_REPORT=/absolute/report.json` to keep JSON evidence and
+`WK_E2E_CHANNEL_SEQ_LOG_ROOT=/absolute/dir` to retain node logs.
+
 ## Run
 
 ```bash

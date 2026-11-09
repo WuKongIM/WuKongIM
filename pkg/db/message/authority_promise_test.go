@@ -140,22 +140,61 @@ func TestExactAppendFencesTheWriterAuthorityAgainstThePromise(t *testing.T) {
 		t.Fatalf("lower promise after a raised writer error = %v, want stale meta", err)
 	}
 
-	// Without a writer authority (barrier mode, before Controller activation)
-	// appends keep today's behavior and never touch the promise.
+	// Without a writer authority (barrier mode, or a stale leader that has not
+	// observed Controller activation) the entry's own authority is checked
+	// against the promise but never raises it: otherwise a stale barrier-mode
+	// leader could still reach a quorum through promised voters.
 	record3 := compatExactTestRecord(t, 5, 9_003, "promise-fence", "c3")
 	entry3 := sealCompatProposalManifest(t, DurableProposalManifest{
 		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
 		CommandID: [32]byte{3}, BaseOffset: 2, LastOffset: 3,
 		PreviousTerm: entry2.LeaderTerm, PreviousIndex: entry2.LastOffset, PreviousDigest: entry2.Digest,
 	}, []channel.Record{record3})
-	legacy := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+	legacyStale := StoreAppendBatch(context.Background(), []AppendBatchItem{{
 		Store: store, Records: []channel.Record{record3}, ExactBaseOffset: true,
 		ExpectedBaseOffset: 2, Committed: 3, Proposal: entry3,
 	}})
-	if legacy[0].Err != nil || store.LEO() != 3 {
-		t.Fatalf("legacy append without writer authority = %+v LEO %d", legacy[0], store.LEO())
+	if !errors.Is(legacyStale[0].Err, channel.ErrStaleAuthority) || legacyStale[0].Outcome != quorumlog.AppendOutcomeDefinitelyNotWritten || store.LEO() != 2 {
+		t.Fatalf("unfenced append below the promise = %+v LEO %d, want stale meta", legacyStale[0], store.LEO())
 	}
-	if got, _, _ := store.AuthorityPromise(context.Background()); got != nextTerm {
-		t.Fatalf("legacy append changed the promise to %+v", got)
+	higherTerm := AuthorityPromise{ChannelEpoch: 5, LeaderTerm: 10, FenceVersion: 9}
+	record4 := compatExactTestRecord(t, 5, 9_004, "promise-fence", "c4")
+	entry4 := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 10, FenceVersion: 9,
+		CommandID: [32]byte{4}, BaseOffset: 2, LastOffset: 3,
+		PreviousTerm: entry2.LeaderTerm, PreviousIndex: entry2.LastOffset, PreviousDigest: entry2.Digest,
+	}, []channel.Record{record4})
+	legacy := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{record4}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 2, Committed: 3, Proposal: entry4,
+	}})
+	if legacy[0].Err != nil || store.LEO() != 3 {
+		t.Fatalf("unfenced append at or above the promise = %+v LEO %d", legacy[0], store.LEO())
+	}
+	if got, _, _ := store.AuthorityPromise(context.Background()); got != nextTerm || got == higherTerm {
+		t.Fatalf("unfenced append changed the promise to %+v", got)
+	}
+}
+
+// Before Controller activation no promise exists, and unfenced appends must
+// never create one: older binaries must be able to roll back over this data.
+func TestUnfencedAppendNeverCreatesAPromise(t *testing.T) {
+	eng := openCompatEngine(t)
+	store := mustForChannel(t, eng, "promise-absent:1", channel.ChannelID{ID: "promise-absent", Type: 1})
+	defer store.Close()
+	record := compatExactTestRecord(t, 5, 9_101, "promise-absent", "c1")
+	entry := sealCompatProposalManifest(t, DurableProposalManifest{
+		Version: DurableProposalManifestVersion, ChannelEpoch: 5, LeaderTerm: 7, FenceVersion: 9,
+		CommandID: [32]byte{1}, BaseOffset: 0, LastOffset: 1,
+	}, []channel.Record{record})
+	result := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store: store, Records: []channel.Record{record}, ExactBaseOffset: true,
+		ExpectedBaseOffset: 0, Committed: 1, Proposal: entry,
+	}})
+	if result[0].Err != nil || store.LEO() != 1 {
+		t.Fatalf("unfenced append = %+v LEO %d", result[0], store.LEO())
+	}
+	if _, ok, err := store.AuthorityPromise(context.Background()); err != nil || ok {
+		t.Fatalf("unfenced append created a promise: ok %v err %v", ok, err)
 	}
 }

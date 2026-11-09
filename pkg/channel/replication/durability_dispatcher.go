@@ -74,6 +74,7 @@ func (d *batchingDurabilityDispatcher) submitReplicaWithMode(ctx context.Context
 		Records:                   proposal.records,
 		Committed:                 proposal.committed,
 		ServerAllocatedMessageIDs: proposal.serverAllocatedMessageIDs,
+		Writer:                    proposal.writer,
 	}
 	var peerPhase rpctrace.AppendPhaseEnd
 	if !deferred {

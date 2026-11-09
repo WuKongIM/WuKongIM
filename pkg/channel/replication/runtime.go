@@ -75,6 +75,9 @@ type RuntimeConfig struct {
 
 	MaxChannels         int
 	MaxRetainedCommands int
+	// PromiseActive reports committed one-way Controller activation of
+	// authority promises; see quorumLogConfig.PromiseActive. Nil keeps barriers.
+	PromiseActive func() bool
 }
 
 // Runtime owns all bounded local durability, peer exchange, recovery, and
@@ -302,6 +305,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		RecoveryTimeout:   cfg.RecoveryTimeout, RecoveryPageBytes: cfg.RecoveryPageBytes,
 		MaxChannels: cfg.MaxChannels, MaxVoters: cfg.MaxVoters, MaxProposalRecords: cfg.BatchItems,
 		MaxProposalBytes: cfg.BatchBytes, MaxRetainedCommands: cfg.MaxRetainedCommands,
+		PromiseActive: cfg.PromiseActive,
 	})
 	if err != nil {
 		cancel()
@@ -535,6 +539,7 @@ func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabi
 			ChannelKey:        proposal.channelKey, ChannelID: proposal.channelID,
 			Manifest: proposal.manifest, Records: proposal.records, Committed: proposal.committed, Class: MutationClassLeaderQuorum,
 			ServerAllocatedMessageIDs: proposal.serverAllocatedMessageIDs,
+			Writer:                    proposal.writer,
 		}
 	}
 	ctx, cancel := context.WithTimeout(l.runtime.ctx, l.timeout)
@@ -996,6 +1001,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 				Leader: repair.leader, Follower: repair.follower,
 				Manifest: proposal.Manifest, Records: proposal.Records,
 				Committed: minUint64(max(state.Committed, repair.committed), proposal.Manifest.LastOffset),
+				Writer:    repair.writer,
 			}
 			resultCh := make(chan ReplicateResult, 1)
 			errCh := make(chan error, 1)
