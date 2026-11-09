@@ -171,6 +171,11 @@ const (
 	RPCPersonDirectoryPrepare
 )
 
+// RPCChannelReplicationControl answers the Channel replication capability
+// probe that gates one-way activation of authority promises. Older nodes do
+// not register it, so probing them fails closed.
+const RPCChannelReplicationControl uint8 = 110
+
 func transportServiceAlias(serviceID uint8) string {
 	switch serviceID {
 	case RPCPersonDirectoryPrepare:
@@ -301,6 +306,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot mqtt metadata"
 	case RPCPresenceControl:
 		return "presence control"
+	case RPCChannelReplicationControl:
+		return "channel replication control"
 	case RPCMQTTOwner:
 		return "mqtt owner"
 	case RPCChannelMQTTSource:

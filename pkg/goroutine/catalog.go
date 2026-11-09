@@ -118,6 +118,7 @@ const (
 	TaskClusterSlotLeaderRefresh         TaskID = "cluster/slot_leader_refresh"
 	TaskClusterRemoteSlotLeaderRefresh   TaskID = "cluster/remote_slot_leader_refresh"
 	TaskClusterRemoteSlotLeaderProbe     TaskID = "cluster/remote_slot_leader_probe"
+	TaskClusterChannelPromiseActivation  TaskID = "cluster/channel_promise_activation"
 	TaskClusterRaftTransport             TaskID = "cluster/raft_transport"
 	TaskClusterObserveLoop               TaskID = "cluster/observe_loop"
 	TaskClusterMembershipBatch           TaskID = "cluster/membership_batch"
@@ -240,6 +241,8 @@ var defaultTaskCatalog = []TaskSpec{
 	// beside the local loop; sharing one singleton ID reported critical.
 	{ID: TaskClusterRemoteSlotLeaderRefresh, Module: ModuleCluster, Name: "remote_slot_leader_refresh", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterRemoteSlotLeaderProbe, Module: ModuleCluster, Name: "remote_slot_leader_probe", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
+	// Paced one-way activation of Channel authority promises; exits once active.
+	{ID: TaskClusterChannelPromiseActivation, Module: ModuleCluster, Name: "channel_promise_activation", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskClusterRaftTransport, Module: ModuleCluster, Name: "raft_transport", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskClusterObserveLoop, Module: ModuleCluster, Name: "observe_loop", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterMembershipBatch, Module: ModuleCluster, Name: "membership_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
