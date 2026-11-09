@@ -108,7 +108,7 @@ func requireGatewaySender(t *testing.T, cluster *suite.StartedCluster, node *sui
 
 	sender, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
-	require.NoError(t, sender.Connect(node.GatewayAddr(), prefix+"-sender", prefix+"-sender-device"), cluster.DumpDiagnostics())
+	require.NoError(t, sender.ConnectProvisioned(node, prefix+"-sender", prefix+"-sender-device"), cluster.DumpDiagnostics())
 	return sender
 }
 

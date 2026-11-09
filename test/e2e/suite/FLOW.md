@@ -68,7 +68,7 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   only explicit 401 refreshes login and definite plan-revision conflicts reread.
   Archive selection and convergence assertions belong to the scenario.
 - WKProto clients accept explicit registered device Tokens without changing
-  server authentication; tokenless fixtures remain explicit.
+  server authentication; `ConnectProvisioned` registers one via the node API; tokenless fixtures remain explicit.
 - WKProto clients may inject a Dialer to observe public socket bytes. Their
   synthetic future ACK bridge is not wire-order evidence; ordering probes must
   capture decoded ACKs directly from the TCP read stream.
