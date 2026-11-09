@@ -26,6 +26,8 @@ type trafficWorker struct {
 	done   chan struct{}
 	sent   atomic.Uint64
 	errs   atomic.Uint64
+	// retries counts retryable SENDACKs absorbed by documented client retry.
+	retries atomic.Uint64
 
 	mu      sync.Mutex
 	lastErr error
@@ -52,23 +54,19 @@ func startTrafficWorker(t testing.TB, cluster *suite.StartedCluster, node *suite
 			case <-ticker.C:
 			}
 			msgNo := fmt.Sprintf("%s-%06d", prefix, seq)
-			if err := client.SendFrame(&frame.SendPacket{
+			// Retryable reasons (for example NodeNotMatch across a planned
+			// Slot move) are retried with the same client_msg_no, per the
+			// product contract; rejections and exhausted retries still fail.
+			_, retries, err := client.SendWithRetry(&frame.SendPacket{
 				ChannelID:   channelID,
 				ChannelType: frame.ChannelTypePerson,
 				ClientSeq:   seq,
 				ClientMsgNo: msgNo,
 				Payload:     []byte(msgNo),
-			}); err != nil {
-				worker.recordErr(err)
-				continue
-			}
-			ack, err := client.ReadSendAck()
+			})
+			worker.retries.Add(uint64(retries))
 			if err != nil {
-				worker.recordErr(err)
-				continue
-			}
-			if ack.ReasonCode != frame.ReasonSuccess {
-				worker.recordErr(fmt.Errorf("sendack reason=%v seq=%d msg_no=%s", ack.ReasonCode, seq, msgNo))
+				worker.recordErr(fmt.Errorf("seq=%d: %w", seq, err))
 				continue
 			}
 			worker.sent.Add(1)
@@ -89,6 +87,7 @@ func stopTrafficWorker(t testing.TB, worker *trafficWorker) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("traffic worker did not stop")
 	}
+	t.Logf("traffic worker sent=%d retries=%d errors=%d", worker.sent.Load(), worker.retries.Load(), worker.errs.Load())
 }
 
 func requireTrafficProgress(t testing.TB, cluster *suite.StartedCluster, worker *trafficWorker, additional uint64, timeout time.Duration) {
