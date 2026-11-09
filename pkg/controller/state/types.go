@@ -220,6 +220,9 @@ type ClusterState struct {
 	OpsMCP *OpsMCPState `json:"ops_mcp,omitempty"`
 	// Presence stores capability-activated owner obligations and committed generation high-water marks.
 	Presence *PresenceState `json:"presence,omitempty"`
+	// ChannelAuthorityPromise records one-way activation of Channel authority
+	// promises; it is absent until every member proves support.
+	ChannelAuthorityPromise *ChannelAuthorityPromiseState `json:"channel_authority_promise,omitempty"`
 	// Checksum protects the canonical JSON payload excluding this field.
 	Checksum string `json:"checksum"`
 }
