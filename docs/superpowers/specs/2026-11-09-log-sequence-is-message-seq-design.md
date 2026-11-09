@@ -1,7 +1,8 @@
 # The distributed log sequence number is `message_seq`
 
-Status: proposed (design direction confirmed by the maintainer; implementation
-awaits approval of this document).
+Status: approved 2026-11-09. The maintainer approved the promise design and
+its persisted-format and protocol additions. Historical gaps are not handled.
+MQTT internal entries are a follow-up design that blocks MQTT GA.
 
 ## Principle
 
@@ -171,12 +172,8 @@ approval (AGENTS breaking-change rules).
   again on leader changes, which is today's safety. To verify: an older node
   receiving appends whose predecessor chain crosses a former promise boundary
   behaves correctly, because there is no log entry for it to miss.
-- **Existing data:** logs written since v3.0.0-beta.1 keep their barrier
-  entries and therefore one gap per past leader change. They cannot be
-  renumbered without rewriting every replica's log, client caches and
-  conversation cursors. Client history keeps hiding them. Manager reads route
-  through the leader and must hide internal entries the same way. Release
-  notes state that new writes no longer create gaps.
+- **Existing data:** historical barrier entries and gaps are out of scope by
+  maintainer decision. They are left as they are and never renumbered.
 - **Downtime:** none.
 
 ## Verification plan
