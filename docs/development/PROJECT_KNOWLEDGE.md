@@ -619,6 +619,18 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Message durability and recovery
 
+- **The distributed log sequence number is `message_seq`** (maintainer rule,
+  2026-11-09). Log indexes and message sequences are one numbering. Every
+  Channel log index must be a real message, so authority, control or
+  replication bookkeeping must never occupy a log index. The current-term
+  authority barrier violates this and is being replaced by a durable
+  per-replica authority promise stored in the Channel's message-DB system
+  space, outside the log
+  (`docs/superpowers/specs/2026-11-09-log-sequence-is-message-seq-design.md`).
+  MQTT internal proposals (manifest versions 4–6) also violate it and block
+  MQTT leaving preview. Gaps already present in historical data are not
+  repaired.
+
 - Quorum completion does not join every trailing-voter callback. Sequencer
   Release must retain exact repair authority until admitted peer callbacks and
   pending follower repairs finish, then remove the retired identity. Peer
