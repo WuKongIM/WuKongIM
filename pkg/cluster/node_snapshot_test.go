@@ -88,6 +88,34 @@ func TestSeedJoinActiveMirrorInstallsRemoteObservedSlotLeaders(t *testing.T) {
 	}
 }
 
+// A leaving seed-join node is still admitted and still a presence owner; after
+// a restart it must keep learning leaders of Slots drained away from it (#1097).
+func TestSeedJoinLeavingMirrorInstallsRemoteObservedSlotLeaders(t *testing.T) {
+	node := seedJoinMirrorRouteNodeForTest(4, &fakeSlotStatusCaller{statuses: []routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 9}}})
+	node.started.Store(true)
+	snapshot := nodeControlSnapshot()
+	snapshot.Nodes = append(snapshot.Nodes, control.Node{
+		NodeID:    4,
+		Addr:      "127.0.0.1:1004",
+		Roles:     []control.Role{control.RoleData},
+		JoinState: control.NodeJoinStateLeaving,
+	})
+
+	if err := node.applySnapshot(context.Background(), snapshot); err != nil {
+		t.Fatalf("applySnapshot() error = %v", err)
+	}
+	if !node.installObservedRemoteSlotLeaders(context.Background(), snapshot) {
+		t.Fatal("leaving mirror did not install remote observed Slot leaders")
+	}
+	route, err := node.RouteHashSlot(0)
+	if err != nil {
+		t.Fatalf("RouteHashSlot() error = %v", err)
+	}
+	if route.Leader != 2 || route.LeaderTerm != 9 || route.SlotID != 1 {
+		t.Fatalf("route = %#v, want remote observed leader 2 term 9 on slot 1", route)
+	}
+}
+
 func TestStaticNodeInstallsRemoteObservedSlotLeadersWhenItIsNotAReplica(t *testing.T) {
 	node := &Node{
 		cfg:                  Config{NodeID: 1},
