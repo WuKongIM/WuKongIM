@@ -100,6 +100,9 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		if cmd.ExpectedRevision == nil || !next.PresenceBasisCurrent(cmd.PresenceBasis) {
 			return reject(ReasonPresenceNotReady)
 		}
+	case command.KindActivateChannelAuthorityPromise:
+		// Proofs are checked against the membership at apply time, so an
+		// unrelated revision bump (for example health) does not reject it.
 	case command.KindReportNodeHealth:
 		if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
 			return reject(ReasonExpectedRevisionMismatch)
@@ -139,6 +142,8 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		result = sm.applyEnsurePresenceOwnerSet(next, raftIndex, cmd)
 	case command.KindClaimPresenceGeneration:
 		result = sm.applyClaimPresenceGeneration(next, raftIndex, cmd)
+	case command.KindActivateChannelAuthorityPromise:
+		result = sm.applyActivateChannelAuthorityPromise(next, raftIndex, cmd)
 	case command.KindUpsertSlotAssignmentAndTask:
 		result = sm.applyUpsertSlotAssignmentAndTask(next, cmd)
 	case command.KindUpsertSlotReplicaMoveTask:
