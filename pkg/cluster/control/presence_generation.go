@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
@@ -87,9 +88,19 @@ func (c *PresenceControlClient) call(ctx context.Context, nodeID uint64, req pre
 	case "not_leader":
 		return out, controller.ErrNotLeader
 	default:
+		// "not_ready:<reason>" keeps a closed Controller reason; any other
+		// or unknown value stays a plain not-ready, as older peers decode it.
+		if name, ok := strings.CutPrefix(out.Error, presenceNotReadyReasonPrefix); ok {
+			if reason, known := controller.ParsePresenceRejectReason(name); known {
+				return out, controller.PresenceRejection(reason)
+			}
+		}
 		return out, controller.ErrPresenceGenerationNotReady
 	}
 }
+
+// presenceNotReadyReasonPrefix marks a not-ready reply carrying a closed reason.
+const presenceNotReadyReasonPrefix = "not_ready:"
 
 // NewPresenceControlHandler retains caller cancellation for committed reads,
 // while admitted durable Ensure/Claim mutations keep their execution ownership.
@@ -160,6 +171,9 @@ func (h presenceControlHandler) HandleRPC(ctx context.Context, payload []byte) (
 			out.Error = "not_leader"
 		default:
 			out.Error = "not_ready"
+			if reason := controller.PresenceRejectReasonOf(err); reason != controller.PresenceRejectUnknown {
+				out.Error = presenceNotReadyReasonPrefix + reason.String()
+			}
 		}
 	}
 	result, err := json.Marshal(out)
