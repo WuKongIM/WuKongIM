@@ -272,7 +272,9 @@ func TestSessionPoolTrySendTraceSegmentsCalibrateWaitOwnership(t *testing.T) {
 func sessionSendTraceVerify(t *testing.T, decoded string) {
 	t.Helper()
 	header := regexp.MustCompile(`(?m)^M=-?\d+ P=-?\d+ G=(-?\d+) [^\n]*`)
-	resource := regexp.MustCompile(`Resource=Goroutine\((\d+)\)`)
+	// Go 1.26 prints the transitioned goroutine as GoID=N; earlier toolchains
+	// printed Resource=Goroutine(N). Both name the same goroutine.
+	resource := regexp.MustCompile(`(?:Resource=Goroutine\((\d+)\)|GoID=(\d+))`)
 	indexes := header.FindAllStringSubmatchIndex(decoded, -1)
 	mode, gid, segment := "", "", ""
 	stage, entries, cases := 0, 0, 0
@@ -332,7 +334,7 @@ func sessionSendTraceVerify(t *testing.T, decoded string) {
 			entries++
 		}
 		waiter := resource.FindStringSubmatch(line)
-		if len(waiter) != 2 || waiter[1] != gid || !strings.Contains(line, "Running->Waiting") {
+		if len(waiter) != 3 || waiter[1]+waiter[2] != gid || !strings.Contains(line, "Running->Waiting") {
 			continue
 		}
 		if strings.Contains(block, ".(*SessionPool).TrySend") && strings.Contains(line, `Reason="sync"`) && (strings.Contains(block, ".(*RWMutex).RLock") || strings.Contains(block, "runtime_SemacquireRWMutexR")) {
