@@ -83,7 +83,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 7. [Presence generations](node_presence_generation.go) use bounded control RPC108; Get/Capabilities retain caller cancellation, while admitted Ensure/Claim stay detached. Unknown requests never acquire read policy. Format-2 roster high water newer than M closes published gates even after membership ABA; a missing stamp cannot publish a fresh committed cut.
    app binds protocol/boot before advertisement and capability-proved G/M commits; self proof checks configured membership advertisement, which may differ from the listener.
    Actual Slot F surrounds claims; per-HashSlot retirement closes the proven old G before submit; failed/stale publication cannot reopen it. Fresh Get publishes same-cut G/M; hot checks stay local;
-   rejections keep their sentinels plus a closed `controller.PresenceRejectReason`.
+   rejections keep their sentinels plus a closed `controller.PresenceRejectReason`, carried over RPC108 as `not_ready:<reason>` (older peers read plain not-ready).
 ## Invariants and Failure Semantics
 - `pkg/dataformat` owns immutable format/creator metadata; nonempty unregistered
   directories and corrupt or unsupported markers fail before storage opens.

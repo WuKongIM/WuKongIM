@@ -68,3 +68,43 @@ func (s *presenceControlFixture) ClaimPresenceGeneration(context.Context, contro
 func (s *presenceControlFixture) GetPresenceGeneration(context.Context, uint16) (controller.PresenceGenerationSnapshot, error) {
 	return controller.PresenceGenerationSnapshot{Generation: s.receipt}, s.fail
 }
+
+// Controller not-ready reasons survive the control wire so a remote owner can
+// log why its committed read failed (#1097). Plain and unknown reasons stay a
+// plain not-ready, which is also how older peers decode the new strings.
+func TestPresenceControlCarriesClosedNotReadyReason(t *testing.T) {
+	server := &presenceControlFixture{}
+	handler := control.NewPresenceControlHandler(server)
+	client := control.NewPresenceControlClient(presenceControlCaller{t: t, handler: handler})
+	for _, tc := range []struct {
+		fail error
+		want controller.PresenceRejectReason
+		is   error
+	}{
+		{controller.PresenceRejection(controller.PresenceRejectRosterNotCurrent), controller.PresenceRejectRosterNotCurrent, controller.ErrPresenceGenerationNotReady},
+		{errors.Join(errors.New("private"), controller.PresenceRejection(controller.PresenceRejectNoPresenceState)), controller.PresenceRejectNoPresenceState, controller.ErrPresenceGenerationNotReady},
+		{controller.ErrPresenceGenerationNotReady, controller.PresenceRejectUnknown, controller.ErrPresenceGenerationNotReady},
+		{controller.PresenceRejection(controller.PresenceRejectCommittedCutMismatch), controller.PresenceRejectUnknown, controller.ErrPresenceGenerationConflict},
+	} {
+		server.fail = tc.fail
+		_, err := client.Get(context.Background(), 3, 7)
+		if !errors.Is(err, tc.is) || controller.PresenceRejectReasonOf(err) != tc.want {
+			t.Fatalf("Get(%v) = %v reason %s, want %v/%s", tc.fail, err, controller.PresenceRejectReasonOf(err), tc.is, tc.want)
+		}
+	}
+	for _, wire := range []string{`{"version":1,"error":"not_ready:bogus"}`, `{"version":1,"error":"not_ready:"}`, `{"version":1,"error":"not_ready:unknown"}`} {
+		_, err := control.NewPresenceControlClient(rawPresenceCaller(wire)).Get(context.Background(), 3, 7)
+		if !errors.Is(err, controller.ErrPresenceGenerationNotReady) || controller.PresenceRejectReasonOf(err) != controller.PresenceRejectUnknown {
+			t.Fatalf("%s decoded as %v", wire, err)
+		}
+	}
+	if got, ok := controller.ParsePresenceRejectReason("roster_not_current"); !ok || got != controller.PresenceRejectRosterNotCurrent {
+		t.Fatal("stable reason name does not parse")
+	}
+}
+
+type rawPresenceCaller string
+
+func (r rawPresenceCaller) Call(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	return []byte(r), nil
+}

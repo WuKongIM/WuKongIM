@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
@@ -28,6 +29,10 @@ func TestGenerationOwnerBeginRejectionLogsClosedReason(t *testing.T) {
 		{"committed cut conflict", errors.Join(authority.ErrStaleGeneration, controller.ErrPresenceGenerationConflict), "generation_conflict"},
 		{"controller unavailable", errors.Join(authority.ErrStaleGeneration, controller.ErrNotLeader), "controller_unavailable"},
 		{"owner registry stale", online.ErrStaleActivation, "owner_registry_stale"},
+		{"controller read not ready", errors.Join(authority.ErrStaleGeneration, controller.PresenceRejection(controller.PresenceRejectRosterNotCurrent)), "roster_not_current"},
+		{"unspecified not ready", errors.Join(authority.ErrStaleGeneration, controller.ErrPresenceGenerationNotReady), "not_ready_unspecified"},
+		{"route not ready", errors.Join(authority.ErrStaleGeneration, fmt.Errorf("%w: private-cause", cluster.ErrRouteNotReady)), "route_not_ready"},
+		{"node not serving", errors.Join(authority.ErrStaleGeneration, cluster.ErrStopping), "node_not_serving"},
 		{"unknown", errors.New("private-cause"), "unknown"},
 	}
 	for _, tc := range cases {
@@ -104,5 +109,29 @@ func TestGenerationOwnerNonBeginFailureAddsNoEvent(t *testing.T) {
 	}
 	if len(*logger.entries) != 0 {
 		t.Fatalf("non-Begin owner failure or success logged %d events", len(*logger.entries))
+	}
+}
+
+// Precondition failures on the owner itself return the bare stale sentinel;
+// they are named separately from port failures that join a cause.
+func TestGenerationOwnerBeginInvalidClaimLogsClosedReason(t *testing.T) {
+	logger := newRecordingNodeLogger("internal.access.node")
+	registry := online.NewRegistry(online.RegistryOptions{})
+	owner := presence.NewOwnerGeneration(registry, 7, 17, func(context.Context, presence.GenerationClaim) error { return nil })
+	adapter := New(Options{GenerationOwner: owner, Logger: logger})
+	claim := wireGeneration()
+	claim.ServingBoot = 0
+	body, err := encodeGenerationRequest(generationRequest{Op: generationBegin, Claim: claim})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.HandlePresenceOwnerRPC(context.Background(), body); err != nil {
+		t.Fatal(err)
+	}
+	entry := requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.presence_owner_begin_rejected")
+	for _, field := range entry.fields {
+		if field.Key == "owner_reject_reason" && field.Value != "invalid_claim" {
+			t.Fatalf("reason=%v want invalid_claim", field.Value)
+		}
 	}
 }

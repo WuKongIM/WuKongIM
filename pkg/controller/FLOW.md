@@ -53,7 +53,7 @@ not depend on `pkg/cluster`.
    receipt, without a redundant read quorum. `G` and owner epoch `M` use committed
    Raft indexes; boot IDs are equality identities only. Controller validates desired
    mapping, while the Node facade separately checks actual Slot leadership/term.
-   No UID, Session, or per-SEND record enters this section.
+   No UID, Session, or per-SEND record enters this section. Not-ready Gets name a closed `PresenceRejectReason`.
 
 ## Invariants and Failure Semantics
 

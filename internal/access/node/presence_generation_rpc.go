@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -312,6 +313,11 @@ func presenceOwnerRejectReason(err error) string {
 	if reason := controller.PresenceRejectReasonOf(err); reason != controller.PresenceRejectUnknown {
 		return reason.String()
 	}
+	if err == authority.ErrStaleGeneration {
+		// The bare sentinel comes only from owner preconditions (invalid or
+		// unwired claim); port failures always join their cause.
+		return "invalid_claim"
+	}
 	switch {
 	case errors.Is(err, context.Canceled):
 		return "canceled"
@@ -323,6 +329,12 @@ func presenceOwnerRejectReason(err error) string {
 		return "controller_unavailable"
 	case errors.Is(err, online.ErrStaleActivation):
 		return "owner_registry_stale"
+	case errors.Is(err, controller.ErrPresenceGenerationNotReady):
+		return "not_ready_unspecified"
+	case errors.Is(err, cluster.ErrRouteNotReady):
+		return "route_not_ready"
+	case errors.Is(err, cluster.ErrNotStarted), errors.Is(err, cluster.ErrStopping):
+		return "node_not_serving"
 	}
 	return "unknown"
 }

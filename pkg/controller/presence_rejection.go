@@ -34,6 +34,14 @@ const (
 	PresenceRejectFenceRouteMismatch
 	// PresenceRejectFenceNotLocalLeader means the local Slot replica is not the fenced leader.
 	PresenceRejectFenceNotLocalLeader
+	// PresenceRejectNoPresenceState means the Controller state has no presence section yet.
+	PresenceRejectNoPresenceState
+	// PresenceRejectHashSlotOutOfRange means the requested hash slot exceeds the configured count.
+	PresenceRejectHashSlotOutOfRange
+	// PresenceRejectRosterNotCurrent means membership changed after the committed owner set.
+	PresenceRejectRosterNotCurrent
+	// PresenceRejectControllerStateEmpty means the Controller has not materialized any state.
+	PresenceRejectControllerStateEmpty
 	presenceRejectReasonCount
 )
 
@@ -51,6 +59,10 @@ var presenceRejectReasonNames = [presenceRejectReasonCount]string{
 	"serving_boot_mismatch",
 	"fence_route_mismatch",
 	"fence_not_local_leader",
+	"no_presence_state",
+	"hash_slot_out_of_range",
+	"roster_not_current",
+	"controller_state_empty",
 }
 
 // String returns the stable snake_case log value of the reason.
@@ -59,6 +71,17 @@ func (r PresenceRejectReason) String() string {
 		return presenceRejectReasonNames[PresenceRejectUnknown]
 	}
 	return presenceRejectReasonNames[r]
+}
+
+// ParsePresenceRejectReason maps a stable name back to its reason. Unknown
+// names, including "unknown", report false so callers keep a plain sentinel.
+func ParsePresenceRejectReason(name string) (PresenceRejectReason, bool) {
+	for i := PresenceRejectReason(1); i < presenceRejectReasonCount; i++ {
+		if presenceRejectReasonNames[i] == name {
+			return i, true
+		}
+	}
+	return PresenceRejectUnknown, false
 }
 
 // presenceRejection is a one-byte error value, so returning it on the hot
