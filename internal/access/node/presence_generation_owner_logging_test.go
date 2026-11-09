@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // A remote owner that rejects Full Begin must say which check failed before the
@@ -33,6 +34,9 @@ func TestGenerationOwnerBeginRejectionLogsClosedReason(t *testing.T) {
 		{"unspecified not ready", errors.Join(authority.ErrStaleGeneration, controller.ErrPresenceGenerationNotReady), "not_ready_unspecified"},
 		{"route not ready", errors.Join(authority.ErrStaleGeneration, fmt.Errorf("%w: private-cause", cluster.ErrRouteNotReady)), "route_not_ready"},
 		{"node not serving", errors.Join(authority.ErrStaleGeneration, cluster.ErrStopping), "node_not_serving"},
+		// Both shapes were observed on Linux for #1097 before they had names.
+		{"no slot leader", errors.Join(authority.ErrStaleGeneration, fmt.Errorf("%w: cluster/routing: no slot leader", cluster.ErrNoSlotLeader)), "no_slot_leader"},
+		{"transport canceled", errors.Join(authority.ErrStaleGeneration, transport.ErrCanceled), "canceled"},
 		{"unknown", errors.New("private-cause"), "unknown"},
 	}
 	for _, tc := range cases {

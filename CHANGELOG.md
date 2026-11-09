@@ -13,6 +13,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Presence diagnostics: a node that rejects a presence recovery round as an owner now logs `presence_owner_begin_rejected` with a fixed `owner_reject_reason` (for example `no_slot_leader`, `roster_not_current` or `own_boot_not_in_owner_set`), and stale-generation login failures keep their recovery evidence in the gateway log. / Presence 诊断：节点作为 owner 拒绝 presence 恢复时会记录 `presence_owner_begin_rejected` 及固定的 `owner_reject_reason`（如 `no_slot_leader`、`roster_not_current`、`own_boot_not_in_owner_set`）；因 stale generation 失败的登录在网关日志中保留恢复证据。
+
 - Controller writes now fsync only the Raft WAL once per entry instead of eight times; Controller metadata and cluster state files become checkpoints written before log compaction, periodically and on shutdown. A 256-hash-slot single-node cluster on a slow-fsync disk now becomes ready in about 5–6 s instead of about 26 s, removing intermittent startup timeouts. No data format, protocol or configuration change; rollback to earlier v3 versions remains supported. / Controller 每条日志的 fsync 从 8 次降为 1 次（仅 Raft WAL），元数据和集群状态文件改为检查点，在日志压缩前、定期和关闭时写入。fsync 较慢的磁盘上，256 哈希槽单节点集群启动就绪从约 26 秒缩短到约 5–6 秒，消除偶发的启动超时；数据格式、协议和配置均不变，仍可回滚到更早的 v3 版本。
 
 - Manager now downloads only the active language's text, cutting the login page's initial JavaScript by about a third (222 KB to 148 KB gzip), and shows Chinese labels for MQTT, storage, startup readiness and diagnostics node configuration entries. / 管理后台只加载当前语言的文案，登录页首屏 JavaScript 减少约三分之一（gzip 222 KB 降至 148 KB）；节点配置页补全 MQTT、存储、启动就绪与诊断配置项的中文标签。

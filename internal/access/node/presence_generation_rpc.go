@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -319,7 +320,7 @@ func presenceOwnerRejectReason(err error) string {
 		return "invalid_claim"
 	}
 	switch {
-	case errors.Is(err, context.Canceled):
+	case errors.Is(err, context.Canceled), errors.Is(err, transport.ErrCanceled):
 		return "canceled"
 	case errors.Is(err, context.DeadlineExceeded):
 		return "deadline"
@@ -333,6 +334,8 @@ func presenceOwnerRejectReason(err error) string {
 		return "not_ready_unspecified"
 	case errors.Is(err, cluster.ErrRouteNotReady):
 		return "route_not_ready"
+	case errors.Is(err, cluster.ErrNoSlotLeader):
+		return "no_slot_leader"
 	case errors.Is(err, cluster.ErrNotStarted), errors.Is(err, cluster.ErrStopping):
 		return "node_not_serving"
 	}
