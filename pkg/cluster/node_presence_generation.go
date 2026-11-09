@@ -148,9 +148,10 @@ func (n *Node) GetPresenceGeneration(ctx context.Context, hashSlot uint16) (cont
 
 // ValidatePresenceGeneration is the rare owner Begin/UID-suspect check. It works
 // on non-data owners; it does not pretend their local Slot is the authority.
+// Each rejection carries a closed controller.PresenceRejectReason (#1097).
 func (n *Node) ValidatePresenceGeneration(ctx context.Context, claim controller.PresenceGeneration) error {
 	if claim.Generation == 0 {
-		return controller.ErrPresenceGenerationNotReady
+		return controller.PresenceRejection(controller.PresenceRejectEmptyGeneration)
 	}
 	if err := n.checkPresenceFence(claim.Fence, false); err != nil {
 		return err
@@ -160,19 +161,13 @@ func (n *Node) ValidatePresenceGeneration(ctx context.Context, claim controller.
 		return err
 	}
 	if cut.Generation != claim || cut.OwnerSet.Epoch != claim.OwnerSetEpoch {
-		return controller.ErrPresenceGenerationConflict
+		return controller.PresenceRejection(controller.PresenceRejectCommittedCutMismatch)
 	}
-	own, serving := false, false
-	for _, owner := range cut.OwnerSet.Owners {
-		if owner.NodeID == n.cfg.NodeID && owner.CapabilityGeneration == n.presenceBoot {
-			own = true
-		}
-		if owner.NodeID == claim.Fence.LeaderNodeID && owner.CapabilityGeneration == claim.ServingBoot {
-			serving = true
-		}
+	if n.presenceProtocol.Load() != controller.PresenceProtocolVersion {
+		return controller.PresenceRejection(controller.PresenceRejectProtocolNotEnabled)
 	}
-	if !own || !serving || n.presenceProtocol.Load() != controller.PresenceProtocolVersion {
-		return controller.ErrPresenceGenerationNotReady
+	if reason := n.presenceOwnerBoots(cut.OwnerSet, claim); reason != controller.PresenceRejectUnknown {
+		return controller.PresenceRejection(reason)
 	}
 
 	if err := n.checkPresenceFence(claim.Fence, false); err != nil {
@@ -182,19 +177,11 @@ func (n *Node) ValidatePresenceGeneration(ctx context.Context, claim controller.
 	return n.CheckPresenceOwnerGeneration(claim)
 }
 
-// CheckPresenceOwnerGeneration checks only the applied cut and local owner boot.
-// Page/End use it without a Controller probe; Begin uses Validate first.
-func (n *Node) CheckPresenceOwnerGeneration(claim controller.PresenceGeneration) error {
-	if n == nil || claim.Generation == 0 || n.presenceGenerationRetired(claim.Fence.HashSlot, claim.Generation) || n.presenceProtocol.Load() != controller.PresenceProtocolVersion {
-		return controller.ErrPresenceGenerationNotReady
-	}
-	view := n.presenceRead.Load()
-	if view == nil || !view.ready || int(claim.Fence.HashSlot) >= len(view.generations) || view.epoch != claim.OwnerSetEpoch || view.generations[claim.Fence.HashSlot] != claim {
-		return controller.ErrPresenceGenerationNotReady
-	}
-	own := false
-	serving := false
-	for _, owner := range view.owners.Owners {
+// presenceOwnerBoots requires both this owner's current boot and the serving
+// leader's boot in the committed owner set; it returns the first missing one.
+func (n *Node) presenceOwnerBoots(owners controller.PresenceOwnerSet, claim controller.PresenceGeneration) controller.PresenceRejectReason {
+	own, serving := false, false
+	for _, owner := range owners.Owners {
 		if owner.NodeID == n.cfg.NodeID && owner.CapabilityGeneration == n.presenceBoot {
 			own = true
 		}
@@ -202,8 +189,54 @@ func (n *Node) CheckPresenceOwnerGeneration(claim controller.PresenceGeneration)
 			serving = true
 		}
 	}
-	if !own || !serving {
-		return controller.ErrPresenceGenerationNotReady
+	switch {
+	case !own:
+		return controller.PresenceRejectOwnBootNotInOwnerSet
+	case !serving:
+		return controller.PresenceRejectServingBootNotInOwnerSet
+	}
+	return controller.PresenceRejectUnknown
+}
+
+// presenceViewReason checks the claim against the published local read view.
+func (n *Node) presenceViewReason(view *presenceReadView, claim controller.PresenceGeneration) controller.PresenceRejectReason {
+	switch {
+	case view == nil || !view.ready || int(claim.Fence.HashSlot) >= len(view.generations):
+		return controller.PresenceRejectReadViewNotReady
+	case view.epoch != claim.OwnerSetEpoch:
+		return controller.PresenceRejectOwnerSetEpochMismatch
+	case view.generations[claim.Fence.HashSlot] != claim:
+		return controller.PresenceRejectGenerationMismatch
+	}
+	return controller.PresenceRejectUnknown
+}
+
+// presenceClaimReason covers the I/O-free claim preconditions shared by owner
+// and serving checks.
+func (n *Node) presenceClaimReason(claim controller.PresenceGeneration) controller.PresenceRejectReason {
+	switch {
+	case n == nil || n.presenceProtocol.Load() != controller.PresenceProtocolVersion:
+		return controller.PresenceRejectProtocolNotEnabled
+	case claim.Generation == 0:
+		return controller.PresenceRejectEmptyGeneration
+	case n.presenceGenerationRetired(claim.Fence.HashSlot, claim.Generation):
+		return controller.PresenceRejectGenerationRetired
+	}
+	return controller.PresenceRejectUnknown
+}
+
+// CheckPresenceOwnerGeneration checks only the applied cut and local owner boot.
+// Page/End use it without a Controller probe; Begin uses Validate first.
+func (n *Node) CheckPresenceOwnerGeneration(claim controller.PresenceGeneration) error {
+	if reason := n.presenceClaimReason(claim); reason != controller.PresenceRejectUnknown {
+		return controller.PresenceRejection(reason)
+	}
+	view := n.presenceRead.Load()
+	if reason := n.presenceViewReason(view, claim); reason != controller.PresenceRejectUnknown {
+		return controller.PresenceRejection(reason)
+	}
+	if reason := n.presenceOwnerBoots(view.owners, claim); reason != controller.PresenceRejectUnknown {
+		return controller.PresenceRejection(reason)
 	}
 	return n.checkPresenceFence(claim.Fence, false)
 }
@@ -211,12 +244,14 @@ func (n *Node) CheckPresenceOwnerGeneration(claim controller.PresenceGeneration)
 // CheckPresenceGeneration performs no I/O and allocates no cluster-state clone.
 // The serving gate must separately bound asynchronous Controller visibility.
 func (n *Node) CheckPresenceGeneration(claim controller.PresenceGeneration) error {
-	if n == nil || claim.Generation == 0 || n.presenceGenerationRetired(claim.Fence.HashSlot, claim.Generation) || claim.ServingBoot != n.presenceBoot || n.presenceProtocol.Load() != controller.PresenceProtocolVersion {
-		return controller.ErrPresenceGenerationNotReady
+	if reason := n.presenceClaimReason(claim); reason != controller.PresenceRejectUnknown {
+		return controller.PresenceRejection(reason)
 	}
-	view := n.presenceRead.Load()
-	if view == nil || !view.ready || int(claim.Fence.HashSlot) >= len(view.generations) || view.epoch != claim.OwnerSetEpoch || view.generations[claim.Fence.HashSlot] != claim {
-		return controller.ErrPresenceGenerationNotReady
+	if claim.ServingBoot != n.presenceBoot {
+		return controller.PresenceRejection(controller.PresenceRejectServingBootMismatch)
+	}
+	if reason := n.presenceViewReason(n.presenceRead.Load(), claim); reason != controller.PresenceRejectUnknown {
+		return controller.PresenceRejection(reason)
 	}
 	return n.checkPresenceFence(claim.Fence, true)
 }
@@ -227,20 +262,20 @@ func (n *Node) checkPresenceFence(f controller.PresenceFence, requireLocal bool)
 		return err
 	}
 	if route.SlotID != f.SlotID || route.Leader != f.LeaderNodeID || route.LeaderTerm != f.LeaderTerm || route.ConfigEpoch != f.ConfigEpoch {
-		return controller.ErrPresenceGenerationNotReady
+		return controller.PresenceRejection(controller.PresenceRejectFenceRouteMismatch)
 	}
 	if !requireLocal {
 		return nil
 	}
 	if f.LeaderNodeID != n.cfg.NodeID || n.slotStatusRuntime == nil {
-		return controller.ErrPresenceGenerationNotReady
+		return controller.PresenceRejection(controller.PresenceRejectFenceNotLocalLeader)
 	}
 	status, err := n.slotStatusRuntime.Status(multiraft.SlotID(f.SlotID))
 	if err != nil {
 		return err
 	}
 	if status.NodeID != multiraft.NodeID(n.cfg.NodeID) || status.LeaderID != status.NodeID || status.Term != f.LeaderTerm || status.Role != multiraft.RoleLeader {
-		return controller.ErrPresenceGenerationNotReady
+		return controller.PresenceRejection(controller.PresenceRejectFenceNotLocalLeader)
 	}
 	return nil
 }

@@ -19,7 +19,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/access/gateway/FLOW.md](../../internal/access/gateway/FLOW.md) | `package` | Maps gateway sessions and frames to message and presence usecases and Online Delivery feedback without owning authority or durable-send policy. | 98 | ok |
 | [internal/access/manager/FLOW.md](../../internal/access/manager/FLOW.md) | `package` | Adapts authenticated Manager HTTP and UI operations to bounded management use cases. | 91 | ok |
 | [internal/access/mqtt/FLOW.md](../../internal/access/mqtt/FLOW.md) | `package` | Maps MQTT gateway lifecycle, inbound publications and outbound exchange bindings to owner-fenced Session and message usecases. | 102 | warning |
-| [internal/access/node/FLOW.md](../../internal/access/node/FLOW.md) | `package` | Adapts versioned node RPC frames to local authority, runtime, and management ports. | 144 | warning |
+| [internal/access/node/FLOW.md](../../internal/access/node/FLOW.md) | `package` | Adapts versioned node RPC frames to local authority, runtime, and management ports. | 146 | warning |
 | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
 | [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and tooling runtimes and owns their dependency-safe lifecycle ordering. | 146 | warning |
 | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 128 | warning |
