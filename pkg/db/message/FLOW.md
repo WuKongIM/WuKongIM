@@ -68,7 +68,7 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   this derived keyspace.
 - Sequences are contiguous and monotonic. A durable append updates its primary
   row, global message-ID index, idempotency/client index, sender index, and
-  catalog as one atomic unit where applicable.
+  catalog as one atomic unit where applicable. System 19 holds the durable authority promise outside the log: an exact append's optional writer authority below it is rejected; a higher one raises it in the same commit.
 - A 32,768-entry bounded warm cache retains LEO, idempotency membership, and the
   last committed exact proposal/entry identity across Channel lease reclamation.
   It also shares immutable encoded keys across matching identity generations;
