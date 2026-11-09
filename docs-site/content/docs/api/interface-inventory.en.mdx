@@ -86,7 +86,7 @@ Cloud View is an unauthenticated Simulation Viewer reverse proxy. `ANY /cloud-vi
 
 ## Agent and benchmark controls
 
-- `wkcicheck`: `go-vet`, `flow-doc-contracts`, `agent-artifact-contracts`, `skill-focused-contracts`, `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`, `gofail-e2e`.
+- `wkcicheck`: `go-vet`, `flow-doc-contracts`, `agent-artifact-contracts`, `skill-focused-contracts`, `go-format`, `go-mod-tidy`, `web`, `demo`, `docs`, `docs-integration`, `three-node`, `gofail-e2e`, `e2e-shard-1`, `e2e-shard-2`, `e2e-shard-3`, `e2e-shard-4`.
 - Generic benchmark worker: 14 `/healthz` and `/v1/*` control routes; all except Health require a Control Token or explicitly enabled insecure control.
 - Chat-lifecycle worker: 12 `/healthz`, `/v1/info`, and `/v1/chat-lifecycle/*` routes; every endpoint, including Health, requires Bearer authentication.
 

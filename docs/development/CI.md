@@ -43,7 +43,8 @@ between allocations (see the Performance section of the Workflow README).
 `perf.yml` runs nightly, on demand, and as a same-runner base/head A/B when a
 pull request carries the `perf` label. `compat.yml` runs the native package
 distribution matrix and released EasySDK acceptance nightly. Nightly `ci.yml`
-also runs `wkcicheck gofail-e2e` (fault-injection E2E outside MQTT). Nightly
+also runs `wkcicheck gofail-e2e` (fault-injection E2E outside MQTT) and splits
+full E2E into `wkcicheck e2e-shard-1` to `e2e-shard-4` so it fits its job. Nightly
 failures open or update one `[nightly] ... failing` Issue per suite.
 
 ## Local verification of CI changes
