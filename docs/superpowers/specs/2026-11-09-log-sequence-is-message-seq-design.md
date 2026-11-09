@@ -87,29 +87,37 @@ Channel replication exchange. It is not a log append and never gets a log index.
   decides who the leader is and what the new authority is. The promise only
   enforces that decision at the Channel replicas.
 
-### Install flow
+### Install flow (promise with the recovery probe)
+
+The promise is part of recovery, as in Paxos phase 1, rather than a separate
+round afterwards. This removes even today's short window between the read-only
+probe and the barrier write.
 
 1. **Learn the authority:** the new leader learns its authority from Slot
    metadata, as today.
-2. **Recover the prefix:** recovery probes and repairs the quorum-identical
-   prefix `1..N`, as today. Probes now also return each voter's promise. Recovery
-   selection uses the highest promised authority among the observed voters
-   together with the tail identities.
-3. **Promise round:** the leader sends `Promise{authority, N, D}` to every
-   voter. Each voter, inside one serialized Channel store commit:
-   - rejects the promise if it already holds a higher promise or a log tail that
-     is not the exact prefix `(N, D)`;
-   - otherwise durably writes (fsyncs) the promise, then replies.
-4. **Ready:** after WriteQuorum durable acknowledgements, the local one
-   included, the Channel becomes ready. The next business message is `N+1`.
-   Without a quorum, Install fails and the Channel stays not ready, as with a
-   failed barrier today.
-5. **Missed voters:** the leader keeps re-sending the promise to them in the
-   background, like trailing deferred writes.
+2. **Promising probe:** the first recovery probe page to every voter carries
+   the new authority. Each voter, inside one serialized Channel store commit:
+   - rejects the probe if it already holds a higher promise (`ReplicateStaleFence`);
+   - otherwise durably writes (fsyncs) the promise;
+   - then returns its log tail and identity page exactly as today.
 
-The promise round reuses the durable round machinery: foreground dispatch to a
-quorum, hedging, retry, and the per-voter durable proofs added for retention in
-PR #1116. Only the request kind differs.
+   Anything a voter accepted before promising is visible in that reply.
+   Anything an old leader sends afterwards is rejected.
+3. **Recover the prefix:** recovery selects, converges and repairs the
+   quorum-identical prefix `1..N` as today, using only voters that returned a
+   durable promise for this authority. A quorum of such voters is required, so
+   any entry an old leader committed is observed through quorum intersection
+   and preserved.
+4. **Ready:** with the promise quorum and the repaired prefix, the Channel
+   becomes ready without writing any log entry. The next business message is
+   `N+1`. Without a promise quorum, Install fails and the Channel stays not
+   ready, as with a failed barrier today.
+5. **Missed voters:** the leader keeps re-sending a promising probe to them in
+   the background, like trailing deferred writes.
+
+The promising probe reuses the existing probe dispatch (local executor and peer
+batcher), bounded pages and deadlines. Only the first page carries the
+authority and becomes a durable write.
 
 ### Append-side enforcement
 
@@ -162,16 +170,26 @@ approval (AGENTS breaking-change rules).
   older binaries ignore an unknown system ID, and whether `DATA-FORMAT.json`
   needs a version bump. A bump would block rollback and requires a migration
   plan instead.
-- **Protocol:** a new exchange request kind, `Promise`, plus the promise in
-  recovery probe replies.
-- **Rolling upgrade:** a Channel uses promises only when every voter
-  advertises the capability, through the existing node capability exchange.
-  Until then it keeps writing barriers, so mixed-version clusters behave as
-  today.
-- **Rollback:** an older binary ignores promise records and writes barriers
-  again on leader changes, which is today's safety. To verify: an older node
-  receiving appends whose predecessor chain crosses a former promise boundary
-  behaves correctly, because there is no log entry for it to miss.
+- **Protocol:** recovery probe requests gain an optional promise authority, and
+  probe replies gain the stale-promise outcome. Older peers cannot decode
+  either, which is why sending them is gated by Controller activation.
+- **Controller state:** a node capability field for the Channel replication
+  protocol version, plus a committed activation flag with activate and
+  deactivate commands.
+- **Cluster-wide activation through the Controller** (maintainer choice), modeled
+  on the existing presence capability flow:
+  - Each node advertises a Channel replication protocol version from its running
+    process.
+  - Once every data node advertises promise support, the Controller commits a
+    cluster-wide activation into its state.
+  - Leaders read the committed activation. Before it, they keep writing barriers,
+    so mixed-version clusters behave exactly as today. After it, they use
+    promising probes.
+  - Activation is one-way in normal operation. Rolling back to an older binary
+    first requires an explicit deactivation command, after which leaders
+    install with barriers again. Only then may nodes be downgraded.
+- **Rollback:** after deactivation, older binaries ignore promise records and
+  write barriers again on leader changes, which is today's safety.
 - **Existing data:** historical barrier entries and gaps are out of scope by
   maintainer decision. They are left as they are and never renumbered.
 - **Downtime:** none.
@@ -188,8 +206,9 @@ Failure cases are written first. The tests cover:
 4. A promise and an old append racing at one follower.
 5. Restart before the first write, and reinstalling the same authority.
 6. A voter that missed the promise upgraded by the first new-authority write.
-7. A mixed-version Channel falls back to barriers.
-8. Rollback reads.
+7. A cluster before activation keeps writing barriers. Activation requires every
+   data node's advertised support. Deactivation restores barriers.
+8. Rollback reads after deactivation.
 
 Levels:
 
