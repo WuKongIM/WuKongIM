@@ -1,7 +1,8 @@
 # The distributed log sequence number is `message_seq`
 
 Status: approved 2026-11-09. The maintainer approved the promise design and
-its persisted-format and protocol additions. Historical gaps are not handled.
+its persisted-format and protocol additions. Activation is one-way, with no
+rollback after activation. Historical gaps are not handled.
 MQTT internal entries are a follow-up design that blocks MQTT GA.
 
 ## Principle
@@ -173,23 +174,24 @@ approval (AGENTS breaking-change rules).
 - **Protocol:** recovery probe requests gain an optional promise authority, and
   probe replies gain the stale-promise outcome. Older peers cannot decode
   either, which is why sending them is gated by Controller activation.
-- **Controller state:** a node capability field for the Channel replication
-  protocol version, plus a committed activation flag with activate and
-  deactivate commands.
-- **Cluster-wide activation through the Controller** (maintainer choice), modeled
-  on the existing presence capability flow:
-  - Each node advertises a Channel replication protocol version from its running
-    process.
-  - Once every data node advertises promise support, the Controller commits a
-    cluster-wide activation into its state.
+- **Controller state:** a one-way activation section and an activation command.
+  Each requires every Controller voter and mirror to have proven support first.
+- **Cluster-wide, one-way activation through the Controller** (maintainer
+  choice, matching Presence Controller format 2):
+  - Each running node answers a new capability probe with its Channel
+    replication protocol version. Older nodes cannot answer, which counts as
+    unsupported, so the check fails closed.
+  - The Controller auto-activates once every Controller voter and mirror and
+    every non-removed data node proves promise support. Activation is a new
+    command kind plus an `omitempty` state section. Controller state and commands
+    decode strictly, so they are written only after every Controller node has
+    proven it can decode them.
   - Leaders read the committed activation. Before it, they keep writing barriers,
-    so mixed-version clusters behave exactly as today. After it, they use
-    promising probes.
-  - Activation is one-way in normal operation. Rolling back to an older binary
-    first requires an explicit deactivation command, after which leaders
-    install with barriers again. Only then may nodes be downgraded.
-- **Rollback:** after deactivation, older binaries ignore promise records and
-  write barriers again on leader changes, which is today's safety.
+    so mixed-version clusters behave exactly as today.
+  - After activation, joins require the joiner to prove promise support.
+- **Rollback:** a binary rollback is possible until activation. **After
+  activation, rollback to an older binary is not supported**, and release notes
+  must state this. There is no deactivation command.
 - **Existing data:** historical barrier entries and gaps are out of scope by
   maintainer decision. They are left as they are and never renumbered.
 - **Downtime:** none.
@@ -206,9 +208,10 @@ Failure cases are written first. The tests cover:
 4. A promise and an old append racing at one follower.
 5. Restart before the first write, and reinstalling the same authority.
 6. A voter that missed the promise upgraded by the first new-authority write.
-7. A cluster before activation keeps writing barriers. Activation requires every
-   data node's advertised support. Deactivation restores barriers.
-8. Rollback reads after deactivation.
+7. A cluster before activation keeps writing barriers. Activation requires
+   proven support from every Controller node and every data node, and a single
+   unsupported or unreachable node keeps it inactive.
+8. After activation, a joiner without promise support is rejected.
 
 Levels:
 
