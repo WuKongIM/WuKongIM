@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -359,18 +358,5 @@ func (a *Adapter) logPresenceOwnerBeginRejected(claim presence.GenerationClaim, 
 		wklog.Uint64("generation", claim.Generation),
 		wklog.Uint64("ownerSetEpoch", claim.OwnerSetEpoch),
 		wklog.Uint64("servingBoot", claim.ServingBoot),
-		// TEMP(#1097): raw unknown cause, reverted before merge.
-		wklog.String("tmp_cause", tmpUnknownCause(err)),
 	)
-}
-
-func tmpUnknownCause(err error) string {
-	if presenceOwnerRejectReason(err) != "unknown" {
-		return ""
-	}
-	text := fmt.Sprintf("%T: %v", err, err)
-	if len(text) > 512 {
-		text = text[:512]
-	}
-	return text
 }
