@@ -328,6 +328,10 @@ type RuntimeConfig struct {
 	SyncPeers PeerPicker
 	// PresenceCapabilityProbe verifies each exact running member before activating new durable schema.
 	PresenceCapabilityProbe PresenceCapabilityProbe
+	// ChannelPromiseCapabilityProbe asks one exact running member for its
+	// Channel replication protocol. Any error counts as unsupported, so
+	// activation of Channel authority promises fails closed.
+	ChannelPromiseCapabilityProbe ChannelPromiseCapabilityProbe
 	// Now returns timestamps used for Controller commands.
 	Now func() time.Time
 	// Goroutines is the optional goroutine registry for lifecycle tracking.

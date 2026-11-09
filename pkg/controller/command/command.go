@@ -44,6 +44,10 @@ const (
 	KindEnsurePresenceOwnerSet Kind = "ensure_presence_owner_set"
 	// KindClaimPresenceGeneration commits one predecessor-fenced generation claim.
 	KindClaimPresenceGeneration Kind = "claim_presence_generation"
+	// KindActivateChannelAuthorityPromise one-way activates Channel authority
+	// promises after every member proves support. It is proposed only then,
+	// because older members cannot decode it.
+	KindActivateChannelAuthorityPromise Kind = "activate_channel_authority_promise"
 )
 
 // Command is the versioned payload replicated through Controller Raft.
@@ -88,6 +92,10 @@ type Command struct {
 	PresenceCapabilities []state.PresenceCapabilities `json:"presence_capabilities,omitempty"`
 	// PresenceJoiningCapability binds a new endpoint to an actual capability response.
 	PresenceJoiningCapability *state.PresenceCapabilities `json:"presence_joining_capability,omitempty"`
+	// ChannelPromiseCapabilities proves promise support for every member.
+	ChannelPromiseCapabilities []state.ChannelReplicationCapability `json:"channel_promise_capabilities,omitempty"`
+	// ChannelPromiseJoiningCapability proves a joiner's promise support after activation.
+	ChannelPromiseJoiningCapability *state.ChannelReplicationCapability `json:"channel_promise_joining_capability,omitempty"`
 	// PresenceClaim is a rare authority-generation transition, never a SEND command.
 	PresenceClaim *ClaimPresenceGeneration `json:"presence_claim,omitempty"`
 }
