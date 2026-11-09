@@ -222,6 +222,8 @@ type trafficWorker struct {
 	done   chan struct{}
 	sent   atomic.Uint64
 	errs   atomic.Uint64
+	// retries counts retryable SENDACKs absorbed by documented client retry.
+	retries atomic.Uint64
 
 	mu      sync.Mutex
 	lastErr error
@@ -248,23 +250,19 @@ func startTrafficWorker(t testing.TB, cluster *suite.StartedCluster, node *suite
 			case <-ticker.C:
 			}
 			msgNo := fmt.Sprintf("%s-%06d", prefix, seq)
-			if err := client.SendFrame(&frame.SendPacket{
+			// Retryable reasons (for example NodeNotMatch across a planned
+			// Slot move) are retried with the same client_msg_no, per the
+			// product contract; rejections and exhausted retries still fail.
+			_, retries, err := client.SendWithRetry(&frame.SendPacket{
 				ChannelID:   channelID,
 				ChannelType: frame.ChannelTypePerson,
 				ClientSeq:   seq,
 				ClientMsgNo: msgNo,
 				Payload:     []byte(msgNo),
-			}); err != nil {
-				worker.recordErr(err)
-				continue
-			}
-			ack, err := client.ReadSendAck()
+			})
+			worker.retries.Add(uint64(retries))
 			if err != nil {
-				worker.recordErr(err)
-				continue
-			}
-			if ack.ReasonCode != frame.ReasonSuccess {
-				worker.recordErr(fmt.Errorf("sendack reason=%v seq=%d msg_no=%s", ack.ReasonCode, seq, msgNo))
+				worker.recordErr(fmt.Errorf("seq=%d: %w", seq, err))
 				continue
 			}
 			worker.sent.Add(1)
@@ -285,6 +283,7 @@ func stopTrafficWorker(t testing.TB, worker *trafficWorker) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("traffic worker did not stop")
 	}
+	t.Logf("traffic worker sent=%d retries=%d errors=%d", worker.sent.Load(), worker.retries.Load(), worker.errs.Load())
 }
 
 func requireTrafficProgress(t testing.TB, cluster *suite.StartedCluster, worker *trafficWorker, additional uint64, timeout time.Duration) {
@@ -494,13 +493,46 @@ func runWKCLI(t testing.TB, contextDir string, args ...string) string {
 	return result.stdout
 }
 
+// wkcliBinary builds wkcli once per test process. Compiling inside every
+// 30-second command budget timed out on a cold build cache.
+var wkcliBinary = struct {
+	once sync.Once
+	path string
+	err  error
+}{}
+
+func builtWKCLI(t testing.TB) string {
+	t.Helper()
+	wkcliBinary.once.Do(func() {
+		dir, err := os.MkdirTemp("", "wkcli-e2e-")
+		if err != nil {
+			wkcliBinary.err = err
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		path := filepath.Join(dir, "wkcli")
+		build := exec.CommandContext(ctx, "go", "build", "-o", path, "./cmd/wkcli")
+		build.Dir = repoRoot(t)
+		build.Env = append(os.Environ(), "GOWORK=off")
+		if out, err := build.CombinedOutput(); err != nil {
+			wkcliBinary.err = fmt.Errorf("build wkcli: %w\n%s", err, out)
+			return
+		}
+		wkcliBinary.path = path
+	})
+	require.NoError(t, wkcliBinary.err)
+	return wkcliBinary.path
+}
+
 func runWKCLIResult(t testing.TB, contextDir string, args ...string) wkcliResult {
 	t.Helper()
+	binary := builtWKCLI(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cliArgs := append([]string{"run", "./cmd/wkcli", "--context-dir", contextDir}, args...)
-	cmd := exec.CommandContext(ctx, "go", cliArgs...)
+	cliArgs := append([]string{"--context-dir", contextDir}, args...)
+	cmd := exec.CommandContext(ctx, binary, cliArgs...)
 	cmd.Dir = repoRoot(t)
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	var stdout bytes.Buffer

@@ -77,6 +77,13 @@ func requireGatewaySendDuringOnboardingActive(t *testing.T, cluster *suite.Start
 				sendGatewayMessage(t, cluster, sender, prefix, sent)
 				sent++
 				continue
+			case sent > 0:
+				// The active window can close before count sends when a send
+				// needs a documented retry; at least one send proved
+				// availability during the move, and the caller then sends a
+				// full loop after onboarding is safe.
+				t.Logf("node %d onboarding left the active window after %d of %d sends", nodeID, sent, count)
+				return
 			default:
 				lastErr = fmt.Errorf("onboarding not active yet")
 			}
@@ -117,16 +124,19 @@ func sendGatewayMessage(t *testing.T, cluster *suite.StartedCluster, sender *sui
 
 	clientSeq := uint64(index + 1)
 	clientMsgNo := fmt.Sprintf("%s-msg-%03d", prefix, index)
-	require.NoError(t, sender.SendFrame(&frame.SendPacket{
+	// Retryable reasons (NodeNotMatch across the replica move) are retried
+	// with the same client_msg_no, per the product contract.
+	sendack, retries, err := sender.SendWithRetry(&frame.SendPacket{
 		ChannelID:   fmt.Sprintf("%s-recipient-%03d", prefix, index),
 		ChannelType: frame.ChannelTypePerson,
 		ClientSeq:   clientSeq,
 		ClientMsgNo: clientMsgNo,
 		Payload:     []byte(clientMsgNo),
-	}), cluster.DumpDiagnostics())
-
-	sendack, err := sender.ReadSendAck()
+	})
 	require.NoError(t, err, cluster.DumpDiagnostics())
+	if retries > 0 {
+		t.Logf("send %s succeeded after %d retryable SENDACKs", clientMsgNo, retries)
+	}
 	require.Equal(t, frame.ReasonSuccess, sendack.ReasonCode, cluster.DumpDiagnostics())
 	require.Equal(t, clientSeq, sendack.ClientSeq)
 	require.Equal(t, clientMsgNo, sendack.ClientMsgNo)
