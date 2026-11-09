@@ -67,6 +67,9 @@ type RuntimeConfig struct {
 	SyncPeers controller.PeerPicker
 	// PresenceCapabilityProbe checks exact running members before new durable formats.
 	PresenceCapabilityProbe controller.PresenceCapabilityProbe
+	// ChannelPromiseCapabilityProbe asks exact running members for their Channel
+	// replication protocol before one-way activation of authority promises.
+	ChannelPromiseCapabilityProbe controller.ChannelPromiseCapabilityProbe
 	// TaskClient forwards task writes and creation intents to the current Controller leader.
 	TaskClient *TaskClient
 	// ControlWriteClient forwards generic control writes to the current Controller leader.
@@ -98,25 +101,26 @@ type Runtime struct {
 // NewRuntime creates a Controller-backed control runtime.
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	backend, err := controller.NewRuntime(controller.RuntimeConfig{
-		NodeID:                  cfg.NodeID,
-		Addr:                    cfg.Addr,
-		StateDir:                cfg.StateDir,
-		ClusterID:               cfg.ClusterID,
-		Role:                    controller.RuntimeRole(cfg.Role),
-		Voters:                  runtimeFacadeVoters(cfg.Voters),
-		AllowBootstrap:          cfg.AllowBootstrap,
-		InitialSlotCount:        cfg.InitialSlotCount,
-		HashSlotCount:           cfg.HashSlotCount,
-		ReplicaCount:            cfg.ReplicaCount,
-		TickInterval:            cfg.TickInterval,
-		RaftTransport:           cfg.RaftTransport,
-		RaftObserver:            cfg.RaftObserver,
-		TaskTransitionObserver:  cfg.TaskTransitionObserver,
-		SyncClient:              cfg.SyncClient,
-		SyncPeers:               cfg.SyncPeers,
-		PresenceCapabilityProbe: cfg.PresenceCapabilityProbe,
-		Now:                     cfg.Now,
-		Logger:                  cfg.Logger,
+		NodeID:                        cfg.NodeID,
+		Addr:                          cfg.Addr,
+		StateDir:                      cfg.StateDir,
+		ClusterID:                     cfg.ClusterID,
+		Role:                          controller.RuntimeRole(cfg.Role),
+		Voters:                        runtimeFacadeVoters(cfg.Voters),
+		AllowBootstrap:                cfg.AllowBootstrap,
+		InitialSlotCount:              cfg.InitialSlotCount,
+		HashSlotCount:                 cfg.HashSlotCount,
+		ReplicaCount:                  cfg.ReplicaCount,
+		TickInterval:                  cfg.TickInterval,
+		RaftTransport:                 cfg.RaftTransport,
+		RaftObserver:                  cfg.RaftObserver,
+		TaskTransitionObserver:        cfg.TaskTransitionObserver,
+		SyncClient:                    cfg.SyncClient,
+		SyncPeers:                     cfg.SyncPeers,
+		PresenceCapabilityProbe:       cfg.PresenceCapabilityProbe,
+		ChannelPromiseCapabilityProbe: cfg.ChannelPromiseCapabilityProbe,
+		Now:                           cfg.Now,
+		Logger:                        cfg.Logger,
 	})
 	if err != nil {
 		return nil, err

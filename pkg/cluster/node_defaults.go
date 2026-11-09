@@ -20,6 +20,7 @@ import (
 
 func (n *Node) ensureDefaultRuntime() (bool, error) {
 	n.RegisterRPC(clusternet.RPCPresenceControl, control.NewPresenceControlHandler(presenceControlBackend{node: n}))
+	n.RegisterRPC(clusternet.RPCChannelReplicationControl, control.NewChannelReplicationControlHandler(n.ChannelReplicationCapability))
 	if n.control == nil {
 		if err := n.ensureDefaultTransport(); err != nil {
 			return false, err
@@ -27,25 +28,26 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		controlPeers := n.defaultControlRuntimePeers()
 		raftTransport := control.NewRaftTransportWithOptions(n.transportClient, control.RaftTransportOptions{Observer: n.cfg.Transport.Observer})
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
-			NodeID:                  n.cfg.NodeID,
-			Addr:                    n.cfg.ListenAddr,
-			StateDir:                n.cfg.Control.StateDir,
-			ClusterID:               n.cfg.Control.ClusterID,
-			Role:                    control.RuntimeRole(n.cfg.Control.Role),
-			Voters:                  controlPeers,
-			AllowBootstrap:          n.cfg.Control.AllowBootstrap,
-			InitialSlotCount:        n.cfg.Slots.InitialSlotCount,
-			HashSlotCount:           n.cfg.Slots.HashSlotCount,
-			ReplicaCount:            n.cfg.Slots.ReplicaCount,
-			RaftTransport:           raftTransport,
-			RaftObserver:            n.cfg.Control.RaftObserver,
-			TaskTransitionObserver:  n.cfg.Control.TaskTransitionObserver,
-			SyncPeers:               control.NewStaticPeerPicker(n.transportClient, controlPeers),
-			PresenceCapabilityProbe: n.probePresenceCapabilities,
-			TaskClient:              control.NewTaskClient(n.transportClient),
-			ControlWriteClient:      control.NewControlWriteClient(n.transportClient),
-			HealthReportTTL:         n.cfg.HealthReport.TTL,
-			Logger:                  namedLogger(n.cfg.Logger, "controller"),
+			NodeID:                        n.cfg.NodeID,
+			Addr:                          n.cfg.ListenAddr,
+			StateDir:                      n.cfg.Control.StateDir,
+			ClusterID:                     n.cfg.Control.ClusterID,
+			Role:                          control.RuntimeRole(n.cfg.Control.Role),
+			Voters:                        controlPeers,
+			AllowBootstrap:                n.cfg.Control.AllowBootstrap,
+			InitialSlotCount:              n.cfg.Slots.InitialSlotCount,
+			HashSlotCount:                 n.cfg.Slots.HashSlotCount,
+			ReplicaCount:                  n.cfg.Slots.ReplicaCount,
+			RaftTransport:                 raftTransport,
+			RaftObserver:                  n.cfg.Control.RaftObserver,
+			TaskTransitionObserver:        n.cfg.Control.TaskTransitionObserver,
+			SyncPeers:                     control.NewStaticPeerPicker(n.transportClient, controlPeers),
+			PresenceCapabilityProbe:       n.probePresenceCapabilities,
+			ChannelPromiseCapabilityProbe: n.probeChannelReplicationCapability,
+			TaskClient:                    control.NewTaskClient(n.transportClient),
+			ControlWriteClient:            control.NewControlWriteClient(n.transportClient),
+			HealthReportTTL:               n.cfg.HealthReport.TTL,
+			Logger:                        namedLogger(n.cfg.Logger, "controller"),
 		})
 		if err != nil {
 			raftTransport.Stop()
@@ -642,6 +644,7 @@ func (n *Node) discardDefaultSlots() {
 	if n.defaultSlotProxy != nil {
 		n.defaultSlotProxy.CloseSendPermissionReads()
 	}
+	n.stopChannelPromiseActivationLoop()
 	n.stopSlotLeaderLoop()
 	if n.defaultSlotRuntime != nil {
 		_ = n.defaultSlotRuntime.Close()
