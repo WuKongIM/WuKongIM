@@ -508,6 +508,11 @@ func mapMessageDBAdapterError(err error) error {
 	if errors.Is(err, channel.ErrCorruptState) {
 		return ch.ErrLogConflict
 	}
+	if errors.Is(err, channel.ErrStaleAuthority) {
+		// A lower writer than the replica's durable authority promise; the
+		// exchange maps this definitely-unwritten result to ReplicateStaleFence.
+		return ch.ErrStaleMeta
+	}
 	return err
 }
 
