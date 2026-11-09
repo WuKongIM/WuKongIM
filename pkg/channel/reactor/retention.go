@@ -5,6 +5,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/machine"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 )
@@ -65,7 +66,7 @@ func (r *Reactor) handleRetentionView(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	event.Future.Complete(Result{RetentionView: retentionViewFromChannel(rc)})
+	event.Future.Complete(Result{RetentionView: retentionViewFromChannel(rc, r.quorumDurableMatches(rc))})
 }
 
 func (r *Reactor) handleApplyRetentionBoundary(event Event) {
@@ -97,7 +98,7 @@ func (r *Reactor) handleApplyRetentionBoundary(event Event) {
 		event.Future.Complete(Result{RetentionApply: retentionNoopResult(rc.state, req)})
 		return
 	}
-	trimAllowed, blockedReason := retentionTrimDecision(rc.state, req.ThroughSeq)
+	trimAllowed, blockedReason := retentionTrimDecision(rc.state, req.ThroughSeq, r.quorumDurableMatches(rc))
 	opID := event.OpID
 	if opID == 0 {
 		opID = r.nextOpID()
@@ -220,7 +221,7 @@ func applyLoadedRetentionState(state *machine.ChannelState, retention store.Rete
 	}
 }
 
-func retentionViewFromChannel(rc *runtimeChannel) ch.RetentionView {
+func retentionViewFromChannel(rc *runtimeChannel, proofs map[ch.NodeID]uint64) ch.RetentionView {
 	if rc == nil || rc.state == nil {
 		return ch.RetentionView{}
 	}
@@ -238,11 +239,11 @@ func retentionViewFromChannel(rc *runtimeChannel) ch.RetentionView {
 		LEO:                         state.LEO,
 		HW:                          state.HW,
 		CheckpointHW:                state.CheckpointHW,
-		MinISRMatchOffset:           minISRMatchOffset(state),
+		MinISRMatchOffset:           minISRMatchOffset(state, proofs),
 	}
 }
 
-func retentionTrimDecision(state *machine.ChannelState, throughSeq uint64) (bool, string) {
+func retentionTrimDecision(state *machine.ChannelState, throughSeq uint64, proofs map[ch.NodeID]uint64) (bool, string) {
 	if state == nil || throughSeq == 0 {
 		return false, ch.RetentionBlockedLEOLag
 	}
@@ -258,13 +259,17 @@ func retentionTrimDecision(state *machine.ChannelState, throughSeq uint64) (bool
 	if throughSeq > state.LEO {
 		return false, ch.RetentionBlockedLEOLag
 	}
-	if state.Role == ch.RoleLeader && throughSeq > minISRMatchOffset(state) {
+	if state.Role == ch.RoleLeader && throughSeq > minISRMatchOffset(state, proofs) {
 		return false, ch.RetentionBlockedMinISRLag
 	}
 	return true, ""
 }
 
-func minISRMatchOffset(state *machine.ChannelState) uint64 {
+// minISRMatchOffset is the lowest position every ISR member is known to hold.
+// Legacy replication learns followers from ACKs; durable quorum learns them
+// only from proofs (a round reaches a write quorum in the foreground), so a
+// follower counts as the higher of the two and is unknown without either.
+func minISRMatchOffset(state *machine.ChannelState, proofs map[ch.NodeID]uint64) uint64 {
 	if state == nil || len(state.ISR) == 0 {
 		return 0
 	}
@@ -275,6 +280,11 @@ func minISRMatchOffset(state *machine.ChannelState) uint64 {
 			match = state.LEO
 		} else if progress, ok := state.Progress[node]; ok {
 			match = progress.Match
+		}
+		if node != state.LocalNode {
+			if proven, ok := proofs[node]; ok && proven > match {
+				match = proven
+			}
 		}
 		if i == 0 || match < min {
 			min = match
@@ -311,4 +321,22 @@ func copyNodeIDs(in []ch.NodeID) []ch.NodeID {
 	out := make([]ch.NodeID, len(in))
 	copy(out, in)
 	return out
+}
+
+// quorumDurableMatches returns per-voter durable proofs for rc's installed
+// authority, or nil when replication is legacy, rc is not installed, or the
+// proofs belong to another authority. It is a bounded in-memory copy.
+func (r *Reactor) quorumDurableMatches(rc *runtimeChannel) map[ch.NodeID]uint64 {
+	if r == nil || rc == nil || rc.state == nil || rc.quorumAuthority.ID == (replication.AuthorityID{}) {
+		return nil
+	}
+	reader, ok := r.cfg.QuorumLog.(replication.DurableProgressReader)
+	if !ok {
+		return nil
+	}
+	authority, through, loaded := reader.DurableProgress(rc.state.Key)
+	if !loaded || authority != rc.quorumAuthority.ID {
+		return nil
+	}
+	return through
 }

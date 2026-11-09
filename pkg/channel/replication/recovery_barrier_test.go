@@ -19,9 +19,9 @@ func TestCurrentTermBarrierIsDeterministicBusinessNeutralAndQuorumDurable(t *tes
 		Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2,
 	}
 	firstDispatcher := &recordingBarrierDispatcher{}
-	first, err := writeCurrentTermBarrier(context.Background(), authority, recovered, firstDispatcher)
+	first, err := writeCurrentTermBarrier(context.Background(), authority, recovered, firstDispatcher, nil)
 	if err != nil {
-		t.Fatalf("writeCurrentTermBarrier() error = %v", err)
+		t.Fatalf("writeCurrentTermBarrier(, nil) error = %v", err)
 	}
 	if first.State.LEO != 2 || first.State.Committed != 1 || first.State.Manifest.LeaderTerm != authority.ID.LeaderTerm ||
 		first.State.Manifest.ChannelEpoch != authority.ID.ChannelEpoch || first.State.Manifest.FenceVersion != authority.ID.FenceVersion ||
@@ -43,9 +43,9 @@ func TestCurrentTermBarrierIsDeterministicBusinessNeutralAndQuorumDurable(t *tes
 	}
 
 	secondDispatcher := &recordingBarrierDispatcher{}
-	second, err := writeCurrentTermBarrier(context.Background(), authority, recovered, secondDispatcher)
+	second, err := writeCurrentTermBarrier(context.Background(), authority, recovered, secondDispatcher, nil)
 	if err != nil {
-		t.Fatalf("writeCurrentTermBarrier(retry) error = %v", err)
+		t.Fatalf("writeCurrentTermBarrier(retry, nil) error = %v", err)
 	}
 	if !reflect.DeepEqual(first, second) || len(secondDispatcher.proposals) != 3 ||
 		!reflect.DeepEqual(secondDispatcher.proposals[0], proposal) {
@@ -77,7 +77,7 @@ func TestAuthorityBarrierRejectsEqualOrRegressiveFence(t *testing.T) {
 	for _, version := range []uint64{tail.FenceVersion, tail.FenceVersion - 1} {
 		authority := Authority{Key: key, ChannelID: id, ID: AuthorityID{ChannelEpoch: tail.ChannelEpoch, LeaderTerm: tail.LeaderTerm, FenceVersion: version}, Leader: 1, Voters: []ch.NodeID{1, 2, 3}, WriteQuorum: 2}
 		dispatcher := &recordingBarrierDispatcher{}
-		if _, err := writeCurrentTermBarrier(context.Background(), authority, recovered, dispatcher); err == nil || len(dispatcher.proposals) != 0 {
+		if _, err := writeCurrentTermBarrier(context.Background(), authority, recovered, dispatcher, nil); err == nil || len(dispatcher.proposals) != 0 {
 			t.Fatalf("version=%d err=%v writes=%d", version, err, len(dispatcher.proposals))
 		}
 	}

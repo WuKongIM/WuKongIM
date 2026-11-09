@@ -1,6 +1,6 @@
 # Message retention safety under durable-quorum replication
 
-Status: proposed (awaiting maintainer approval). Tracking: #1113.
+Status: approved 2026-11-09 (option B). Tracking: #1113.
 
 ## Problem
 
