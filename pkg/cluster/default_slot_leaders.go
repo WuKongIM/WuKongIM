@@ -207,7 +207,9 @@ func (n *Node) installObservedRemoteSlotLeaders(ctx context.Context, snapshot co
 	if n == nil || n.router == nil || n.slotStatusCaller == nil {
 		return false
 	}
-	if n.cfg.seedJoinMode() && !snapshotHasActiveNode(snapshot, n.cfg.NodeID) {
+	// Only a seed-join node not yet admitted waits; a leaving node is still
+	// admitted and must keep learning leaders of Slots drained from it (#1097).
+	if n.cfg.seedJoinMode() && !snapshotHasAdmittedNode(snapshot, n.cfg.NodeID) {
 		return false
 	}
 	slotIDs := remoteSlotIDsFromSnapshot(snapshot, n.cfg.NodeID)
@@ -346,7 +348,9 @@ func containsNodeID(nodeIDs []uint64, want uint64) bool {
 	return false
 }
 
-func snapshotHasActiveNode(snapshot control.Snapshot, nodeID uint64) bool {
+// snapshotHasAdmittedNode reports whether the Controller has admitted nodeID,
+// that is the node is active or leaving rather than joining or unknown.
+func snapshotHasAdmittedNode(snapshot control.Snapshot, nodeID uint64) bool {
 	if nodeID == 0 {
 		return false
 	}
@@ -354,7 +358,8 @@ func snapshotHasActiveNode(snapshot control.Snapshot, nodeID uint64) bool {
 		if node.NodeID != nodeID {
 			continue
 		}
-		return controlNodeJoinState(node.JoinState) == control.NodeJoinStateActive
+		state := controlNodeJoinState(node.JoinState)
+		return state == control.NodeJoinStateActive || state == control.NodeJoinStateLeaving
 	}
 	return false
 }
