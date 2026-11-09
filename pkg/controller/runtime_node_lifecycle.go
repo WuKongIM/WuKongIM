@@ -128,13 +128,24 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 		}
 		joiningCapability = &proof
 	}
+	// After one-way activation, a joiner must prove it runs authority
+	// promises; an older node would ignore promises and break the fence.
+	var channelPromiseCapability *ChannelReplicationCapability
+	if st.ChannelAuthorityPromise != nil {
+		proof, probeErr := r.probeChannelPromiseCapability(ctx, node.NodeID, node.Addr)
+		if probeErr != nil {
+			return JoinNodeResult{}, errors.Join(ErrChannelPromiseNotReady, probeErr)
+		}
+		channelPromiseCapability = &proof
+	}
 	expectedRevision := st.Revision
 	proposal, err := service.ProposeResult(ctx, command.Command{
-		Kind:                      command.KindUpsertNode,
-		IssuedAt:                  r.cfg.Now().UTC(),
-		ExpectedRevision:          &expectedRevision,
-		Node:                      &node,
-		PresenceJoiningCapability: joiningCapability,
+		Kind:                            command.KindUpsertNode,
+		IssuedAt:                        r.cfg.Now().UTC(),
+		ExpectedRevision:                &expectedRevision,
+		Node:                            &node,
+		PresenceJoiningCapability:       joiningCapability,
+		ChannelPromiseJoiningCapability: channelPromiseCapability,
 	})
 	if err != nil {
 		return JoinNodeResult{}, err
