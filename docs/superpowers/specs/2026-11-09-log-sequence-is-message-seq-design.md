@@ -1,6 +1,7 @@
 # The distributed log sequence number is `message_seq`
 
-Status: proposed (awaiting maintainer approval).
+Status: proposed (design direction confirmed by the maintainer; implementation
+awaits approval of this document).
 
 ## Principle
 
@@ -17,153 +18,194 @@ Every durable-quorum log entry carries a proposal manifest version
 
 | Version | Meaning | Real message? |
 | --- | --- | --- |
-| 1 `ProposalManifestVersion` | ordinary message | yes |
-| 2 `ExpirationProposalManifestVersion` | message with immutable lifetime | yes |
-| 3 `PublicationProposalManifestVersion` | message with publication metadata | yes |
-| 4 `MQTTSourceProposalManifestVersion` | MQTT source activation | **no** |
-| 5 `MQTTReplayAnchorProposalManifestVersion` | MQTT replay anchor | **no** |
-| 6 `MQTTReplayRetirementProposalManifestVersion` | MQTT replay retirement | **no** |
-| 7 `RecoveryBarrierProposalManifestVersion` | current-term authority barrier | **no** |
+| 1, 2, 3 | ordinary / with lifetime / with publication metadata | yes |
+| 4, 5, 6 | MQTT source activation / replay anchor / replay retirement | **no** |
+| 7 | current-term authority barrier | **no** |
 
 ### 1. Authority barrier (default path, every multi-replica Channel)
 
 Since `cccafaff0` (v3.0.0-beta.1), `quorumLog.Install` writes a standalone
-barrier entry when it recovers a non-empty frontier under a different
+barrier entry at `N+1` when it recovers a non-empty frontier under a different
 authority (`pkg/channel/replication/recovery_barrier.go`).
 
 - **When it is written:** every Channel leader change on a non-empty Channel.
-  This includes the same node reinstalling under a new route fence after a
-  restart.
 - **Evidence:** in the message retention E2E, messages 1–3 were followed by
-  barrier 4 after the leader restarted, and the next message got seq 5.
-- **Client impact:** client `/channel/messagesync` hides the barrier because it
-  is `SyncOnce`, but the gap 3 → 5 is visible. A client that treats a seq gap
-  as a missing message will resync or report loss.
-- **Manager impact:** the Manager message list showed the barrier as an empty
-  message.
+  barrier 4, and the next message got seq 5. Client `/channel/messagesync`
+  hides the barrier (it is `SyncOnce`), but the gap 3 → 5 is visible.
 
 ### 2. MQTT internal proposals (default-off preview)
 
-`sealAppendProposal` gives MQTT source activation, replay anchor and replay
-retirement their own manifest versions. These records are appended to the same
-Channel log, including WK group channels that MQTT subscribers attach to, so
-they also consume `message_seq`.
+Versions 4–6 are appended to the same Channel log, including WK group channels
+with MQTT subscribers, so they also consume `message_seq`.
 
-## Why the barrier exists
+## Why the barrier exists, and why it cannot simply be dropped
 
-The original design (`2026-08-15-channel-durable-quorum-log-design.md`) uses
-the barrier as the new authority's durable current-term proof. It explicitly
-avoided "a separate persisted-promise protocol". A recovered prefix becomes
-ready only after one entry under the new authority is durable on a quorum.
-That entry:
+The barrier is the new authority's only fence against a stale old leader:
 
-- fences concurrent old-authority work at that index on those voters;
-- makes `Installed` report a frontier proven under the current authority.
+- **No other check at followers:** a follower accepts a proposal when its
+  predecessor matches (`validateDurableProposalPredecessor` checks previous
+  index, term and digest). The follower exchange path (`ExchangeServer`) checks
+  neither authority nor metadata, and appends are not gated by a leader lease.
+- **How the barrier fences:** once the barrier is durable on a write quorum
+  at `N+1`, an old leader's proposal at `N+1` conflicts on at least one voter
+  of any quorum it could use, so it cannot commit.
 
-`Install` already skips the barrier for an empty log. The first business
-proposal carries the complete current authority and makes that proof durable in
-the same quorum round (`TestQuorumLogInstallDefersEmptyAuthorityBarrierIntoFirstProposal`).
+Dropping the barrier and letting the first business message carry the
+authority (option A) is therefore **unsafe**. Example with voters A (stale old
+leader, cut off from metadata but able to reach C), B (new leader) and C:
 
-## Options
+1. Until B's first client write, `N+1` stays free.
+2. A writes `N+1` on {A, C}, reaches quorum and acknowledges its client.
+3. B's reads stop at its HW `N`, so the acknowledged message is invisible.
+4. B's first write conflicts on A and C, cannot reach quorum, and the Channel
+   becomes non-writable.
 
-### A. Carry the authority proof in the first business message (recommended)
+The barrier limits this window to milliseconds. Option A widens it to "until
+the next write". Option A is rejected.
 
-Generalize the empty-log rule to every frontier. `Install` recovers and repairs
-the quorum-proven prefix exactly as today. It becomes ready to *read* that
-prefix without writing anything. The first business proposal under the new
-authority is the current-term proof: it chains from the recovered tail through
-`PreviousTerm/Index/Digest`, as the barrier does today.
+## Design: a durable authority promise outside the log
 
-Safety argument, to be verified before implementation:
+Replace the barrier entry with a **promise record** that each Channel voter
+persists in its own Channel storage. The promise travels over the existing
+Channel replication exchange. It is not a log append and never gets a log index.
 
-- **Same structure as the barrier:** the first business proposal has the same
-  position, authority and prefix chain as the barrier. A voter that already
-  holds a conflicting old-authority entry at that index rejects it exactly as
-  it would reject the barrier. Conflicts stay non-writable, as today.
-- **Reading the recovered prefix:** the prefix is identical on an intersecting
-  quorum. Recovery never truncates observed suffixes, so it cannot be lost. This
-  is the same proof the empty-log path and the current `Installed.HW` already
-  rely on.
-- **Concurrent old work:** stale old-leader appends are rejected by follower
-  metadata fences (`ReplicateStaleFence`: `ErrStaleMeta` / `ErrWriteFenced`).
-  This is not done by the barrier: today a barrier written before an in-flight
-  old proposal arrives does not revoke it either ("read-only probes are not
-  durable promises").
-- **What changes:** an old-authority/new-authority conflict surfaces at the
-  first write instead of at `Install`. Before that, the Channel is readable but
-  that conflict has not been detected yet. The verification below must prove
-  this is no weaker than today.
+### Where it is stored
 
-Cost and compatibility:
+- The promise is stored on **each Channel replica node, in that Channel's
+  partition of the message DB**. It is **not** in Slot metadata. A Channel
+  replica need not host the Channel's Slot, and enforcement must happen inside
+  the follower's own append commit.
+- **Key:** new system ID `messageSystemIDAuthorityPromise` (19) in the Channel's
+  `SpaceSystem`. It sits beside checkpoint (1), retention (4), proposal manifests
+  (8, 9) and entry identity (10), and never in the message table
+  (`TableIDMessage`).
+- **Value:** one record per Channel per replica, `{authority (ChannelEpoch,
+  LeaderTerm, FenceVersion), prefix end N, tail digest D}`. A newer authority
+  overwrites it, and a lower one is rejected.
+- **What Slot still decides:** Slot metadata (`ChannelRuntimeMeta`) still
+  decides who the leader is and what the new authority is. The promise only
+  enforces that decision at the Channel replicas.
 
-- **Compatibility:** no wire, persisted-format or configuration change.
-  Rolling upgrades are safe, and mixed-version clusters keep working, because
-  an older node still writes barriers.
-- **Rollback:** direct. Rolled-back nodes write barriers again on later leader
-  changes.
-- **Write latency:** the first write after a leader change carries the
-  authority proof in its own quorum round, with no extra round trip, as for an
-  empty log today.
+### Install flow
 
-### B. Persisted per-voter authority promise
+1. **Learn the authority:** the new leader learns its authority from Slot
+   metadata, as today.
+2. **Recover the prefix:** recovery probes and repairs the quorum-identical
+   prefix `1..N`, as today. Probes now also return each voter's promise. Recovery
+   selection uses the highest promised authority among the observed voters
+   together with the tail identities.
+3. **Promise round:** the leader sends `Promise{authority, N, D}` to every
+   voter. Each voter, inside one serialized Channel store commit:
+   - rejects the promise if it already holds a higher promise or a log tail that
+     is not the exact prefix `(N, D)`;
+   - otherwise durably writes (fsyncs) the promise, then replies.
+4. **Ready:** after WriteQuorum durable acknowledgements, the local one
+   included, the Channel becomes ready. The next business message is `N+1`.
+   Without a quorum, Install fails and the Channel stays not ready, as with a
+   failed barrier today.
+5. **Missed voters:** the leader keeps re-sending the promise to them in the
+   background, like trailing deferred writes.
 
-Add durable replica metadata, a Paxos phase-1-style promise of "accepted
-authority ≥ A, prefix through N with tail digest D". Write it on a quorum during
-`Install` instead of a log entry, and make voters reject lower authorities from
-that record.
+The promise round reuses the durable round machinery: foreground dispatch to a
+quorum, hedging, retry, and the per-voter durable proofs added for retention in
+PR #1116. Only the request kind differs.
 
-- **Pros:** the Channel is fully fenced before the first write.
-- **Cons:**
-  - a new persisted record and a new exchange message, so mixed-version clusters
-    need capability gating;
-  - rollback after activation is not direct, because older binaries ignore the
-    promise;
-  - recovery selection must also compare promises.
+### Append-side enforcement
 
-Larger and riskier than A for the same principle.
+In the same serialized store commit as the predecessor check, a follower
+rejects an append whose authority is lower than its promise (`ReplicateStaleFence`).
 
-### MQTT internal proposals (both options)
+An accepted append with a higher authority atomically raises the promise to
+that authority. A voter that missed the promise therefore catches up with the
+first new-authority write it accepts.
 
-Move source, anchor and retirement state out of the message log into
-Channel-scoped side records with their own durability. MQTT is a default-off
-preview, so this is a separate follow-up design.
+### Why a quorum is enough
 
-**Until it ships, MQTT must not leave preview.** Enabling it adds non-message
-entries to business channels.
+- An old-authority write needs a write quorum.
+- Any two quorums share at least one voter, and that voter holds the new
+  promise and rejects the write. This is the same intersection argument the
+  barrier and every commit rely on.
+- Voters that missed the promise may still accept old writes, but they cannot
+  form a quorum on their own.
 
-## Existing data
+### Edge cases
 
-Data written by v3.0.0-beta.1 through the current release already contains
-barrier (and, with MQTT enabled, MQTT) entries at fixed sequences. These cannot
-be renumbered without rewriting every replica's log, client caches and
-conversation cursors. Plan:
+- **Leader crashes after partial promises:** the next leader has a strictly
+  higher authority from Slot metadata and re-runs the round. Leftover promises
+  reject only lower authorities.
+- **Promise and old append race at one follower:** both use the same
+  per-Channel serialized store path, and check-then-write is one commit. The old
+  append is either durable first, so the probe sees it and it is part of
+  recovery, or it is rejected.
+- **Restart before any write:** the promise is durable, so no state is lost.
+  Reinstalling the same authority finds promises already present and is
+  idempotent.
+- **Learners** (non-voting replicas) do not need promises: they never count
+  toward a quorum.
 
-- **Keep reading them:** client history keeps hiding them (`SyncOnce`).
-- **Manager reads:** these will route through the Channel leader (separate PR).
-  They should hide internal entries the same way, so operators do not see
-  phantom rows.
-- **Release notes:** document that sequences written before the upgrade may
-  contain one gap per past leader change, and that new writes no longer create
-  gaps.
+## MQTT internal proposals
 
-## Verification plan (option A)
+MQTT already keeps its state in system records (IDs 12–15). Versions 4–6 must
+stop being log appends and become system-record updates replicated with the
+same promise-fenced exchange.
 
-1. **Failure cases first:**
-   - a leader change on a non-empty Channel consumes no seq, so the next message
-     gets `previous + 1`;
-   - an old-authority proposal racing the new leader's first write can never
-     produce two acknowledged entries at one index;
-   - a crash at every step of `Install` and the first write;
-   - a restart before the first write;
-   - a write fence during transfer.
-2. **Tests:** deterministic crash/race tests in `pkg/channel/replication`,
-   updating the barrier tests, and gofail E2E at the first-write boundary.
-3. **E2E:** `message_retention` (contiguous seqs across a leader restart), the
-   `channel_failover` suites, and a new client-visible contiguity assertion
-   after a forced leader change.
+This is a separate follow-up design. **MQTT must not leave preview until it
+ships**, because enabling MQTT adds non-message entries to business channels.
+
+## Compatibility, upgrade, rollback
+
+These are persisted-format and protocol changes, so they need maintainer
+approval (AGENTS breaking-change rules).
+
+- **Persisted format:** one additive system record. It must be verified that
+  older binaries ignore an unknown system ID, and whether `DATA-FORMAT.json`
+  needs a version bump. A bump would block rollback and requires a migration
+  plan instead.
+- **Protocol:** a new exchange request kind, `Promise`, plus the promise in
+  recovery probe replies.
+- **Rolling upgrade:** a Channel uses promises only when every voter
+  advertises the capability, through the existing node capability exchange.
+  Until then it keeps writing barriers, so mixed-version clusters behave as
+  today.
+- **Rollback:** an older binary ignores promise records and writes barriers
+  again on leader changes, which is today's safety. To verify: an older node
+  receiving appends whose predecessor chain crosses a former promise boundary
+  behaves correctly, because there is no log entry for it to miss.
+- **Existing data:** logs written since v3.0.0-beta.1 keep their barrier
+  entries and therefore one gap per past leader change. They cannot be
+  renumbered without rewriting every replica's log, client caches and
+  conversation cursors. Client history keeps hiding them. Manager reads route
+  through the leader and must hide internal entries the same way. Release
+  notes state that new writes no longer create gaps.
+- **Downtime:** none.
+
+## Verification plan
+
+Failure cases are written first. The tests cover:
+
+1. A leader change on a non-empty Channel consumes no seq: the next message is
+   `previous + 1`.
+2. The stale-old-leader scenario above: A can never acknowledge an entry at
+   `N+1` once B's promise is on a quorum.
+3. Partial promise, leader crash, then a new leader.
+4. A promise and an old append racing at one follower.
+5. Restart before the first write, and reinstalling the same authority.
+6. A voter that missed the promise upgraded by the first new-authority write.
+7. A mixed-version Channel falls back to barriers.
+8. Rollback reads.
+
+Levels:
+
+- **Unit tests:** deterministic crash and race matrices in
+  `pkg/channel/replication` and `pkg/db/message`.
+- **gofail E2E:** at the promise and first-write boundaries.
+- **E2E:**
+  - `message_retention`, with contiguous seqs across a leader restart;
+  - the `channel_failover` suites;
+  - a new client-visible contiguity assertion after forced leader changes.
 
 ## Decisions requested
 
-1. Adopt option A.
-2. Accept that historical gaps remain and are documented, not rewritten.
-3. Treat MQTT internal entries as a follow-up design that blocks MQTT GA.
+1. Approve the promise design and its persisted-format and protocol additions.
+2. Accept that historical gaps remain and are documented.
+3. Track MQTT internal entries as a follow-up design that blocks MQTT GA.
