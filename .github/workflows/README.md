@@ -61,7 +61,10 @@ publishing on `main` for six days.
 
 The nightly schedule additionally runs race on every listed package,
 `-tags=integration ./internal/... ./pkg/...`, every E2E suite and
-`wkcicheck gofail-e2e`. The last builds one server with every discovered
+`wkcicheck gofail-e2e`. E2E runs as `wkcicheck e2e-shard-1` through
+`e2e-shard-4`: each discovers every `test/e2e` package and runs a stable
+round-robin slice of the sorted list serially, because one serial job over all
+suites exceeded its 60-minute limit and never reached the last packages. The last builds one server with every discovered
 failpoint package and runs every E2E package that references a
 `WK_E2E_GOFAIL_*` gate with those gates enabled, uploading its evidence (not
 the binary). MQTT gofail suites are excluded while MQTT is a default-off

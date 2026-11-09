@@ -53,6 +53,12 @@ func (executor *fakeCommandExecutor) Output(
 		return []byte(executor.revision + "\n"), nil
 	case step.name == "git" && slices.Contains(step.arguments, "status"):
 		return nil, nil
+	case step.name == "go" && slices.Equal(step.arguments, []string{"list", "-tags=e2e", "./test/e2e/..."}):
+		var listing strings.Builder
+		for i := 0; i < e2eShardCount; i++ {
+			fmt.Fprintf(&listing, "%s/fixture%d\n", e2ePackagePrefix, i)
+		}
+		return []byte(listing.String()), nil
 	case executor.unexpectedOK:
 		return nil, nil
 	default:

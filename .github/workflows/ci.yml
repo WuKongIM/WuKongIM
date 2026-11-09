@@ -333,7 +333,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [race, integration, e2e, gofail-e2e]
+        # Serial E2E over every suite exceeded one 60-minute job, so it runs
+        # as named wkcicheck shards (stable round-robin of sorted packages).
+        suite: [race, integration, e2e-shard-1, e2e-shard-2, e2e-shard-3, e2e-shard-4, gofail-e2e]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -349,8 +351,7 @@ jobs:
             race) go test -race ./internal/app ./internal/runtime/... ./pkg/plugin/pluginhost ./pkg/wklog \
                     ./pkg/gateway/... ./pkg/transport/... ./pkg/channel/... ./pkg/cluster/... ./pkg/slot/... -count=1 -p=1 -timeout=50m ;;
             integration) go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=50m ;;
-            e2e) go test -tags=e2e ./test/e2e/... -count=1 -timeout=50m -p=1 ;;
-            gofail-e2e) go run ./cmd/wkcicheck gofail-e2e ;;
+            e2e-shard-*|gofail-e2e) go run ./cmd/wkcicheck "$SUITE" ;;
           esac
       - name: Upload gofail E2E evidence
         if: always() && matrix.suite == 'gofail-e2e'
