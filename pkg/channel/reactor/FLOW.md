@@ -54,6 +54,7 @@ typed bounded workers and returns as `EventWorkerResult`.
   completes directly from its exact quorum-commit receipt, without hot-path
   PullHint or AckOffset signals. Metadata projects ISR voters separately from
   non-voting replica learners into the native replication owner.
+  Retention ISR safety uses the installed authority's quorum durable proofs; unproven voters block trim.
   Quorum completions do not populate the legacy recent-record cache; any
   compatibility pull falls back to the durable store on a cache miss.
 - One loaded runtime has one lifecycle controller. Hot follower replication
