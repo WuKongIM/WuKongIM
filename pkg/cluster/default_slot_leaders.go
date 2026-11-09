@@ -43,7 +43,7 @@ func (n *Node) startSlotLeaderLoop() {
 			}
 		}
 	})
-	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterSlotLeaderRefresh, func() {
+	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterRemoteSlotLeaderRefresh, func() {
 		defer n.slotLeaderWG.Done()
 		remoteTicker := time.NewTicker(n.remoteSlotLeaderPollInterval())
 		defer remoteTicker.Stop()
@@ -244,7 +244,7 @@ func (n *Node) remoteSlotLeaderStatuses(ctx context.Context, snapshot control.Sn
 	results := make(chan peerResult, len(peerIDs))
 	workerCount := remoteSlotLeaderWorkerCount(len(peerIDs))
 	for range workerCount {
-		goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterSlotLeaderRefresh, func() {
+		goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterRemoteSlotLeaderProbe, func() {
 			for {
 				select {
 				case <-roundCtx.Done():

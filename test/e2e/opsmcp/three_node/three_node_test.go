@@ -96,7 +96,9 @@ func TestThreeNodeOperationsMCPIngressProfileAndOwnerRestart(t *testing.T) {
 	require.NoError(t, cluster.WaitClusterReady(restartCtx), cluster.DumpDiagnostics())
 	require.NoError(t, suite.WaitTCPReady(restartCtx, cluster.MustNode(1).ManagerAddr()), cluster.DumpDiagnostics())
 
-	sessionAfterRestart := connectMCP(t, cluster.MustNode(3), created.Token)
+	// The restarted owner is briefly unavailable (503) after cluster
+	// readiness; the product contract is to retry, so allow a bounded window.
+	sessionAfterRestart := connectMCPEventually(t, cluster.MustNode(3), created.Token, 15*time.Second)
 	defer sessionAfterRestart.Close()
 	callTool(t, sessionAfterRestart, "cluster_health", map[string]any{})
 	logResult := callTool(t, sessionAfterRestart, "logs_search", map[string]any{
@@ -443,4 +445,26 @@ func (t bearerRoundTripper) RoundTrip(request *http.Request) (*http.Response, er
 	clone.Header = request.Header.Clone()
 	clone.Header.Set("Authorization", "Bearer "+t.token)
 	return http.DefaultTransport.RoundTrip(clone)
+}
+
+// connectMCPEventually retries 503 owner unavailability within timeout.
+func connectMCPEventually(t *testing.T, node *suite.StartedNode, token string, timeout time.Duration) *mcp.ClientSession {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		session, err := mcp.NewClient(&mcp.Implementation{Name: "wukongim-e2e", Version: "v1"}, nil).Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint:             "http://" + node.ManagerAddr() + "/mcp",
+			HTTPClient:           &http.Client{Transport: bearerRoundTripper{token: token}},
+			DisableStandaloneSSE: true,
+		}, nil)
+		cancel()
+		if err == nil {
+			return session
+		}
+		if time.Now().After(deadline) {
+			require.NoError(t, err, node.DumpDiagnostics())
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
 }
