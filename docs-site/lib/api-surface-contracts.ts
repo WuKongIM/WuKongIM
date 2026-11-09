@@ -429,6 +429,7 @@ export const nodeTransportServices: readonly NodeTransportService[] = [
   nodeService(107, 'RPCMQTTOwner', 'mqtt_owner'),
   nodeService(108, 'RPCPresenceControl', 'presence_control'),
   nodeService(109, 'RPCPersonDirectoryPrepare', 'person_directory_prepare'),
+  nodeService(110, 'RPCChannelReplicationControl', 'channel_replication_control'),
 ];
 
 export const nodeTransportBoundary =

@@ -169,12 +169,11 @@ const (
 	RPCPresenceControl
 	// RPCPersonDirectoryPrepare waits for source-owned person discovery preparation.
 	RPCPersonDirectoryPrepare
+	// RPCChannelReplicationControl answers the Channel replication capability
+	// probe that gates one-way activation of authority promises. Older nodes do
+	// not register it, so probing them fails closed.
+	RPCChannelReplicationControl
 )
-
-// RPCChannelReplicationControl answers the Channel replication capability
-// probe that gates one-way activation of authority promises. Older nodes do
-// not register it, so probing them fails closed.
-const RPCChannelReplicationControl uint8 = 110
 
 func transportServiceAlias(serviceID uint8) string {
 	switch serviceID {
