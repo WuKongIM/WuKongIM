@@ -105,12 +105,18 @@ type durableRoundResult struct {
 // runDurableRound persists one immutable proposal locally and on a write
 // quorum. The caller owns bounded admission before entering this function.
 func runDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, writeQuorum int, proposal durableProposal, dispatcher durabilityDispatcher) (durableRoundResult, error) {
+	return runDurableRoundWithProofs(ctx, local, voters, writeQuorum, proposal, dispatcher, nil)
+}
+
+// runDurableRoundWithProofs is runDurableRound that also reports each voter's
+// exact durable proof, including trailing voters written after quorum.
+func runDurableRoundWithProofs(ctx context.Context, local ch.NodeID, voters []ch.NodeID, writeQuorum int, proposal durableProposal, dispatcher durabilityDispatcher, proofs durableProofSink) (durableRoundResult, error) {
 	type completion struct {
 		result durableRoundResult
 		err    error
 	}
 	done := make(chan completion, 1)
-	if err := startDurableRound(ctx, local, voters, writeQuorum, proposal, dispatcher, func(result durableRoundResult, err error) { done <- completion{result, err} }); err != nil {
+	if err := startDurableRound(ctx, local, voters, writeQuorum, proposal, dispatcher, proofs, func(result durableRoundResult, err error) { done <- completion{result, err} }); err != nil {
 		result := durableRoundResult{}
 		if ctx != nil && ctx.Err() != nil && err == ctx.Err() {
 			result.outcome = ch.AppendOutcomeDefinitelyNotWritten

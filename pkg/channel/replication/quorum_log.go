@@ -73,6 +73,9 @@ type quorumChannel struct {
 	inflight bool
 	retained map[ch.CommandID]retainedProposal
 	order    []ch.CommandID
+	// progress holds per-voter durable proofs for retention safety; it has its
+	// own lock so readers never wait on Install's sequencer critical section.
+	progress durableProgress
 }
 
 type retainedProposal struct {
@@ -190,7 +193,7 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 	// non-empty frontier still needs the barrier before it can accept a proposal
 	// under a different authority.
 	if recovered != (ReplicaState{}) && !frontierUsesAuthority(recovered, authority.ID) {
-		barrier, barrierErr := writeCurrentTermBarrier(ctx, authority, recovered, l.cfg.Durability)
+		barrier, barrierErr := writeCurrentTermBarrier(ctx, authority, recovered, l.cfg.Durability, state.progress.sink(authority.ID))
 		if barrierErr != nil {
 			return Installed{}, barrierErr
 		}
@@ -211,6 +214,7 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 func fenceQuorumChannel(state *quorumChannel, authority Authority) {
 	state.released = false
 	state.authority = cloneAuthority(authority)
+	state.progress.reset(authority.ID)
 	state.frontier = ReplicaState{}
 	state.hw = 0
 	state.ready = false
@@ -365,7 +369,7 @@ func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, prop
 	if err != nil || done {
 		return receipt, err
 	}
-	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, round.proposal, l.cfg.Durability)
+	result, err := runDurableRoundWithProofs(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, round.proposal, l.cfg.Durability, state.progress.sink(state.authority.ID))
 	decisionPhase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelQuorumDecision)
 	receipt, err = l.resolveRoundLocked(ctx, state, round, result, err)
 	decisionPhase.End(rpctrace.ResultFor(err))
@@ -404,7 +408,7 @@ func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complet
 	authority := cloneAuthority(state.authority)
 	state.inflight = true
 	state.mu.Unlock()
-	err = startDurableRound(ctx, l.cfg.Local, authority.Voters, authority.WriteQuorum, round.proposal, l.cfg.Durability, func(result durableRoundResult, err error) {
+	err = startDurableRound(ctx, l.cfg.Local, authority.Voters, authority.WriteQuorum, round.proposal, l.cfg.Durability, state.progress.sink(authority.ID), func(result durableRoundResult, err error) {
 		decisionPhase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelQuorumDecision)
 		state.mu.Lock()
 		var receipt Receipt
@@ -515,7 +519,7 @@ func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, reta
 	if state.inflight {
 		return Receipt{}, ch.ErrBackpressured
 	}
-	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
+	result, err := runDurableRoundWithProofs(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability, state.progress.sink(state.authority.ID))
 	return l.resolveRoundLocked(ctx, state, retained, result, err)
 }
 

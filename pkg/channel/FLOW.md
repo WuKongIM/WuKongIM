@@ -43,7 +43,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
    floor. Runtime probes distinguish a loaded Leader from completed quorum
    recovery, including when a durable write fence permits only reads. Optional
    physical trim runs later when all local and replica safety
-   watermarks cover that boundary.
+   watermarks cover that boundary; durable-quorum ISR coverage comes from per-voter durable proofs (`DurableProgressReader`).
 
 ## Invariants and Failure Semantics
 
