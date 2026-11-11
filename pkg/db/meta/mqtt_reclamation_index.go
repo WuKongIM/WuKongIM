@@ -53,15 +53,16 @@ func MQTTSessionReclamationTarget(s MQTTSession) uint64 {
 	return through
 }
 
-// MQTTReclamationIndexResult describes one committed backfill page. Completion
-// permits indexed discovery; it does not assert that no cleanup work exists.
+// MQTTReclamationIndexResult describes bounded backfill or fresh coverage proof.
+// Completion permits indexed discovery; it does not assert that no cleanup work exists.
 type MQTTReclamationIndexResult struct {
 	Scanned int
 	Done    bool
 }
 
 // One table-22 System-1 record per hash Slot certifies coverage of index 3.
-// Missing progress must never be interpreted as a completed empty index.
+// Missing progress alone never proves an empty index; a pinned empty primary
+// table proves only that snapshot and does not create durable coverage.
 type mqttReclamationIndexProgress struct {
 	After MQTTSessionCursor
 	Done  bool
@@ -190,7 +191,8 @@ func (b *Batch) BuildMQTTReclamationIndex(slot HashSlot) (*MQTTReclamationIndexR
 }
 
 // ListMQTTSessionReclamation pins coverage and at most limit+1 index/primary
-// witnesses. Incomplete coverage returns Conflict instead of false emptiness.
+// witnesses. A missing certificate permits only a pinned empty primary table;
+// nonempty tables need durable coverage and otherwise return Conflict.
 // Every candidate still needs current Session authority and isolation policy.
 func (s *Shard) ListMQTTSessionReclamation(ctx context.Context, after MQTTSessionCursor, limit int) ([]MQTTSession, MQTTSessionCursor, bool, error) {
 	if limit < 1 || limit > 64 || after != (MQTTSessionCursor{}) && validateMQTTSessionCursor(after) != nil {
@@ -214,14 +216,31 @@ func (s *Shard) ListMQTTSessionReclamation(ctx context.Context, after MQTTSessio
 		return nil, after, false, err
 	}
 	if !found {
-		return nil, after, false, dberrors.ErrConflict
-	}
-	progress, err := decodeMQTTReclamationIndexProgress(key, value)
-	if err != nil {
-		return nil, after, false, err
-	}
-	if !progress.Done {
-		return nil, after, false, dberrors.ErrConflict
+		// Inspect the whole primary table, not the requested page suffix. An
+		// empty snapshot has no unindexed historical rows. Later rows still
+		// require coverage on their own fresh snapshot, including after restore.
+		primary := encodeRowPrefix(s.hashSlot, TableIDMQTTSession)
+		rows, err := s.newTableReadIter(engine.Span{Start: primary, End: keycodec.PrefixEnd(primary)}, engine.IterOptions{})
+		if err != nil {
+			return nil, after, false, err
+		}
+		hasRows := rows.First()
+		readErr := rows.Error()
+		rows.Close()
+		if readErr != nil {
+			return nil, after, false, readErr
+		}
+		if hasRows {
+			return nil, after, false, dberrors.ErrConflict
+		}
+	} else {
+		progress, err := decodeMQTTReclamationIndexProgress(key, value)
+		if err != nil {
+			return nil, after, false, err
+		}
+		if !progress.Done {
+			return nil, after, false, dberrors.ErrConflict
+		}
 	}
 	const indexID = 3
 	index, ok := mqttSessionTable.indexByID(indexID)

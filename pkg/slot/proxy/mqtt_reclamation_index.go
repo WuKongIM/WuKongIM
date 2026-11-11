@@ -9,7 +9,8 @@ import (
 )
 
 // BuildMQTTReclamationIndex advances one bounded backfill page at the selected
-// logical hash Slot's current authority. It never rebuilds a convenient replica.
+// logical hash Slot's current authority. A fresh certified or empty-primary read
+// avoids an unnecessary write. It never rebuilds a convenient replica.
 func (s *Store) BuildMQTTReclamationIndex(ctx context.Context, hashSlot uint16) (out metadb.MQTTReclamationIndexResult, err error) {
 	if err = ctx.Err(); err != nil {
 		return out, err
@@ -20,6 +21,17 @@ func (s *Store) BuildMQTTReclamationIndex(ctx context.Context, hashSlot uint16) 
 	proposer, ok := s.cluster.(hashSlotResultProposer)
 	if !ok {
 		return out, fmt.Errorf("metastore: MQTT requires committed proposal results")
+	}
+	// Discovery itself validates coverage in one authoritative snapshot. The
+	// result is a process hint only; every later discovery repeats that proof.
+	if _, readErr := s.ReadMQTTRecovery(ctx, hashSlot, metadb.MQTTRead{Kind: metadb.MQTTReadSessionReclamation, Limit: 1}); readErr == nil {
+		if err = ctx.Err(); err != nil {
+			return out, err
+		}
+		return metadb.MQTTReclamationIndexResult{Done: true}, nil
+	}
+	if err = ctx.Err(); err != nil {
+		return out, err
 	}
 	revision := s.cluster.HashSlotTableVersion()
 	slot, err := s.mqttHashSlotOwner(hashSlot)
