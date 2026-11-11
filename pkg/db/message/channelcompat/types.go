@@ -13,6 +13,9 @@ var (
 	ErrCorruptState    = errors.New("channel: corrupt state")
 	ErrEmptyState      = errors.New("channel: empty state")
 	ErrCorruptValue    = errors.New("channel: corrupt value")
+	// ErrStaleAuthority reports a write or promise from an authority lower than
+	// the replica's durable authority promise. Nothing was written.
+	ErrStaleAuthority = errors.New("channel: stale authority")
 )
 
 const (

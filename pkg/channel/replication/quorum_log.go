@@ -43,6 +43,12 @@ type quorumLogConfig struct {
 	MaxProposalRecords  int
 	MaxProposalBytes    int
 	MaxRetainedCommands int
+	// PromiseActive reports the committed one-way Controller activation of
+	// authority promises. Once true, Install promises its authority on the
+	// recovery probe quorum instead of writing the in-log barrier, because the
+	// log index is message_seq; every append then carries its writer authority.
+	// Nil keeps the barrier protocol.
+	PromiseActive func() bool
 }
 
 // quorumLog owns authority fencing, one sequencer per resident Channel, and
@@ -73,6 +79,13 @@ type quorumChannel struct {
 	inflight bool
 	retained map[ch.CommandID]retainedProposal
 	order    []ch.CommandID
+	// promised is the authority whose durable promise quorum proved the
+	// installed frontier; zero after a barrier-mode install. A promised
+	// frontier may keep an older authority's tail because no barrier is written.
+	promised AuthorityID
+	// progress holds per-voter durable proofs for retention safety; it has its
+	// own lock so readers never wait on Install's sequencer critical section.
+	progress durableProgress
 }
 
 type retainedProposal struct {
@@ -152,21 +165,26 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 	// Installation proves recovered state even while a migration fences business
 	// writes. Commit retains the fence until authoritative metadata clears it.
 
+	// The promise mode is chosen once per installation. Probes then promise
+	// the authority before reporting, so the probe quorum is also the fence.
+	promise := l.writerFor(authority.ID)
 	request := recoveryProbeRequest{
 		ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
 		Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
+		Promise: promise,
 	}
 	selection, err := recoverQuorumPrefix(ctx, request, l.cfg.Recovery)
 	if err != nil {
 		return Installed{}, err
 	}
 	if selection.NeedsConvergence {
-		if err := l.convergeRecoverySuffix(ctx, authority, selection); err != nil {
+		if err := l.convergeRecoverySuffix(ctx, authority, selection, promise); err != nil {
 			return Installed{}, err
 		}
 		selection, err = recoverQuorumPrefix(ctx, recoveryProbeRequest{
 			ChannelKey: authority.Key, ChannelID: authority.ChannelID, Leader: authority.Leader,
 			Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
+			Promise: promise,
 		}, l.cfg.Recovery)
 		if err != nil {
 			return Installed{}, err
@@ -188,9 +206,10 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 	// authority fence. Its first business proposal carries the complete current
 	// authority and makes that proof durable in the same quorum round. A
 	// non-empty frontier still needs the barrier before it can accept a proposal
-	// under a different authority.
-	if recovered != (ReplicaState{}) && !frontierUsesAuthority(recovered, authority.ID) {
-		barrier, barrierErr := writeCurrentTermBarrier(ctx, authority, recovered, l.cfg.Durability)
+	// under a different authority, unless the probe quorum already holds the
+	// durable promise for this authority: then no log index is consumed.
+	if promise == (AuthorityID{}) && recovered != (ReplicaState{}) && !frontierUsesAuthority(recovered, authority.ID) {
+		barrier, barrierErr := writeCurrentTermBarrier(ctx, authority, recovered, l.cfg.Durability, state.progress.sink(authority.ID))
 		if barrierErr != nil {
 			return Installed{}, barrierErr
 		}
@@ -199,6 +218,7 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 
 	state.frontier = installedFrontier
 	state.hw = installedFrontier.LEO
+	state.promised = promise
 	state.ready = true
 	state.pending = nil
 	// Empty and sparse Channels pay for current receipts, not future retry headroom.
@@ -208,11 +228,23 @@ func (l *quorumLog) Install(ctx context.Context, authority Authority) (installed
 	return Installed{Authority: authority.ID, LEO: state.frontier.LEO, HW: state.hw}, nil
 }
 
+// writerFor returns authority once Controller activation of authority promises
+// is observed, and zero before it. Peers that predate promises never receive a
+// writer or promise because activation requires every node to support them.
+func (l *quorumLog) writerFor(authority AuthorityID) AuthorityID {
+	if l.cfg.PromiseActive == nil || !l.cfg.PromiseActive() {
+		return AuthorityID{}
+	}
+	return authority
+}
+
 func fenceQuorumChannel(state *quorumChannel, authority Authority) {
 	state.released = false
 	state.authority = cloneAuthority(authority)
+	state.progress.reset(authority.ID)
 	state.frontier = ReplicaState{}
 	state.hw = 0
+	state.promised = AuthorityID{}
 	state.ready = false
 	state.pending = nil
 	state.retained = make(map[ch.CommandID]retainedProposal)
@@ -306,6 +338,7 @@ func (l *quorumLog) beginLocked(ctx context.Context, state *quorumChannel, propo
 	if err != nil {
 		return Receipt{}, round, false, false, err
 	}
+	durable.writer = l.writerFor(state.authority.ID)
 	if l.cfg.Funding != nil && !proposal.MQTTSourceActivation && !proposal.MQTTReplayAnchor && !proposal.MQTTReplayRetirement {
 		if err := l.cfg.Funding.fundStorage(ctx, state.authority, durable); err != nil {
 			return Receipt{}, round, false, false, errors.Join(ch.ErrAppendNotSubmitted, err)
@@ -319,6 +352,16 @@ func (l *quorumLog) beginLocked(ctx context.Context, state *quorumChannel, propo
 
 // resolveRoundLocked applies one terminal durability result to the sequencer.
 func (l *quorumLog) resolveRoundLocked(ctx context.Context, state *quorumChannel, retained retainedProposal, result durableRoundResult, err error) (Receipt, error) {
+	if err != nil && errors.Is(err, ch.ErrStaleMeta) {
+		// A replica refused this authority for a newer one: this sequencer is a
+		// stale owner. Unknown local debt stays pending until a reinstall, which
+		// a newer promise also refuses.
+		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
+			state.pending = nil
+		}
+		state.ready = false
+		return Receipt{}, ch.ErrStaleMeta
+	}
 	if err != nil {
 		// Definitively unwritten rounds release pending sequencing, never unknown debt.
 		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
@@ -365,7 +408,7 @@ func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, prop
 	if err != nil || done {
 		return receipt, err
 	}
-	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, round.proposal, l.cfg.Durability)
+	result, err := runDurableRoundWithProofs(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, round.proposal, l.cfg.Durability, state.progress.sink(state.authority.ID))
 	decisionPhase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelQuorumDecision)
 	receipt, err = l.resolveRoundLocked(ctx, state, round, result, err)
 	decisionPhase.End(rpctrace.ResultFor(err))
@@ -404,7 +447,7 @@ func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complet
 	authority := cloneAuthority(state.authority)
 	state.inflight = true
 	state.mu.Unlock()
-	err = startDurableRound(ctx, l.cfg.Local, authority.Voters, authority.WriteQuorum, round.proposal, l.cfg.Durability, func(result durableRoundResult, err error) {
+	err = startDurableRound(ctx, l.cfg.Local, authority.Voters, authority.WriteQuorum, round.proposal, l.cfg.Durability, state.progress.sink(authority.ID), func(result durableRoundResult, err error) {
 		decisionPhase := rpctrace.BeginAppendPhase(ctx, rpctrace.StageChannelQuorumDecision)
 		state.mu.Lock()
 		var receipt Receipt
@@ -502,7 +545,7 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 	return retainedProposal{proposal: durableProposal{
 		first: receipt.First, last: receipt.Last,
 		channelKey: state.authority.Key, channelID: state.authority.ChannelID, leader: state.authority.Leader,
-		manifest: manifest, committed: manifest.BaseOffset,
+		manifest: manifest, committed: manifest.BaseOffset, writer: l.writerFor(state.authority.ID),
 	}, receipt: receipt, durable: true}, true, nil
 }
 
@@ -515,7 +558,7 @@ func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, reta
 	if state.inflight {
 		return Receipt{}, ch.ErrBackpressured
 	}
-	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
+	result, err := runDurableRoundWithProofs(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability, state.progress.sink(state.authority.ID))
 	return l.resolveRoundLocked(ctx, state, retained, result, err)
 }
 
@@ -731,7 +774,7 @@ func (l *quorumLog) scheduleLearners(state *quorumChannel, from uint64) {
 		sink.RecordFollowerRepair(followerRepair{
 			channelKey: state.authority.Key, channelID: state.authority.ChannelID,
 			leader: state.authority.Leader, follower: learner, manifest: state.frontier.Manifest,
-			needFrom: from, committed: state.hw,
+			needFrom: from, committed: state.hw, writer: l.writerFor(state.authority.ID),
 		})
 	}
 }

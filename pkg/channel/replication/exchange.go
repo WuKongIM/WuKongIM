@@ -75,6 +75,12 @@ type ReplicateRequest struct {
 	Committed uint64
 	// ServerAllocatedMessageIDs carries the leader's all-record allocator proof.
 	ServerAllocatedMessageIDs bool
+	// Writer is the issuing leader's complete authority, fenced against the
+	// follower's durable authority promise. It is set only after Controller
+	// activation of authority promises and travels as a distinct wire kind, so
+	// peers that predate promises never receive it. Zero fences the append by
+	// the manifest's own authority without raising the promise.
+	Writer AuthorityID
 }
 
 // ReplicateProof is the follower's exact durable identity echo. A durable
@@ -100,7 +106,7 @@ func replicateProofFor(request ReplicateRequest) ReplicateProof {
 // Valid reports whether the request carries one complete immutable proposal.
 func (r ReplicateRequest) Valid() bool {
 	if r.ChannelKey == "" || r.ChannelID.ID == "" || r.Leader == 0 || r.Follower == 0 || r.Leader == r.Follower ||
-		!r.Manifest.ValidFor(r.Manifest.BaseOffset, len(r.Records)) || r.Committed > r.Manifest.LastOffset {
+		!validOptionalAuthorityID(r.Writer) || !r.Manifest.ValidFor(r.Manifest.BaseOffset, len(r.Records)) || r.Committed > r.Manifest.LastOffset {
 		return false
 	}
 	if !validProposalRecords(r.Records, MaxExchangeBatchBytes) {
@@ -128,6 +134,11 @@ type ProbeRequest struct {
 	Leader     ch.NodeID
 	Follower   ch.NodeID
 	Indexes    []uint64
+	// Promise, when set, asks the follower to durably promise this authority
+	// before reading its frontier, replacing the in-log authority barrier. A
+	// follower holding a higher promise answers ReplicateStaleFence instead of
+	// a tail. It is sent only after Controller activation, as a distinct wire kind.
+	Promise AuthorityID
 }
 
 // ProbeProof binds one read result to the exact Channel, participants, and
@@ -170,7 +181,7 @@ func zeroProbeProof(proof ProbeProof) bool {
 // Valid reports whether the probe is one bounded, identity-safe request.
 func (r ProbeRequest) Valid() bool {
 	return r.ChannelKey != "" && r.ChannelID.ID != "" && r.Leader != 0 && r.Follower != 0 &&
-		r.Leader != r.Follower && len(r.Indexes) <= maxRecoveryProbeIndexes && validProbeIndexes(r.Indexes)
+		r.Leader != r.Follower && validOptionalAuthorityID(r.Promise) && len(r.Indexes) <= maxRecoveryProbeIndexes && validProbeIndexes(r.Indexes)
 }
 
 // ProbeResult is one exact follower recovery view.
@@ -294,4 +305,16 @@ func estimateProbeRequestBytes(request ProbeRequest) int {
 func estimateFetchRequestBytes(request FetchRequest) int {
 	const fixedBytes = 256
 	return fixedBytes + len(request.ChannelKey) + len(request.ChannelID.ID) + request.MaxBytes
+}
+
+// validOptionalAuthorityID accepts an absent authority or a complete one.
+func validOptionalAuthorityID(id AuthorityID) bool {
+	return id == (AuthorityID{}) || id.ChannelEpoch != 0 && id.LeaderTerm != 0 && id.FenceVersion != 0
+}
+
+// promiseProbeStale reports the closed reply to a promising probe that the
+// follower refused because it already holds a higher promise.
+func promiseProbeStale(request ProbeRequest, result ExchangeItemResult) bool {
+	return request.Promise != (AuthorityID{}) && result.Replicate == (ReplicateResult{Status: ReplicateStaleFence}) &&
+		result.Funding == (StorageFundingResult{}) && zeroProbeResult(result.Probe) && zeroFetchResult(result.Fetch)
 }

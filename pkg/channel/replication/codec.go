@@ -16,6 +16,15 @@ const (
 	MaxExchangeBatchBytes = 4 << 20
 )
 
+// Wire-only item kinds carry the authority-promise fields. They decode to
+// ExchangeReplicate and ExchangeProbe, and are sent only after Controller
+// activation proved that every node decodes them; unfenced items keep the
+// original kinds byte for byte.
+const (
+	exchangeWireFencedReplicate byte = 6
+	exchangeWirePromiseProbe    byte = 7
+)
+
 var errInvalidExchangeFrame = errors.New("channel replication: invalid exchange frame")
 
 // EncodeExchangeBatch encodes one bounded peer request batch.
@@ -31,7 +40,16 @@ func EncodeExchangeBatch(batch ExchangeBatch) ([]byte, error) {
 			return nil, ch.ErrInvalidConfig
 		}
 		buf = appendCodecUvarint(buf, item.RequestID)
-		buf = append(buf, byte(item.Kind))
+		wireKind := byte(item.Kind)
+		switch {
+		case item.Kind == ExchangeReplicate && item.Replicate != nil && item.Replicate.Writer != (AuthorityID{}):
+			wireKind = exchangeWireFencedReplicate
+		case item.Kind == ExchangeProbe && item.Probe != nil && item.Probe.Promise != (AuthorityID{}):
+			wireKind = exchangeWirePromiseProbe
+		case item.Replicate != nil && item.Replicate.Writer != (AuthorityID{}):
+			return nil, ch.ErrInvalidConfig
+		}
+		buf = append(buf, wireKind)
 		switch item.Kind {
 		case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
 			if item.Replicate == nil || item.Probe != nil || item.Fetch != nil || !item.Replicate.Valid() {
@@ -48,11 +66,17 @@ func EncodeExchangeBatch(batch ExchangeBatch) ([]byte, error) {
 			if item.Kind != ExchangeReplicate {
 				buf = appendCodecUvarint(buf, item.FundingNonce)
 			}
+			if wireKind == exchangeWireFencedReplicate {
+				buf = appendAuthorityID(buf, item.Replicate.Writer)
+			}
 		case ExchangeProbe:
 			if batch.Priority != ExchangePriorityForeground || item.Probe == nil || item.Replicate != nil || item.Fetch != nil || !item.Probe.Valid() {
 				return nil, ch.ErrInvalidConfig
 			}
 			buf = appendProbeRequest(buf, *item.Probe)
+			if wireKind == exchangeWirePromiseProbe {
+				buf = appendAuthorityID(buf, item.Probe.Promise)
+			}
 		case ExchangeFetch:
 			if batch.Priority != ExchangePriorityForeground || item.Fetch == nil || item.Replicate != nil || item.Probe != nil || !item.Fetch.Valid() {
 				return nil, ch.ErrInvalidConfig
@@ -95,9 +119,20 @@ func DecodeExchangeBatch(data []byte) (ExchangeBatch, error) {
 			return ExchangeBatch{}, errInvalidExchangeFrame
 		}
 		item := ExchangeItem{RequestID: requestID, Kind: ExchangeKind(kind)}
+		switch kind {
+		case exchangeWireFencedReplicate:
+			item.Kind = ExchangeReplicate
+		case exchangeWirePromiseProbe:
+			item.Kind = ExchangeProbe
+		}
 		switch item.Kind {
 		case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
 			request, valid := c.replicateRequest()
+			if kind == exchangeWireFencedReplicate {
+				var okWriter bool
+				request.Writer, okWriter = c.authorityID()
+				valid = valid && okWriter && request.Writer != (AuthorityID{})
+			}
 			if !valid || !request.Valid() {
 				return ExchangeBatch{}, errInvalidExchangeFrame
 			}
@@ -111,6 +146,11 @@ func DecodeExchangeBatch(data []byte) (ExchangeBatch, error) {
 			}
 		case ExchangeProbe:
 			request, valid := c.probeRequest()
+			if kind == exchangeWirePromiseProbe {
+				var okPromise bool
+				request.Promise, okPromise = c.authorityID()
+				valid = valid && okPromise && request.Promise != (AuthorityID{})
+			}
 			if priority != ExchangePriorityForeground || !valid || !request.Valid() {
 				return ExchangeBatch{}, errInvalidExchangeFrame
 			}
@@ -224,6 +264,19 @@ func appendProbeRequest(dst []byte, request ProbeRequest) []byte {
 		dst = appendCodecUvarint(dst, index)
 	}
 	return dst
+}
+
+func appendAuthorityID(dst []byte, id AuthorityID) []byte {
+	dst = appendCodecUvarint(dst, id.ChannelEpoch)
+	dst = appendCodecUvarint(dst, id.LeaderTerm)
+	return appendCodecUvarint(dst, id.FenceVersion)
+}
+
+func (c *exchangeCursor) authorityID() (AuthorityID, bool) {
+	epoch, okEpoch := c.uvarint()
+	term, okTerm := c.uvarint()
+	fence, okFence := c.uvarint()
+	return AuthorityID{ChannelEpoch: epoch, LeaderTerm: term, FenceVersion: fence}, okEpoch && okTerm && okFence
 }
 
 func appendFetchRequest(dst []byte, request FetchRequest) []byte {

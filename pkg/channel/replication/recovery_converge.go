@@ -10,12 +10,14 @@ import (
 // convergeRecoverySuffix copies one bounded page of immutable proposals only
 // when a read quorum proves that every observed tail belongs to the donor's
 // chain. It never truncates a replica or promotes an unproved commit frontier.
-// A new quorum probe, followed by the authority barrier, still gates readiness.
-func (l *quorumLog) convergeRecoverySuffix(ctx context.Context, authority Authority, selected recoverySelection) error {
+// A fresh quorum probe still gates readiness; before promise activation it
+// must also be followed by the current-authority barrier.
+func (l *quorumLog) convergeRecoverySuffix(ctx context.Context, authority Authority, selected recoverySelection, promise AuthorityID) error {
 	ctx, cancel := context.WithTimeout(ctx, l.cfg.RecoveryTimeout)
 	defer cancel()
 	request := recoveryProbeRequest{ChannelKey: authority.Key, ChannelID: authority.ChannelID,
-		Leader: authority.Leader, Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout}
+		Leader: authority.Leader, Voters: authority.Voters, Quorum: authority.WriteQuorum, Timeout: l.cfg.RecoveryTimeout,
+		Promise: promise}
 	reports, err := collectRecoveryProbeRound(ctx, request, nil, l.cfg.Recovery)
 	if err != nil {
 		return err
@@ -108,7 +110,8 @@ func (l *quorumLog) convergeRecoverySuffix(ctx context.Context, authority Author
 			}
 			proposal := durableProposal{first: item.Manifest.BaseOffset + 1, last: item.Manifest.LastOffset,
 				channelKey: authority.Key, channelID: authority.ChannelID, leader: authority.Leader,
-				manifest: item.Manifest, records: item.Records, committed: min(selected.Index, item.Manifest.LastOffset)}
+				manifest: item.Manifest, records: item.Records, committed: min(selected.Index, item.Manifest.LastOffset),
+				writer: promise}
 			completed := make(chan durabilityCompletion, 1)
 			finish := func(result durabilityCompletion) { completed <- result }
 			if report.Voter == authority.Leader {

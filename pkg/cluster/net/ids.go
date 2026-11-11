@@ -169,6 +169,10 @@ const (
 	RPCPresenceControl
 	// RPCPersonDirectoryPrepare waits for source-owned person discovery preparation.
 	RPCPersonDirectoryPrepare
+	// RPCChannelReplicationControl answers the Channel replication capability
+	// probe that gates one-way activation of authority promises. Older nodes do
+	// not register it, so probing them fails closed.
+	RPCChannelReplicationControl
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -301,6 +305,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot mqtt metadata"
 	case RPCPresenceControl:
 		return "presence control"
+	case RPCChannelReplicationControl:
+		return "channel replication control"
 	case RPCMQTTOwner:
 		return "mqtt owner"
 	case RPCChannelMQTTSource:

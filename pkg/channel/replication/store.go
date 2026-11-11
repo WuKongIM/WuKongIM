@@ -15,6 +15,10 @@ type LoadRequest struct {
 	// ProbeIndexes requests exact entry identities from the same consistent
 	// frontier view. Entries are returned in this order.
 	ProbeIndexes []uint64
+	// Promise, when set, is durably promised before the frontier is read, so
+	// every append accepted earlier is visible and every lower one afterwards
+	// is rejected. A higher existing promise fails the item with ch.ErrStaleMeta.
+	Promise AuthorityID
 }
 
 // LoadBatch groups a bounded set of local replica frontier reads.
@@ -82,6 +86,9 @@ type Mutation struct {
 	Class MutationClass
 	// ServerAllocatedMessageIDs carries the leader's all-record allocator proof.
 	ServerAllocatedMessageIDs bool
+	// Writer is the issuing leader's authority fenced against this replica's
+	// durable promise; zero fences by the manifest's own authority.
+	Writer AuthorityID
 }
 
 // MutationResult is the closed per-item result of ReplicaStore.Sync.

@@ -221,8 +221,11 @@ type Node struct {
 	healthReportWG   sync.WaitGroup
 	slotLeaderCancel context.CancelFunc
 	slotLeaderWG     sync.WaitGroup
-	started          atomic.Bool
-	stopping         atomic.Bool
+	// channelPromiseProbeState owns the paced authority-promise activation loop
+	// and the private probe client used for unjoined endpoints.
+	channelPromiseProbeState
+	started  atomic.Bool
+	stopping atomic.Bool
 	// maintenanceAdmissionMu linearizes restore maintenance transitions with
 	// ordinary Slot proposal enqueue, including forwarded requests.
 	maintenanceAdmissionMu sync.RWMutex
