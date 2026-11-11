@@ -90,7 +90,13 @@ func TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner(t *testing.T) {
 		}
 		defer handle.Close()
 		proof, found, e := handle.(channelstore.MQTTReplayAnchorReader).LoadMQTTReplayAnchor(ctx, 3)
-		return e == nil && found && proof.Anchor == anchor && proof.Manifest.CommandID == proposal.CommandID
+		if e != nil || !found || proof.Anchor != anchor || proof.Manifest.CommandID != proposal.CommandID {
+			return false
+		}
+		// The journal is durable before the commit publishes its in-memory LEO.
+		// Wait for both before attributing any later frontier change to import.
+		state, e := handle.Load(ctx)
+		return e == nil && state.LEO >= receipt.HW && state.HW >= receipt.HW && state.CheckpointHW >= receipt.HW
 	}
 	for _, node := range []ch.NodeID{1, 2, 3, 4} {
 		require.Eventually(t, func() bool { return check(node) }, 3*time.Second, time.Millisecond, "replica %d must retain its committed anchor journal", node)

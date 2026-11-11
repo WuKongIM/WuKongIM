@@ -67,7 +67,8 @@ type ConsumerWorkerOptions struct {
 	Interval time.Duration
 	// ScanTimeout bounds a complete discovery turn, default two seconds, max one minute.
 	ScanTimeout time.Duration
-	// CallTimeout bounds each discovery call, default 250ms, no greater than ScanTimeout.
+	// CallTimeout bounds each discovery read, default 250ms, no greater than ScanTimeout.
+	// Durable reclamation-index backfill uses the remaining ScanTimeout budget.
 	CallTimeout time.Duration
 	// ExecutionTimeout independently bounds one executor turn, default/maximum five seconds.
 	ExecutionTimeout time.Duration
