@@ -1836,7 +1836,7 @@ specification, runbook, report, or module documentation; link to them when neede
   The sequence-contiguity history proof uses its existing 15-second read bound
   for the exact `503 unavailable` recovery response; successful pages must
   immediately satisfy contiguous positions and every acknowledged identity.
-- Recovery FIFO coalescing fixtures use prepaid result providers: the legacy
+- Recovery FIFO coalescing and shared-batch cancellation fixtures use prepaid result providers: the legacy
   sixteen-original-call result cap legitimately dispatches single queued calls
   when each prior caller retires separately. RPC trace completion likewise
   preserves an unfinished request-write span when the response beats the local
@@ -3173,3 +3173,8 @@ completion, installation and provider-reference release.
   replay imports retain a sufficient larger prepaid charge without refund or
   grant growth. Insufficient/corrupt receipts fail closed; ordinary funding
   continues to require exact charges. This also holds after original trimming.
+
+- Chat-lifecycle phase boundaries and metric captures share a fractional-second
+  clock; mixing their precision can make adjacent evidence rows regress. Flooring a
+  measurement end to whole seconds can exclude an already observed worker cut
+  and falsely invalidate its profile trigger against the frozen timeline.
