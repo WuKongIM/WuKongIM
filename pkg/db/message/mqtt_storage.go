@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -215,6 +216,22 @@ func (e *channelEntry) prepareMQTTStorageBooking(ctx context.Context, rows []mes
 			}
 			if old != n {
 				fmt.Printf("[DEBUG-sub-confirm] storage charge mismatch position=%d old=%d reconstructed=%d\n", row.MessageSeq, old, n)
+				originalKey := encodeMessageRowKey(e.key, row.MessageSeq, 0)
+				raw, present, readErr := e.db.engine.Get(originalKey)
+				original := messageRow{MessageSeq: row.MessageSeq}
+				if readErr == nil && present {
+					readErr = decodeMessageHeader(originalKey, raw, &original)
+				}
+				fmt.Printf("[DEBUG-sub-confirm] original present=%v error=%v charge=%d incoming_payload_size=%d payload_len=%d\n", present, readErr, mqttStorageRowBytes(e.key, s.Generation, original), row.PayloadSize, len(row.Payload))
+				if readErr == nil && present {
+					a, b := reflect.ValueOf(original), reflect.ValueOf(row)
+					for i := 0; i < a.NumField(); i++ {
+						if !reflect.DeepEqual(a.Field(i).Interface(), b.Field(i).Interface()) {
+							fmt.Printf("[DEBUG-sub-confirm] original/incoming differ field=%s\n", a.Type().Field(i).Name)
+						}
+					}
+				}
+
 				return nil, 0, dberrors.ErrCorruptState
 			}
 			continue
