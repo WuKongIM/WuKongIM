@@ -58,7 +58,9 @@ management, plugins, diagnostics, and bounded operations observations.
    endpoint evidence fails the whole UID-list lookup.
 3. Management and operations adapters receive policy-validated requests,
    select node-local or peer execution, and return bounded, redacted read
-   models with partial evidence explicit. Revision-fenced management writes may
+   models with partial evidence explicit. Channel-scoped Manager message pages
+   use routed committed reads from the Channel leader, retaining pagination and
+   read errors without falling back to a stale local replica. Revision-fenced management writes may
    read the Controller-visible snapshot separately from the Node-applied read
    model so runtime reconciliation cannot stall their CAS convergence.
    Channel observations group exact leader targets with four-call concurrency

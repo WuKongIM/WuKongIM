@@ -636,6 +636,10 @@ specification, runbook, report, or module documentation; link to them when neede
   pending follower repairs finish, then remove the retired identity. Peer
   flight alone is insufficient: terminal callbacks own the item budget until
   return. Order retirement with reinstall, including the same authority ID.
+- Channel-scoped Manager message pages and tail reads use the routed committed
+  Channel leader path. A lagging or non-hosting ingress is not message-history
+  authority; routed failures must not fall back to its local store. Global
+  latest-message inventory remains a separate node-index fanout.
 - Persistent SENDACK requires the exact proposal to be crash-safe locally and on
   an intersecting voter write quorum. Learners do not vote. Never acknowledge
   before synchronous durability or expose message append `NoSync` as configuration.

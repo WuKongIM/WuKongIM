@@ -279,9 +279,9 @@ func sameManagementMessages(left, right []managementusecase.Message) bool {
 }
 
 // Manager message pages must come from the Channel leader through the routed
-// committed read (as client sync does): a node-local read returned 404 on
-// non-hosting nodes, stale pages on replicas, and internal authority-barrier
-// rows. Failure case: any local read when a routed reader exists.
+// committed read (as client sync does): a node-local read returned errors on
+// non-hosting nodes and stale pages on replicas.
+// Failure case: any local read when a routed reader exists.
 func TestManagementMessageReaderQueriesPagesThroughChannelLeader(t *testing.T) {
 	t.Parallel()
 

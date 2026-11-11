@@ -234,9 +234,8 @@ func (r *ManagementMessageReader) QueryMessages(ctx context.Context, req managem
 
 // readCommittedPage reads one page through the Channel leader when the node
 // supports routed reads, as client history sync does. A node-local read
-// returned 404 on nodes that do not host the Channel's Slot, stale pages on
-// lagging replicas, and internal authority-barrier rows. Routed errors never
-// fall back to the local store.
+// returned errors on non-hosting nodes and stale pages on lagging replicas.
+// Routed errors never fall back to the local store.
 func (r *ManagementMessageReader) readCommittedPage(ctx context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	batchNode, ok := r.node.(channelMessageBatchReadNode)
 	if !ok {

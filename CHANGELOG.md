@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Channel-scoped Manager message queries now work through nodes that do not host the Channel or its metadata replicas by reading committed history from the Channel leader; pagination and retention boundaries are preserved. / 管理后台按频道查询消息时改为读取 Channel leader 的已提交历史，修复从未保存该频道或元数据副本的节点查询不到消息的问题，保留原有分页和消息保留边界。
+
 - The Manager goroutine monitor no longer reports the cluster module as critical on every multi-node cluster. Slot leader refresh ran local and remote loops under one single-instance task; they are now tracked as separate tasks. / 修复管理后台 goroutine 监控在多节点集群中总是把 cluster 模块报为 critical 的问题：slot leader 刷新的本地循环和远端循环此前共用一个单实例任务，现在分开记录。
 - Message retention advances again on replicated Channels. Since v3.0.0-beta.1, the Manager retention API stayed `blocked: min_isr_match_offset` on every multi-replica Channel, and physical cleanup never deleted on the leader. Durable-quorum replication now records each replica's proven durable position, and retention advances once every ISR replica has proven the boundary. / 修复多副本 channel 的消息保留无法推进的问题：自 v3.0.0-beta.1 起，管理后台推进保留位置在多副本 channel 上一直报 `blocked: min_isr_match_offset`，leader 上的物理清理也从不执行；现在 durable quorum 复制会记录每个副本已证明持久化的位置，所有 ISR 副本都证明到达后即可推进。
 - A dynamic data node that restarts while it is leaving (during scale-in) now finishes starting and resumes draining. Previously its startup waited forever for a re-join the Controller rejects, and healthy nodes could then reject client connections while presence activation waited on it. / 修复缩容过程中处于 leaving 状态的动态数据节点重启后无法完成启动的问题：此前它会无限等待一次会被 Controller 拒绝的重新加入，健康节点上的 presence 激活也会因等待它而拒绝客户端连接；现在它会正常启动并继续排空。
