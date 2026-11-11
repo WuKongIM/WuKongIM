@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -31,6 +32,13 @@ func checkE2EShard(ctx context.Context, root string, commands commandExecutor, i
 	packages, err := e2eShardPackages(string(output), index)
 	if err != nil {
 		return err
+	}
+	// Install the pinned example only on the shard that executes it. A failed
+	// prerequisite stops here, before any product-process acceptance runs.
+	if slices.Contains(packages, e2ePackagePrefix+"/mqtt/docs_quickstart") {
+		if err := commands.Run(ctx, checkStep{directory: filepath.Join(root, "docs-site", "examples", "mqtt-quickstart"), name: "npm", arguments: []string{"ci"}}); err != nil {
+			return fmt.Errorf("install MQTT quickstart dependencies: %w", err)
+		}
 	}
 	arguments := append([]string{"test", "-tags=e2e"}, packages...)
 	arguments = append(arguments, "-count=1", "-p=1", "-timeout=50m")

@@ -1804,6 +1804,16 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- MQTT recovery fixtures must distinguish cluster/Slot readiness from the
+  Channel's bounded quorum recovery: repeat only `ErrNotReady` with the same
+  authority/request and a fixed deadline, then assert exact recovered content.
+  A learner-missing-content fixture must activate protection before appending
+  a real business message; an activation-only anchor can already be covered.
+- Nightly E2E shards provision pinned Node.js. `cmd/wkcicheck` installs locked
+  MQTT.js quickstart dependencies only on its selected shard; installation
+  failure stops before product tests. Direct scenario runs retain the documented
+  `npm ci` prerequisite.
+
 - Verify build source identity separately for nested Git worktrees: Go 1.25.11
   VCS detection recognizes `.git` directories, so a worktree's `.git` file can
   produce the outer repository's revision stamp. For exact-source E2E evidence,

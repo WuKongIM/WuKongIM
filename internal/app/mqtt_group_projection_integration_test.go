@@ -26,6 +26,12 @@ func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*clust
 	seedGroupSendPermission(t, nodes[0], id, "alice")
 	m := meta.ChannelRuntimeMeta{ChannelID: id.ID, ChannelType: 2, ChannelEpoch: 1, LeaderEpoch: 1, RouteGeneration: 1, Leader: 2, Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2}, MinISR: 2, Status: uint8(ch.StatusActive)}
 	require.NoError(t, nodes[0].Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(m)}))
+	// Activate protection before a real message. An activation-only anchor has
+	// no business content for the learner to miss and can already be covered.
+	source, err := nodes[0].EnsureChannelMQTTSource(ctx, ch.MQTTSourceRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, MessageID: ids.Next(), ServerTimestampMS: time.Now().UnixMilli()})
+	require.NoError(t, err)
+	_, err = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: ids.Next(), FromUID: "alice", Payload: []byte("protected before subscription"), ServerTimestampMS: time.Now().UnixMilli()}})
+	require.NoError(t, err)
 	cmd := sessioncase.ConnectCommand{Key: contract.Key{Namespace: "main", ClientID: "group-projection"}, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }}
 	first, e := sessions[0].Connect(ctx, cmd)
 	require.NoError(t, e)
@@ -60,6 +66,7 @@ func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*clust
 		require.NotNil(c, view.ReplayReadiness, "learner replay readiness")
 		readiness := *view.ReplayReadiness
 		require.Positive(c, readiness.AnchorPosition, "learner anchor: %+v", readiness)
+		require.Greater(c, readiness.RequiredThrough, source.CommittedThrough, "anchor must require protected business content")
 		require.False(c, readiness.Covered, "learner must independently show missing shared content: %+v", readiness)
 	}, 10*time.Second, 30*time.Millisecond)
 	_, e = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: ids.Next(), FromUID: "alice", Payload: []byte("after pending subscription"), ServerTimestampMS: time.Now().UnixMilli()}})

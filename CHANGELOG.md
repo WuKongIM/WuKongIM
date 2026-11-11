@@ -22,6 +22,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Nightly MQTT.js quickstart checks now install the pinned example dependencies before running the selected E2E shard. / Nightly 的 MQTT.js 快速入门检查会先安装锁定的示例依赖，再运行对应 E2E 分片。
+
 - A Channel leader change no longer consumes a `message_seq`. Previously each leader change on a non-empty multi-replica Channel wrote a hidden authority barrier, so clients saw gaps such as 3 → 5 after failover. Each replica now stores a durable authority promise outside the message log instead. The cluster switches over automatically, once and permanently, after every node runs a version that supports it (log event `cluster.channel_promise.activated`); until then behavior is unchanged and rollback stays possible. **After activation, rolling back to an earlier version is not supported.** Gaps already in existing history are left as they are. / Channel leader 切换不再占用 `message_seq`：此前非空多副本 channel 每次切换 leader 都会写入一条隐藏的 authority barrier，故障转移后客户端会看到 3 → 5 这样的空洞；现在改为每个副本在消息日志之外保存持久的 authority 承诺。所有节点都升级到支持该功能的版本后，集群会自动、一次性且永久地切换（日志事件 `cluster.channel_promise.activated`）；切换前行为不变，仍可回滚。**激活后不支持回滚到更早版本。** 已有历史中的空洞保持原样。
 
 - Presence diagnostics: a node that rejects a presence recovery round as an owner now logs `presence_owner_begin_rejected` with a fixed `owner_reject_reason` (for example `no_slot_leader`, `roster_not_current` or `own_boot_not_in_owner_set`), and stale-generation login failures keep their recovery evidence in the gateway log. / Presence 诊断：节点作为 owner 拒绝 presence 恢复时会记录 `presence_owner_begin_rejected` 及固定的 `owner_reject_reason`（如 `no_slot_leader`、`roster_not_current`、`own_boot_not_in_owner_set`）；因 stale generation 失败的登录在网关日志中保留恢复证据。

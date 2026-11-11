@@ -343,6 +343,10 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        if: startsWith(matrix.suite, 'e2e-shard-')
+        with:
+          node-version: "22.12.0"
       - name: Run ${{ matrix.suite }}
         env:
           SUITE: ${{ matrix.suite }}

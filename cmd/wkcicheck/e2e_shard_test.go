@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -94,4 +96,32 @@ func TestE2EShardFailsClosed(t *testing.T) {
 	executor := &fakeCommandExecutor{output: e2eShardListing([]string{"not-a-repository-package"})}
 	require.Error(t, runCICheck(context.Background(), t.TempDir(), "e2e-shard-1", executor))
 	require.Error(t, runCICheck(context.Background(), t.TempDir(), "e2e-shard-0", &fakeCommandExecutor{}))
+}
+
+// Failure inventory: selected quickstart lacks dependencies; unrelated shards
+// install needlessly; dependency failure falls through into a misleading E2E run.
+func TestE2EShardInstallsSelectedMQTTQuickstart(t *testing.T) {
+	packages := []string{e2ePackagePrefix + "/a", e2ePackagePrefix + "/b", e2ePackagePrefix + "/c", e2ePackagePrefix + "/mqtt/docs_quickstart"}
+	root := t.TempDir()
+	for index := 1; index <= e2eShardCount; index++ {
+		executor := &fakeCommandExecutor{output: e2eShardListing(packages)}
+		require.NoError(t, checkE2EShard(context.Background(), root, executor, index))
+		if index != 4 {
+			require.Len(t, executor.runs, 1)
+			require.Equal(t, "go", executor.runs[0].name)
+			continue
+		}
+		require.Len(t, executor.runs, 2)
+		require.Equal(t, checkStep{directory: filepath.Join(root, "docs-site", "examples", "mqtt-quickstart"), name: "npm", arguments: []string{"ci"}}, executor.runs[0])
+		require.Equal(t, "go", executor.runs[1].name)
+	}
+	sentinel := errors.New("dependency installation failed")
+	executor := &fakeCommandExecutor{output: e2eShardListing(packages), run: func(_ context.Context, step checkStep) error {
+		if step.name == "npm" {
+			return sentinel
+		}
+		return nil
+	}}
+	require.ErrorIs(t, checkE2EShard(context.Background(), root, executor, 4), sentinel)
+	require.Len(t, executor.runs, 1, "do not run product tests after dependency failure")
 }

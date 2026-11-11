@@ -4,6 +4,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -39,13 +40,23 @@ func TestPromiseLearnerCatchesUpUnderWriteFence(t *testing.T) {
 	a.ID.ChannelEpoch++
 	a.ID.FenceVersion++
 	a.Learners = []ch.NodeID{4}
-	installed, err := runtimes[1].Log().Install(ctx, a)
-	require.NoError(t, err)
+	// A successful Commit needs a quorum, so another voter can still be
+	// applying its suffix when the next authority probes it. Install yields
+	// ErrNotReady while that bounded convergence finishes.
+	install := func() Installed {
+		var installed Installed
+		require.Eventually(t, func() bool {
+			installed, err = runtimes[1].Log().Install(ctx, a)
+			return !errors.Is(err, ch.ErrNotReady)
+		}, 2*time.Second, time.Millisecond)
+		require.NoError(t, err)
+		return installed
+	}
+	installed := install()
 	require.Equal(t, uint64(1), installed.HW)
 	a.ID.FenceVersion++
 	a.WriteFence = ch.WriteFence{Token: "replacement", Version: 1, Reason: ch.WriteFenceReasonReplicaReplace}
-	installed, err = runtimes[1].Log().Install(ctx, a)
-	require.NoError(t, err)
+	installed = install()
 	require.Equal(t, uint64(1), installed.HW, "a fenced promise install consumes no log index")
 	require.Eventually(t, func() bool {
 		loaded, err := stores[4].Load(ctx, LoadBatch{Items: []LoadRequest{{ChannelKey: a.Key, ChannelID: a.ChannelID}}})
