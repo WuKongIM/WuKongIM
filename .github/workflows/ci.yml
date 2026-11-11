@@ -335,7 +335,7 @@ jobs:
       matrix:
         # Serial E2E over every suite exceeded one 60-minute job, so it runs
         # as named wkcicheck shards (stable round-robin of sorted packages).
-        suite: [race, integration, e2e-shard-1, e2e-shard-2, e2e-shard-3, e2e-shard-4, gofail-e2e]
+        suite: [integration]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

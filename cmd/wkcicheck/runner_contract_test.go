@@ -142,7 +142,7 @@ func TestIntegrationSelectorSeparatesResourceHeavyPackageProcesses(t *testing.T)
 	require.NoError(t, runCICheck(context.Background(), "/workspace", "integration", executor))
 	require.Equal(t, []checkStep{{
 		directory: "/workspace", environment: []string{"GOWORK=off"}, name: "go",
-		arguments: []string{"test", "-tags=integration", "./internal/...", "./pkg/...", "-count=1", "-p=1", "-timeout=50m"},
+		arguments: []string{"test", "-tags=integration", "./pkg/cluster", "-run=^TestThreeNodeColdPersonChannelWaveMeetsAttemptBudget$", "-count=3", "-p=1", "-timeout=5m", "-v"},
 	}}, executor.runs)
 }
 

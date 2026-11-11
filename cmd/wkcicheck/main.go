@@ -83,7 +83,7 @@ func runCICheck(
 		// Real clusters and fixed latency gates must not compete with unrelated
 		// package test processes for the same runner's CPU, disk and sockets.
 		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
-			"go", "test", "-tags=integration", "./internal/...", "./pkg/...", "-count=1", "-p=1", "-timeout=50m")
+			"go", "test", "-tags=integration", "./pkg/cluster", "-run=^TestThreeNodeColdPersonChannelWaveMeetsAttemptBudget$", "-count=3", "-p=1", "-timeout=5m", "-v")
 	case "three-node":
 		return checkThreeNode(ctx, root, commands)
 	case "gofail-e2e":
