@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
@@ -12,9 +13,11 @@ import (
 func committedMQTTReplayPrefix(view proposalReadView, key ChannelKey, position uint64) (MQTTReplayState, error) {
 	proof, found, err := loadMQTTReplayAnchorFrom(view, key, position)
 	if err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:15 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	if !found {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:18 ErrConflict\n")
 		return MQTTReplayState{}, dberrors.ErrConflict
 	}
 	a := proof.Anchor
@@ -68,12 +71,15 @@ func (l *ChannelLog) ExportMQTTReplayAnchor(ctx context.Context, position, from 
 // checkpoint, source-release decision or ordinary history, and proves no quorum.
 func (l *ChannelLog) ImportMQTTReplayAnchor(ctx context.Context, position uint64, page MQTTReplayTransfer) (MQTTReplayState, error) {
 	if err := validateMQTTReplayTransfer(page); err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:71 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	if position == 0 || position <= page.After.Through {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:74 ErrInvalidArgument\n")
 		return MQTTReplayState{}, dberrors.ErrInvalidArgument
 	}
 	if err := l.beginUse(); err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:77 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	defer l.endUse()
@@ -82,13 +88,16 @@ func (l *ChannelLog) ImportMQTTReplayAnchor(ctx context.Context, position uint64
 	l.checkpointMu.Lock()
 	defer l.checkpointMu.Unlock()
 	if err := ctxErr(ctx); err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:85 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	expected, err := committedMQTTReplayPrefix(l.db.engine, l.key, position)
 	if err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:89 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	if expected != page.After {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:92 ErrConflict\n")
 		return MQTTReplayState{}, dberrors.ErrConflict
 	}
 	return l.importMQTTReplayLocked(ctx, expected, page)
@@ -107,6 +116,7 @@ func (s *ChannelStore) ExportMQTTReplayAnchor(ctx context.Context, position, fro
 // ImportMQTTReplayAnchor retains the compatibility lease through durable commit.
 func (s *ChannelStore) ImportMQTTReplayAnchor(ctx context.Context, position uint64, page MQTTReplayTransfer) (MQTTReplayState, error) {
 	if err := s.beginUse(); err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_anchor_repair.go:110 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	defer s.endUse()
