@@ -72,3 +72,6 @@ docs/development/perf-runs/
 tmp/
 node_modules/
 data/
+
+# Named-check evidence and binaries (go run ./cmd/wkcicheck ...)
+.ci-output/

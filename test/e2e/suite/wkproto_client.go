@@ -67,6 +67,25 @@ func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID 
 	return c.ConnectAuthenticatedContext(ctx, addr, uid, deviceID, "", frame.APP)
 }
 
+// ConnectProvisionedContext registers a WKProto device token for uid through
+// node's API and connects with it. Product CONNECT token authentication is on
+// by default, so tokenless connects fail with ReasonAuthFail.
+func (c *WKProtoClient) ConnectProvisionedContext(ctx context.Context, node *StartedNode, uid, deviceID string) error {
+	token := uid + "-token"
+	if err := RegisterUserToken(ctx, node.APIAddr(), uid, token); err != nil {
+		return err
+	}
+	_, err := c.ConnectWithTokenContext(ctx, node.GatewayAddr(), uid, deviceID, token)
+	return err
+}
+
+// ConnectProvisioned is ConnectProvisionedContext bounded by a 10s deadline.
+func (c *WKProtoClient) ConnectProvisioned(node *StartedNode, uid, deviceID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return c.ConnectProvisionedContext(ctx, node, uid, deviceID)
+}
+
 // ConnectWithTokenContext uses the same authenticated handshake with the default device flag.
 func (c *WKProtoClient) ConnectWithTokenContext(ctx context.Context, addr, uid, deviceID, token string) (*frame.ConnackPacket, error) {
 	return c.ConnectAuthenticatedContext(ctx, addr, uid, deviceID, token, frame.APP)

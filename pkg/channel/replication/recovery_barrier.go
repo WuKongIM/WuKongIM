@@ -20,7 +20,7 @@ type recoveryBarrierResult struct {
 // writeCurrentTermBarrier appends one deterministic business-neutral entry on
 // the recovered prefix. The Channel remains non-writable unless the identical
 // barrier is durable locally and on the configured current-voter quorum.
-func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered ReplicaState, dispatcher durabilityDispatcher) (recoveryBarrierResult, error) {
+func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered ReplicaState, dispatcher durabilityDispatcher, proofs durableProofSink) (recoveryBarrierResult, error) {
 	if ctx == nil || dispatcher == nil || !validAuthority(authority) || !validReplicaState(recovered) ||
 		recovered.Committed != recovered.LEO || recovered.LEO == ^uint64(0) {
 		return recoveryBarrierResult{}, ch.ErrInvalidConfig
@@ -51,7 +51,7 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
 		channelKey: authority.Key, channelID: authority.ChannelID, leader: authority.Leader,
 		manifest: manifest, records: []ch.Record{record}, committed: recovered.LEO,
 	}
-	result, err := runDurableRound(ctx, authority.Leader, authority.Voters, authority.WriteQuorum, proposal, dispatcher)
+	result, err := runDurableRoundWithProofs(ctx, authority.Leader, authority.Voters, authority.WriteQuorum, proposal, dispatcher, proofs)
 	if err != nil {
 		// Only a durable local barrier with every missing vote accounted for by
 		// this round's exact NeedFrom receipts is pending recovery. Unknown,

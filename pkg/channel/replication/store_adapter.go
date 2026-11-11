@@ -70,6 +70,21 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 			result.Items[index].Err = err
 			continue
 		}
+		if item.Promise != (AuthorityID{}) {
+			promiser, ok := store.(channelstore.AuthorityPromiser)
+			if !ok {
+				_ = store.Close()
+				result.Items[index].Err = ch.ErrInvalidConfig
+				continue
+			}
+			// Promise first: every append accepted before it is visible to the
+			// read below, and every lower append after it is rejected.
+			if err := promiser.PromiseAuthority(ctx, authorityFence(item.Promise)); err != nil {
+				_ = store.Close()
+				result.Items[index].Err = err
+				continue
+			}
+		}
 		state, entries, loadErr := loadExactRecoveryState(ctx, store, item.ProbeIndexes)
 		closeErr := store.Close()
 		if loadErr == nil && closeErr != nil {
@@ -260,6 +275,7 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 					Records:           mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
 					ExpectedBaseOffset: mutation.Manifest.BaseOffset, Proposal: mutation.Manifest,
 					ServerAllocatedMessageIDs: mutation.ServerAllocatedMessageIDs,
+					WriterAuthority:           writerFence(mutation.Writer),
 				},
 			}
 		}
@@ -286,6 +302,7 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 			Records:           mutation.Records, Class: class, Committed: mutation.Committed, ExactBaseOffset: true,
 			ExpectedBaseOffset: mutation.Manifest.BaseOffset, Proposal: mutation.Manifest,
 			ServerAllocatedMessageIDs: mutation.ServerAllocatedMessageIDs,
+			WriterAuthority:           writerFence(mutation.Writer),
 		})
 		closeErr := store.Close()
 		if appendErr == nil && closeErr != nil && !appendResult.Outcome.Durable() {
@@ -297,6 +314,19 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 		})
 	}
 	return results
+}
+
+func authorityFence(id AuthorityID) channelstore.AuthorityFence {
+	return channelstore.AuthorityFence{ChannelEpoch: id.ChannelEpoch, LeaderTerm: id.LeaderTerm, FenceVersion: id.FenceVersion}
+}
+
+// writerFence maps an explicit writer; zero keeps manifest-authority fencing.
+func writerFence(writer AuthorityID) *channelstore.AuthorityFence {
+	if writer == (AuthorityID{}) {
+		return nil
+	}
+	fence := authorityFence(writer)
+	return &fence
 }
 
 func channelStoreAppendClass(class MutationClass) channelstore.AppendClass {
@@ -604,7 +634,7 @@ func rejectMutationsUnknown(results []MutationResult, err error) []MutationResul
 
 func validMutation(mutation Mutation) bool {
 	if mutation.ChannelKey == "" || mutation.ChannelID.ID == "" ||
-		!mutation.Class.valid() ||
+		!mutation.Class.valid() || !validOptionalAuthorityID(mutation.Writer) ||
 		!mutation.Manifest.ValidFor(mutation.Manifest.BaseOffset, len(mutation.Records)) ||
 		mutation.Committed > mutation.Manifest.LastOffset {
 		return false

@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,7 +54,11 @@ func TestMQTTSourceRoutingThreeNodeAuthorityAndRecovery(t *testing.T) {
 	require.Error(t, err)
 	q.ExpectedLeaderEpoch = 2
 	q.ExpectedRouteGeneration = 2
-	recovered, err := nodes[0].EnsureChannelMQTTSource(ctx, q)
+	var recovered ch.MQTTSourceSnapshot
+	require.Eventually(t, func() bool {
+		recovered, err = nodes[0].EnsureChannelMQTTSource(ctx, q)
+		return !errors.Is(err, ch.ErrNotReady)
+	}, 5*time.Second, time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, source.Generation, recovered.Generation)
 	require.Equal(t, source.StartAfter, recovered.StartAfter)

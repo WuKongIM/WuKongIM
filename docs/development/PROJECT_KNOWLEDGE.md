@@ -526,8 +526,14 @@ specification, runbook, report, or module documentation; link to them when neede
 - MQTT aggregate storage counts one original plus reserved future replay body per
   protected source on each storage replica, independently of Session quotas.
   Funding covers all voters/learners before original dispatch; capacity receipts
-  never vote for durability. Startup/restore debt closes admission until every
-  storage node registers. Cancellation and retirement require exact durable
+  never vote for durability. A prepared follower can still lack a quorum-committed
+  original; subsequent funding must report the exact log gap before rejecting
+  its unresolved ticket, preserving the old charge until normal repair arrives.
+  Startup/restore debt closes admission until every
+  storage node registers. Each node's write-readiness probe publishes its own
+  reconstructed debt before product admission, without depending on the health
+  timer. Registration alone neither grants growth nor requires free capacity;
+  full/lowered limits must not strand accepted responsibilities. Cancellation and retirement require exact durable
   evidence, including unknown outcomes. This is logical responsibility capacity,
   so operators still need WAL/compaction/metadata disk headroom. Only typed native
   controls are exempt; ordinary SyncOnce flags grant no exemption. See
@@ -565,8 +571,10 @@ specification, runbook, report, or module documentation; link to them when neede
   persisted Controller count; changing this setting does not resize them.
 - Slot Raft randomizes election waiting from `ElectionTick` through
   `2*ElectionTick-1` ticks. Defaults (50 ms, 40 ticks) therefore allow 2–3.95 s
-  before campaigning; failover tests must cover this window plus bounded voting
-  and durable-apply time rather than treating three seconds as an upper bound.
+  before each campaign. Two surviving candidates can split a vote; failover
+  fixtures allow a second election window plus bounded voting, route publication
+  and durable apply. Runtime leader IDs alone do not prove proposal routing has
+  converged; retain the newer-term proposal and both survivors' applied proof.
 - Node snapshot application serializes watches and readiness probes, rejecting
   older logical revisions before maintenance, placement or task side effects.
   Watch notifications trigger a current Controller read rather than replaying
@@ -619,11 +627,27 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Message durability and recovery
 
+- **The distributed log sequence number is `message_seq`** (maintainer rule,
+  2026-11-09). Log indexes and message sequences are one numbering. Every
+  Channel log index must be a real message, so authority, control or
+  replication bookkeeping must never occupy a log index. The current-term
+  authority barrier violates this and is being replaced by a durable
+  per-replica authority promise stored in the Channel's message-DB system
+  space, outside the log
+  (`docs/superpowers/specs/2026-11-09-log-sequence-is-message-seq-design.md`).
+  MQTT internal proposals (manifest versions 4–6) also violate it and block
+  MQTT leaving preview. Gaps already present in historical data are not
+  repaired.
+
 - Quorum completion does not join every trailing-voter callback. Sequencer
   Release must retain exact repair authority until admitted peer callbacks and
   pending follower repairs finish, then remove the retired identity. Peer
   flight alone is insufficient: terminal callbacks own the item budget until
   return. Order retirement with reinstall, including the same authority ID.
+- Channel-scoped Manager message pages and tail reads use the routed committed
+  Channel leader path. A lagging or non-hosting ingress is not message-history
+  authority; routed failures must not fall back to its local store. Global
+  latest-message inventory remains a separate node-index fanout.
 - Persistent SENDACK requires the exact proposal to be crash-safe locally and on
   an intersecting voter write quorum. Learners do not vote. Never acknowledge
   before synchronous durability or expose message append `NoSync` as configuration.
@@ -631,11 +655,24 @@ specification, runbook, report, or module documentation; link to them when neede
   nothing was written. Retry with the original message identity. Raw idempotency
   indexes may include uncommitted proposals; success requires an exact payload
   and identity match in the current Leader's committed history.
+- Controller Raft durability is the WAL alone: one fsync per Ready. `meta.json`
+  and voter `cluster-state.json` are checkpoints that recovery replays the WAL
+  over (every v3 version does). Any code that releases WAL history must first
+  checkpoint both to at least the release point, so even pre-beta.20 recovery
+  never needs a deleted entry. Issue #1098.
 - Failover preserves every observed suffix until exact chain evidence resolves
   it. Highest LEO, stale HW, or an unavailable replica cannot authorize truncation.
   Recovery converges compatible prefixes through bounded append-only repair,
   obtains fresh quorum proof, and writes a current-authority barrier before
   admitting writes. Installing authority under a migration fence does not clear it.
+- A dead Channel leader must never stay hidden behind an active migration task:
+  failover is itself a migration task, one per Channel. Unpromoted replica
+  replacements abort and roll back their learner; a promoted one
+  (VerifyMembership) only completes through the ordinary fence-clear command,
+  because its membership change is committed. Issue #1077.
+- Manager `/manager/messages?channel_id=` reads node-local Slot metadata and
+  Channel storage. A node outside the Slot or Channel replica set returns 404 or
+  stale history; E2E history proofs use routed `/channel/messagesync`.
 - Committed reads use current authority and recovered quorum HW. Cold or stale
   runtimes require bounded authoritative recovery; local `HW == LEO` alone proves
   nothing. Authority, corruption, and I/O failures must not become empty or
@@ -893,6 +930,20 @@ specification, runbook, report, or module documentation; link to them when neede
   or write-fenced: an ISR replica may hold the anchor while its HW still lags.
   The hint carries exact placement, no caller HW, and grants no recovery proof.
 
+- MQTT reclamation-index backfill commits a bounded Raft write and uses the
+  remaining scan-turn deadline; the 250 ms discovery timeout is for reads.
+  Late or canceled build receipts cannot certify coverage or dispatch work.
+  The builder first uses a fresh authoritative kind-23 read: existing coverage
+  or an empty primary table in that same snapshot avoids a Raft write. Empty
+  evidence is not persisted; later rows still need coverage, and corrupt
+  certificates/indexes remain errors. This prevents empty-Slot startup backfill
+  from competing with first-message preparation on the shared durable apply path.
+- MQTT recovery tests must wait for both the committed anchor journal and the
+  published log frontier before comparing content-import side effects. Durable
+  journal visibility can precede in-memory LEO publication. Long recovery
+  fixtures must renew live Owners through the existing lifecycle APIs; elapsed
+  test setup or cold 256-hash-Slot index discovery cannot stand in for renewal.
+
 - The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved
   target contract; the default-off product listener now has single-node and three-node process interop coverage. Complete durable/Will/restore/scale acceptance remains pending. MQTT Session subscriptions are separate from IM
   membership; protocol ACKs are separate from read state; delivery obligations
@@ -956,7 +1007,8 @@ specification, runbook, report, or module documentation; link to them when neede
   results independent of Raft apply grouping. The retained parent prevents old
   child recreation; source tombstones and detached Wills remain separate. The
   completion marker proves no owner isolation or shared-content GC. Discovery uses table-22
-  index 3 and read kind 23, rejecting missing/incomplete System-1 coverage.
+  index 3 and read kind 23. Nonempty primary tables require complete System-1
+  coverage; a missing certificate permits only snapshot-proved primary emptiness.
   Command 76 backfills at most 64 historical rows and its cursor atomically;
   ordinary writes maintain eligibility behind the cursor. Matched writers are
   required. The shared consumer cohort now builds coverage and schedules one
@@ -1779,6 +1831,47 @@ specification, runbook, report, or module documentation; link to them when neede
   and [offline rehearsal guide](../../scripts/migration/README.md).
 
 ## Performance, release, and automation
+
+- MQTT Session transition observations retry only `proxy.ErrReadStaleRoute`
+  within their existing deadline. Other read errors or missing Sessions terminate
+  observation and fail; pending/inflight, offline and owner-drain proofs remain exact.
+
+- MQTT recovery fixtures must distinguish cluster/Slot readiness from the
+  Channel's bounded quorum recovery: repeat only `ErrNotReady` with the same
+  authority/request and a fixed deadline, then assert exact recovered content.
+  A learner-missing-content fixture must activate protection before appending
+  a real business message; an activation-only anchor can already be covered.
+  Foreground confirmation can repair replicas before yielding for another
+  replica's checkpoint; hold the intended learner's recovery port until its
+  real missing coverage has been observed, then resume normal composition.
+- Exact post-failover sequence fixtures wait for committed authority-promise
+  activation before expecting leader changes to consume no log positions.
+  Caller return or a fixed number of scheduler yields does not join background
+  completion: use the actual read-cycle or permit-retirement boundary.
+- Recovery HTTP tests keep a stable send body/idempotency key and retry only
+  `503 {"error":"retry required"}`. MCP initialization retries only bounded
+  `503` responses whose public code is `mcp_owner_unavailable` or
+  `mcp_state_changed` and whose `retryable` field is true; authentication,
+  disabled state, other responses and transport failures fail immediately.
+  The sequence-contiguity history proof uses its existing 15-second read bound
+  for the exact `503 unavailable` recovery response; successful pages must
+  immediately satisfy contiguous positions and every acknowledged identity.
+- Recovery FIFO coalescing and shared-batch cancellation fixtures use prepaid result providers: the legacy
+  sixteen-original-call result cap legitimately dispatches single queued calls
+  when each prior caller retires separately. RPC trace completion likewise
+  preserves an unfinished request-write span when the response beats the local
+  socket write return; a successful call does not invent that completion.
+- `wkcicheck integration` runs internal/pkg package processes serially so real
+  cluster fixtures and fixed latency gates do not compete with unrelated test
+  processes. Their workloads, latency thresholds and timeouts remain unchanged.
+- Authenticated Webhook E2E performs its first warm receive before injecting
+  callback failures. Its receive-failure diagnostics run afterward under a
+  separate five-second read bound; missing delivery must be attributed from
+  captured state, not from SEND acceptance or a later passing rerun alone.
+- Nightly E2E shards provision pinned Node.js. `cmd/wkcicheck` installs locked
+  MQTT.js quickstart dependencies only on its selected shard; installation
+  failure stops before product tests. Direct scenario runs retain the documented
+  `npm ci` prerequisite.
 
 - Verify build source identity separately for nested Git worktrees: Go 1.25.11
   VCS detection recognizes `.git` directories, so a worktree's `.git` file can
@@ -3093,3 +3186,19 @@ completion, installation and provider-reference release.
 - Product startup supports registered format 1 to 2 through a verified retained cold backup, crash-atomic bounded metadata batches and final atomic format publication. All cluster nodes require matching binaries and a coordinated cold upgrade.
 - Old UID-person Channel SendBan means a UID-wide policy: project it into User state, including policy-only users, and clear that legacy source flag. Old snapshot rows and pre-policy-version TLV command replay must perform the same translation; live decoders remain strict.
 - Metadata global System 7 retains the migration cursor/witness outside Hash-Slot replacement. New Channel delete commands carry policy-version tag 8 to distinguish current semantics. Rollback restores complete per-node and external Controller generations. See `docs/development/DATA_FORMAT_UPGRADE.md`.
+
+- Inbox-source cursor Init, like group-source Init, permits at most three proposals
+  after a definite CAS rejection and fresh evidence of a newer parent with the
+  same Owner and complete subscription child. Keep the first durable consumption
+  boundary; unknown replies and changed intent never grant retry.
+
+- MQTT native `SizeBytes` is a replica-local accounting hint; canonical replay
+  binds actual payload length. After independent native and anchor verification,
+  replay imports retain a sufficient larger prepaid charge without refund or
+  grant growth. Insufficient/corrupt receipts fail closed; ordinary funding
+  continues to require exact charges. This also holds after original trimming.
+
+- Chat-lifecycle phase boundaries and metric captures share a fractional-second
+  clock; mixing their precision can make adjacent evidence rows regress. Flooring a
+  measurement end to whole seconds can exclude an already observed worker cut
+  and falsely invalidate its profile trigger against the frozen timeline.

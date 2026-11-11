@@ -63,7 +63,6 @@ func TestScaleInSlotDrainSurvivesDelayedLeaderTransfer(t *testing.T) {
 
 func TestLeavingNodeRestartDuringScaleInSlotDrainRecovers(t *testing.T) {
 	requireGofailDynamicNodeEnabled(t)
-
 	const joinToken = "e2e-gofail-scale-in-slot-drain-restart-token"
 	f := startFaultableDynamicCluster(t, joinToken)
 	startActiveNode4(t, f, joinToken)
@@ -173,7 +172,14 @@ func waitStableFaultableClusterReady(t testing.TB, f faultableDynamicCluster, ti
 		if err := suite.WaitHTTPReady(ctx, node.APIAddr(), "/readyz"); err != nil {
 			t.Fatalf("stable node %d http not ready: %v\n%s", nodeID, err, f.cluster.DumpDiagnostics())
 		}
-		if err := suite.WaitWKProtoReady(ctx, node.GatewayAddr()); err != nil {
+		// The process-owned probe provisions a token; token auth stays enabled.
+		if err := node.Process.WaitWKProtoReady(ctx, node.GatewayAddr()); err != nil {
+			// Keep the stuck node's stacks in diagnostics (issue #1097).
+			if path, dumpErr := node.Process.CaptureGoroutineDump(); dumpErr != nil {
+				t.Logf("stable node %d goroutine dump unavailable: %v", nodeID, dumpErr)
+			} else {
+				t.Logf("stable node %d goroutine dump: %s", nodeID, path)
+			}
 			t.Fatalf("stable node %d wkproto not ready: %v\n%s", nodeID, err, f.cluster.DumpDiagnostics())
 		}
 	}

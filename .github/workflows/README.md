@@ -16,7 +16,7 @@ selector list in `cmd/wkcicheck/main.go` is the single catalog of named checks.
 
 | File | Display name | Purpose |
 | --- | --- | --- |
-| `ci.yml` | `CI` | Pull-request and `main` correctness: lint, Go unit, race, scripts integration, E2E, Manager web, demo, documentation and package jobs selected by changed paths, aggregated into the single required check `ci-ok`; nightly full race/integration/E2E |
+| `ci.yml` | `CI` | Pull-request and `main` correctness: lint, Go unit, race, scripts integration, E2E, Manager web, demo, documentation and package jobs selected by changed paths, aggregated into the single required check `ci-ok`; nightly full race/integration/E2E and gofail fault-injection E2E |
 | `perf.yml` | `Performance` | 500 QPS seams on tmpfs and runner disk with runner-class summaries, same-runner A/B for pull requests labeled `perf`, the ten-minute three-node qualification, the nightly conversation QPS release gate as early warning, and the fixed SEND diagnosis |
 | `compat.yml` | `Compatibility` | Nightly native deb/rpm build plus four-distribution install and systemd lifecycle, and released EasySDK Android/iOS/Flutter acceptance |
 | `conversation-qps-diagnose.yml` | `Agent Tool - Diagnose Conversation QPS` | Read-only four-CPU AMD64 fixed mixed-load attribution with separate driver/server profiles; never publication evidence |
@@ -48,7 +48,7 @@ jobs as passing. `scripts/ci/changes.sh` maps changed paths to areas:
 | Lint | always | gofmt, go vet, `go mod tidy -diff`, FLOW and Skill contracts, actionlint |
 | Go unit | Go changed | `go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/...` |
 | Go race | Go changed | messaging hot-path race tests |
-| Scripts integration | Go changed | `go test -tags=integration ./scripts/...` |
+| Scripts integration | Go changed | `go test -tags=integration ./scripts/...`; the chat-lifecycle shakeout's latency/first-attempt-rate misses on the shared runner are advisory (job summary) when every send is acknowledged without loss, duplicate, corruption or regression |
 | E2E | Go changed | one `e2e` server binary: ordinary-history migration, cross-node delivery, self chat, and the three-node 500 SEND/s correctness/drain smoke |
 | Manager web | Manager front end or back end changed | `wkcicheck web` plus the real three-node Chromium smoke |
 | Chat demo | `demo/` changed | `wkcicheck demo` |
@@ -60,8 +60,24 @@ change runs them. Without this, a route change once broke documentation
 publishing on `main` for six days.
 
 The nightly schedule additionally runs race on every listed package,
-`-tags=integration ./internal/... ./pkg/...` and every E2E suite. A nightly
-failure opens or updates one `[nightly] ... failing` Issue.
+`wkcicheck integration`, every E2E suite and
+`wkcicheck gofail-e2e`. E2E runs as `wkcicheck e2e-shard-1` through
+`e2e-shard-4`: each discovers every `test/e2e` package and runs a stable
+round-robin slice of the sorted list serially. E2E shard jobs provision pinned
+Node.js; the named check installs the locked MQTT.js example dependencies only
+when that shard selects `mqtt/docs_quickstart`, and stops on installation failure.
+The integration selector runs all internal/pkg tests with the integration tag
+and one package process at a time, isolating real clusters and fixed latency
+gates from unrelated package workloads. Workloads, thresholds and timeouts stay
+unchanged.
+Sharding is required because one serial job over all
+suites exceeded its 60-minute limit and never reached the last packages. The last builds one server with every discovered
+failpoint package and runs every E2E package that references a
+`WK_E2E_GOFAIL_*` gate with those gates enabled, uploading its evidence (not
+the binary). MQTT gofail suites are excluded while MQTT is a default-off
+preview: their documented budgets (up to 65 minutes each) exceed one nightly
+job; run them by hand from `test/e2e/AGENTS.md`. A nightly failure opens or updates one `[nightly] ... failing`
+Issue.
 
 ## Performance
 

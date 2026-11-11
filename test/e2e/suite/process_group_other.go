@@ -3,6 +3,7 @@
 package suite
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 )
@@ -28,4 +29,9 @@ func processTreeAliveAfterParentExit(_ *os.Process) (bool, error) {
 	// addressable through the reaped parent. Treat direct-child completion as
 	// complete tree cleanup so the shared reaper does not report a false leak.
 	return false, nil
+}
+
+// signalGoroutineDump is unsupported without SIGQUIT; capture reports it.
+func signalGoroutineDump(*os.Process) error {
+	return errors.New("goroutine dump: SIGQUIT is unsupported on this platform")
 }

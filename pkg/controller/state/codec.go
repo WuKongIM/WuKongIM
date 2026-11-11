@@ -25,6 +25,9 @@ type checksumClusterState struct {
 	ScheduledBackup   *ScheduledBackupState `json:"scheduled_backup,omitempty"`
 	OpsMCP            *OpsMCPState          `json:"ops_mcp,omitempty"`
 	Presence          *PresenceState        `json:"presence,omitempty"`
+	// ChannelAuthorityPromise is omitted before activation, so checksums of
+	// pre-activation state are unchanged.
+	ChannelAuthorityPromise *ChannelAuthorityPromiseState `json:"channel_authority_promise,omitempty"`
 }
 
 // Encode returns normalized canonical JSON with a CRC32C checksum.
@@ -95,20 +98,21 @@ func Checksum(st ClusterState) (string, error) {
 
 func checksumView(st ClusterState) checksumClusterState {
 	return checksumClusterState{
-		SchemaVersion:     st.SchemaVersion,
-		ClusterID:         st.ClusterID,
-		Revision:          st.Revision,
-		AppliedRaftIndex:  st.AppliedRaftIndex,
-		UpdatedAt:         st.UpdatedAt,
-		Config:            st.Config,
-		Controllers:       st.Controllers,
-		Nodes:             st.Nodes,
-		Slots:             st.Slots,
-		NodeHealthReports: st.NodeHealthReports,
-		HashSlots:         st.HashSlots,
-		Tasks:             st.Tasks,
-		ScheduledBackup:   st.ScheduledBackup,
-		OpsMCP:            st.OpsMCP,
-		Presence:          st.Presence,
+		SchemaVersion:           st.SchemaVersion,
+		ClusterID:               st.ClusterID,
+		Revision:                st.Revision,
+		AppliedRaftIndex:        st.AppliedRaftIndex,
+		UpdatedAt:               st.UpdatedAt,
+		Config:                  st.Config,
+		Controllers:             st.Controllers,
+		Nodes:                   st.Nodes,
+		Slots:                   st.Slots,
+		NodeHealthReports:       st.NodeHealthReports,
+		HashSlots:               st.HashSlots,
+		Tasks:                   st.Tasks,
+		ScheduledBackup:         st.ScheduledBackup,
+		OpsMCP:                  st.OpsMCP,
+		Presence:                st.Presence,
+		ChannelAuthorityPromise: st.ChannelAuthorityPromise,
 	}
 }

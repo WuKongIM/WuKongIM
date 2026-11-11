@@ -92,6 +92,7 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 				Manifest: request.Manifest, Records: request.Records, Committed: request.Committed,
 				Class:                     class,
 				ServerAllocatedMessageIDs: request.ServerAllocatedMessageIDs,
+				Writer:                    request.Writer,
 			})
 			mutationPositions = append(mutationPositions, index)
 		case ExchangeProbe:
@@ -107,6 +108,7 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			loads = append(loads, LoadRequest{
 				ChannelKey: request.ChannelKey, ChannelID: request.ChannelID,
 				ProbeIndexes: append([]uint64(nil), request.Indexes...),
+				Promise:      request.Promise,
 			})
 			loadPositions = append(loadPositions, index)
 		case ExchangeFetch:
@@ -169,6 +171,12 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 		}
 		for index, result := range loaded.Items {
 			request := *batch.Items[loadPositions[index]].Probe
+			if request.Promise != (AuthorityID{}) && errors.Is(result.Err, ch.ErrStaleMeta) {
+				// A higher durable promise refuses this authority. The reply uses
+				// the closed stale-fence status, so sibling items still complete.
+				response.Items[loadPositions[index]].Replicate = ReplicateResult{Status: ReplicateStaleFence}
+				continue
+			}
 			probe, ok := mapProbeResult(request, result)
 			if !ok {
 				return ExchangeBatchResult{}, errInvalidExchangeResult

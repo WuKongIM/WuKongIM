@@ -114,6 +114,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.mu.Lock()
 	ready := !n.stopping.Load()
 	n.controlSnapshot = snapshot.Clone()
+	n.observeChannelPromiseActivation(snapshot.ChannelAuthorityPromiseActive)
 	if firstSnapshot || changes.nodes {
 		members := make([]uint64, 0, len(snapshot.Nodes))
 		for _, node := range snapshot.Nodes {

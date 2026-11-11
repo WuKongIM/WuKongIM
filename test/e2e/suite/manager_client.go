@@ -120,6 +120,42 @@ func (m *ManagerClient) EventuallyNodeJoinState(t testing.TB, nodeID uint64, sta
 	}
 }
 
+// EventuallyNodeSchedulable waits until manager inventory reports the node as
+// schedulable for placement, the precondition of onboarding plans and starts.
+// An active join state alone is not enough: health must also be fresh.
+func (m *ManagerClient) EventuallyNodeSchedulable(t testing.TB, nodeID uint64, timeout time.Duration) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		var resp managerNodesResponse
+		_, err := GetJSON(ctx, m.baseURL+"/manager/nodes", &resp)
+		if err == nil {
+			if node, ok := findManagerNode(resp, nodeID); ok {
+				if node.Membership.Schedulable {
+					return
+				}
+				lastErr = fmt.Errorf("node %d not schedulable: membership=%+v health=%+v", nodeID, node.Membership, node.Health)
+			} else {
+				lastErr = fmt.Errorf("node %d missing from manager inventory", nodeID)
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d did not become schedulable: %v\n%s", nodeID, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
 // NodeJoinState returns the manager-observed lifecycle state for a node when present.
 func (m *ManagerClient) NodeJoinState(ctx context.Context, nodeID uint64) (string, bool, error) {
 	var resp managerNodesResponse

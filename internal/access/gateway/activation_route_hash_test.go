@@ -99,3 +99,41 @@ func TestActivationFailureProjectionRemainsWithin26Fields(t *testing.T) {
 		t.Fatalf("join fields=%v", got)
 	}
 }
+
+// Issue #1097: stale-generation activation failures were logged as a bare
+// "activation_error", dropping the recovery evidence (failed step, owner
+// counts, route hash) the error carries. Unclassified errors with evidence
+// keep the existing class but now project that evidence.
+func TestStaleGenerationActivationFailureKeepsRecoveryEvidence(t *testing.T) {
+	data := presence.RecoveryProviderFailureEvidence{Reason: presence.RecoveryProviderOwnerUnavailable, Calls: 1, OwnersPlanned: 4, OwnersCompleted: 3}
+	cause := presence.WithRecoveryProviderFailure(authority.ErrStaleGeneration, data)
+	app := presence.New(presence.Options{Local: &routeHashLocal{}, Authority: routeHashAuthority{err: cause}, OwnerNodeID: 9, OwnerBootID: 99})
+	sess := session.New(session.Config{ID: 11})
+	sess.SetValue(coregateway.SessionValueUID, "private-uid")
+	_, err := New(Options{Presence: app}).OnSessionActivate(&coregateway.Context{Session: sess})
+	if !errors.Is(err, authority.ErrStaleGeneration) {
+		t.Fatalf("original error changed: %v", err)
+	}
+	var class interface{ GatewayAuthFailure() string }
+	if !errors.As(err, &class) || class.GatewayAuthFailure() != "activation_error" {
+		t.Fatalf("stale generation must keep the existing activation_error class: %v", err)
+	}
+	var metadata interface{ GatewayAuthFailureLogFields() []wklog.Field }
+	if !errors.As(err, &metadata) {
+		t.Fatal("stale generation failure lost its recovery evidence")
+	}
+	got := map[string]any{}
+	for _, f := range metadata.GatewayAuthFailureLogFields() {
+		got[f.Key] = f.Value
+	}
+	if got["recovery_provider_owners_planned"] != uint64(4) || got["recovery_provider_owner_scans_completed"] != uint64(3) || got["activation_route_hash"] != "7718ef07734da84ac7c13fc5b43b11de" {
+		t.Fatalf("evidence fields=%v", got)
+	}
+}
+
+func TestUnclassifiedActivationFailureWithoutEvidenceStaysUnwrapped(t *testing.T) {
+	plain := errors.New("plain activation failure")
+	if got := classifyActivationError(plain); got != plain {
+		t.Fatalf("classifyActivationError(plain) = %#v, want the original error", got)
+	}
+}

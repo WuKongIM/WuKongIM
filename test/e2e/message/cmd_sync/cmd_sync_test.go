@@ -186,7 +186,8 @@ func restartSingleNodeCluster(t *testing.T, node *suite.StartedNode) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	require.NoError(t, suite.WaitHTTPReady(ctx, node.APIAddr(), "/readyz"), node.DumpDiagnostics())
-	require.NoError(t, suite.WaitWKProtoReady(ctx, node.GatewayAddr()), node.DumpDiagnostics())
+	// The process probe provisions its own token; token auth stays enabled.
+	require.NoError(t, node.Process.WaitWKProtoReady(ctx, node.GatewayAddr()), node.DumpDiagnostics())
 }
 
 func mustConnectWKProto(t *testing.T, node suite.StartedNode, uid string) *suite.WKProtoClient {
@@ -194,7 +195,7 @@ func mustConnectWKProto(t *testing.T, node suite.StartedNode, uid string) *suite
 
 	client, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
-	require.NoError(t, client.Connect(node.GatewayAddr(), uid, uid+"-device"), node.DumpDiagnostics())
+	require.NoError(t, client.ConnectProvisioned(&node, uid, uid+"-device"), node.DumpDiagnostics())
 	return client
 }
 

@@ -32,7 +32,7 @@ func verifyRoutedMQTTRetirement(t *testing.T, ctx context.Context, nodes []*Node
 	request := ch.MQTTReplayRetirementRequest{Meta: m, Captured: latest, Candidate: selected.Candidate, ConsumerThrough: 3, MessageID: 920, ServerTimestampMS: 1020}
 	proof, err := nodes[0].CommitChannelMQTTReplayRetirement(ctx, request)
 	require.NoError(t, err)
-	require.Equal(t, uint64(8), proof.Manifest.LastOffset)
+	require.Equal(t, uint64(7), proof.Manifest.LastOffset)
 	var wg sync.WaitGroup
 	var results [4]ch.MQTTReplayRetirementProof
 	var errs [4]error
@@ -68,7 +68,7 @@ func verifyRoutedMQTTRetirement(t *testing.T, ctx context.Context, nodes []*Node
 	advanced.MessageID = 930
 	newer, err := nodes[1].CommitChannelMQTTReplayRetirement(ctx, advanced)
 	require.NoError(t, err)
-	require.Equal(t, uint64(9), newer.Manifest.LastOffset)
+	require.Equal(t, uint64(8), newer.Manifest.LastOffset)
 	old, err := nodes[0].CommitChannelMQTTReplayRetirement(ctx, request)
 	require.NoError(t, err)
 	require.Equal(t, newer, old)

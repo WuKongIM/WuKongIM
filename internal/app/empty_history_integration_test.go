@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,7 +117,23 @@ func TestEmptyGroupHistoryHTTPBeforeFirstSend(t *testing.T) {
 					start()
 				}
 			}
-			raw := postAppJSON(t, apps[count-1].api.(*accessapi.Server).Handler(), "/message/send", `{"from_uid":"empty-sender","channel_id":"empty-history-group","channel_type":2,"client_msg_no":"first-normal-send","payload":"aGVsbG8="}`, http.StatusOK)
+			// Restart readiness does not pre-activate this deliberately absent
+			// Channel. Retry only the explicit recovery response, with the same
+			// body and idempotency key so the first committed sequence stays one.
+			const firstSend = `{"from_uid":"empty-sender","channel_id":"empty-history-group","channel_type":2,"client_msg_no":"first-normal-send","payload":"aGVsbG8="}`
+			var rec *httptest.ResponseRecorder
+			require.Eventually(t, func() bool {
+				rec = httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, "/message/send", strings.NewReader(firstSend))
+				req.Header.Set("Content-Type", "application/json")
+				apps[count-1].api.(*accessapi.Server).Handler().ServeHTTP(rec, req)
+				var failure struct {
+					Error string `json:"error"`
+				}
+				return rec.Code != http.StatusServiceUnavailable || json.Unmarshal(rec.Body.Bytes(), &failure) != nil || failure.Error != "retry required"
+			}, 5*time.Second, 10*time.Millisecond)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			raw := rec.Body.Bytes()
 			var ack struct {
 				MessageSeq uint64 `json:"message_seq"`
 			}

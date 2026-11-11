@@ -51,6 +51,7 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	manager.EventuallyNodeReadiness(t, 4, true, 20*time.Second)
 	manager.MustActivateNode(t, 4)
 	manager.EventuallyNodeJoinState(t, 4, "active", 20*time.Second)
+	manager.EventuallyNodeSchedulable(t, 4, 20*time.Second)
 
 	readyCtx, cancelReady := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelReady()
@@ -107,7 +108,7 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	sender, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
 	defer func() { _ = sender.Close() }()
-	require.NoError(t, sender.Connect(node4.GatewayAddr(), "gofail-slot-move-sender", "gofail-slot-move-device"), cluster.DumpDiagnostics())
+	connectWithProvisionedToken(t, cluster, sender, node4, "gofail-slot-move-sender", "gofail-slot-move-device")
 }
 
 func waitGofailCountWhileOnboardingActive(

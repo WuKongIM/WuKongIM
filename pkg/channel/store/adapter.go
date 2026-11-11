@@ -297,6 +297,11 @@ type AppendLeaderRequest struct {
 	ExpectedBaseOffset uint64
 	// Proposal is the immutable durable identity required by exact appends.
 	Proposal ProposalManifest
+	// WriterAuthority, when set on an exact append, is the authority of the
+	// leader issuing it. It is fenced against the replica's durable promise and
+	// raises the promise atomically with a new write. Nil fences the append by
+	// Proposal's own authority and never creates or raises a promise.
+	WriterAuthority *AuthorityFence
 }
 
 // AppendLeaderBatchItem is one channel-scoped leader append inside a store-level batch.

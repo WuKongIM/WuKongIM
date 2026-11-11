@@ -7,6 +7,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authority "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // PresenceGenerationAuthority preserves the complete usecase boundary; the
@@ -63,6 +67,11 @@ func (a *Adapter) handlePresenceGeneration(ctx context.Context, body []byte, own
 			if op != "" {
 				a.logPresenceAuthorityError(presenceRPCRequest{Op: op, Target: req.Claim.Target, Route: req.Route}, status, err)
 			}
+		}
+		// A rejected owner Begin blocks full recovery for the whole hash slot,
+		// yet its status alone cannot say which owner check failed (#1097).
+		if owner && req.Op == generationBegin {
+			a.logPresenceOwnerBeginRejected(req.Claim, status, err)
 		}
 		return encodeGenerationResponse(generationResponse{Op: req.Op, Status: status})
 	}
@@ -297,4 +306,60 @@ func (c *Client) ReadPresenceGenerationUIDs(ctx context.Context, claim presence.
 		return nil, err
 	}
 	return &presence.OwnedSlotRoutes{Routes: routes, Lease: lease}, nil
+}
+
+// presenceOwnerRejectReason maps an owner Begin failure to a closed log value;
+// raw cause text is never logged.
+func presenceOwnerRejectReason(err error) string {
+	if reason := controller.PresenceRejectReasonOf(err); reason != controller.PresenceRejectUnknown {
+		return reason.String()
+	}
+	if err == authority.ErrStaleGeneration {
+		// The bare sentinel comes only from owner preconditions (invalid or
+		// unwired claim); port failures always join their cause.
+		return "invalid_claim"
+	}
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, transport.ErrCanceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline"
+	case errors.Is(err, controller.ErrPresenceGenerationConflict):
+		return "generation_conflict"
+	case errors.Is(err, controller.ErrNotLeader), errors.Is(err, controller.ErrNotStarted):
+		return "controller_unavailable"
+	case errors.Is(err, online.ErrStaleActivation):
+		return "owner_registry_stale"
+	case errors.Is(err, controller.ErrPresenceGenerationNotReady):
+		return "not_ready_unspecified"
+	case errors.Is(err, cluster.ErrRouteNotReady):
+		return "route_not_ready"
+	case errors.Is(err, cluster.ErrNoSlotLeader):
+		return "no_slot_leader"
+	case errors.Is(err, cluster.ErrNotStarted), errors.Is(err, cluster.ErrStopping):
+		return "node_not_serving"
+	}
+	return "unknown"
+}
+
+// logPresenceOwnerBeginRejected records one bounded event per rejected Full
+// Begin: a closed reason plus the numeric claim, with no identities or causes.
+// Begin runs at most once per owner and hash slot per recovery round.
+func (a *Adapter) logPresenceOwnerBeginRejected(claim presence.GenerationClaim, status string, err error) {
+	if a == nil || a.logger == nil || err == nil {
+		return
+	}
+	t := claim.Target
+	a.rpcLogger().Warn("presence owner begin rejected",
+		wklog.Event("internal.access.node.presence_owner_begin_rejected"),
+		wklog.String("status", status),
+		wklog.String("owner_reject_reason", presenceOwnerRejectReason(err)),
+		wklog.Int("hashSlot", int(t.HashSlot)),
+		wklog.Uint64("slotID", uint64(t.SlotID)),
+		wklog.LeaderNodeID(t.LeaderNodeID),
+		wklog.Uint64("leaderTerm", t.LeaderTerm),
+		wklog.Uint64("generation", claim.Generation),
+		wklog.Uint64("ownerSetEpoch", claim.OwnerSetEpoch),
+		wklog.Uint64("servingBoot", claim.ServingBoot),
+	)
 }

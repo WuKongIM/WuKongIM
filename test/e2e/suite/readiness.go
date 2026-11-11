@@ -46,10 +46,7 @@ func waitWKProtoReady(ctx context.Context, addr string, process *NodeProcess) er
 			return err
 		}
 		if !tokenRegistered {
-			_, err := PostJSON(ctx, "http://"+process.Spec.APIAddr+"/user/token", map[string]any{
-				"uid": uid, "token": token, "device_flag": frame.APP, "device_level": 1,
-			}, nil)
-			if err != nil {
+			if err := RegisterUserToken(ctx, process.Spec.APIAddr, uid, token); err != nil {
 				// Never include registration payloads or a server echo in diagnostics.
 				lastErr = fmt.Errorf("WKProto readiness token registration failed")
 			} else {
@@ -203,4 +200,17 @@ func processReadinessExitErrorAfterDone(process *NodeProcess, readiness string) 
 		return err
 	}
 	return fmt.Errorf("process exited before %s", readiness)
+}
+
+// RegisterUserToken provisions an APP device token through the public product
+// HTTP API, so scenario WKProto clients authenticate without disabling token
+// auth. Errors never include the payload or a server echo of the token.
+func RegisterUserToken(ctx context.Context, apiAddr, uid, token string) error {
+	_, err := PostJSON(ctx, "http://"+apiAddr+"/user/token", map[string]any{
+		"uid": uid, "token": token, "device_flag": frame.APP, "device_level": 1,
+	}, nil)
+	if err != nil {
+		return fmt.Errorf("register WKProto token for %s failed", uid)
+	}
+	return nil
 }

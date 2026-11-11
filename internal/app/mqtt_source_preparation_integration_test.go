@@ -56,9 +56,13 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	var owners []*runtime.Owners
 	var sessions []*sessioncase.App
 	var replayWorkers []*runtime.ReplayWorker
+	var connectionSupervisor *runtime.Connections
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		if connectionSupervisor != nil {
+			require.NoError(t, connectionSupervisor.Stop(ctx))
+		}
 		for _, w := range replayWorkers {
 			require.NoError(t, w.Stop(ctx))
 		}
@@ -92,7 +96,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 		require.NoError(t, err)
 		sessions = append(sessions, s)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	started := make(chan error, 3)
 	for _, n := range nodes {
@@ -101,16 +105,15 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	for range nodes {
 		require.NoError(t, <-started)
 	}
-	require.Eventually(t, func() bool {
+	// Each probe commits real Slot noops; this is a readiness check, not a
+	// 200 ms disk-latency assertion. Keep the overall convergence bound fixed.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		for _, n := range nodes {
-			c, done := context.WithTimeout(ctx, 200*time.Millisecond)
-			err := n.ProbeWriteReady(c)
+			probe, done := context.WithTimeout(ctx, time.Second)
+			err := n.ProbeWriteReady(probe)
 			done()
-			if err != nil {
-				return false
-			}
+			require.NoError(c, err, "node %d write readiness", n.NodeID())
 		}
-		return true
 	}, 20*time.Second, 50*time.Millisecond)
 	id := ch.ChannelID{ID: "group", Type: 2}
 	seedGroupSendPermission(t, nodes[0], id, "alice")
@@ -152,6 +155,12 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	resumed, err := sessions[2].Connect(ctx, cmd)
 	require.NoError(t, err)
 	require.True(t, resumed.SessionPresent)
+	// This recovery scenario outlives a single owner lease. Keep its live
+	// connection renewed through the same supervisor used by product ingress.
+	connectionSupervisor, err = runtime.NewConnections(runtime.ConnectionOptions{Owners: owners[2], Control: mqttConnectionControl{sessions: sessions[2]}, Registry: gr.New()})
+	require.NoError(t, err)
+	require.NoError(t, connectionSupervisor.Start(ctx))
+	require.NoError(t, connectionSupervisor.Register(resumed.Owner))
 	adapter, err = clusterinfra.NewMQTTSourceProtector(clusterinfra.MQTTSourceProtectorOptions{Node: nodes[2], MessageIDs: ids})
 	require.NoError(t, err)
 	sources, err = sessioncase.NewGroupSources(sessioncase.GroupSourceOptions{Store: nodes[2], Owners: owners[2], Authorization: authorize, Sources: adapter})
@@ -318,6 +327,8 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	require.Equal(t, meta.MQTTBindingSessionEnded, ended.Binding.ReleaseReason)
 	require.Equal(t, prepared.Binding.ProtectionRevision, ended.Binding.ProtectionRevision)
 	verifyMQTTSourceRemoval(t, ctx, nodes, ended.Binding)
+	// Join renewal/cleanup before stopping the metadata dependencies below.
+	require.NoError(t, connectionSupervisor.Stop(ctx))
 	// Reopen each stopped replica and inspect its own durable decision/coverage.
 	// These read-only checks cannot apply retirement on the worker's behalf.
 	for i, node := range nodes {

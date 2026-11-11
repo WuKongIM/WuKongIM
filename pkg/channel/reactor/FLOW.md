@@ -47,13 +47,14 @@ typed bounded workers and returns as `EventWorkerResult`.
   leader epoch, and operation ID. Stale results cannot advance or evict a newer
   incarnation.
 - Quorum install remains pending work and keeps append admission closed until
-  recovery plus the current-authority barrier succeeds. Runtime probes mark
+  recovery plus the current-authority barrier (or activated promise quorum) succeeds. Runtime probes mark
   pending or failed installation as requiring recovery, so reads cannot mistake
   metadata loading for a recovered HW. A write fence still permits recovered
   reads. Each accepted append
   completes directly from its exact quorum-commit receipt, without hot-path
   PullHint or AckOffset signals. Metadata projects ISR voters separately from
   non-voting replica learners into the native replication owner.
+  Retention ISR safety uses the installed authority's quorum durable proofs; unproven voters block trim.
   Quorum completions do not populate the legacy recent-record cache; any
   compatibility pull falls back to the durable store on a cache miss.
 - One loaded runtime has one lifecycle controller. Hot follower replication

@@ -18,7 +18,7 @@ func TestRecoveryConvergenceWaitsForEveryObservedTail(t *testing.T) {
 	writeRecoveryFixture(t, h, 1, first)
 	writeRecoveryFixture(t, h, 3, first)
 	log.cfg.Recovery = &slowObservedRecovery{unavailableRecoveryHarness: h}
-	require.NoError(t, log.convergeRecoverySuffix(context.Background(), a, recoverySelection{}))
+	require.NoError(t, log.convergeRecoverySuffix(context.Background(), a, recoverySelection{}, AuthorityID{}))
 	got, err := loadRecoveryReplicaState(context.Background(), h.stores[2], a.Key, a.ChannelID, nil)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), got.State.LEO)

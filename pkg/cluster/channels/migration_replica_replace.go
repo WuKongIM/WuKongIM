@@ -135,6 +135,8 @@ func (e *MigrationExecutor) runReplicaReplacePromoteAndRemove(ctx context.Contex
 }
 
 func (e *MigrationExecutor) runReplicaReplaceVerifyMembership(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	// gofail: var wkChannelReplicaReplaceVerifyMembershipError string
+	// return fmt.Errorf("gofail: replica replace verify membership held: %s", wkChannelReplicaReplaceVerifyMembershipError)
 	meta, id, err := e.readLeaderTransferMeta(ctx, task)
 	if err != nil {
 		return err

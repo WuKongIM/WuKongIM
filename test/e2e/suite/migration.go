@@ -103,8 +103,16 @@ func (s *Suite) StartPreparedCluster(specs []NodeSpec) *StartedCluster {
 	require.NotEmpty(s.t, specs)
 	cluster := &StartedCluster{lastReadyz: make(map[uint64]HTTPObservation), binaryPath: s.binaryPath, workspace: s.workspace}
 	registerStartedClusterCleanup(s.t, cluster)
+	prepared := make([]NodeSpec, len(specs))
+	for i, spec := range specs {
+		prepared[i] = preparedNodeSpec(spec)
+	}
+	specs = prepared
 	for _, spec := range specs {
 		require.NoError(s.t, os.MkdirAll(spec.RootDir, 0700))
+		if spec.LogDir != "" {
+			require.NoError(s.t, os.MkdirAll(spec.LogDir, 0o755))
+		}
 		rendered := RenderClusterConfig(spec, specs)
 		require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(rendered), 0600))
 		spec.Env = append(envFromConfig(rendered), spec.Env...)
@@ -113,4 +121,15 @@ func (s *Suite) StartPreparedCluster(specs []NodeSpec) *StartedCluster {
 		cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: spec, Process: process})
 	}
 	return cluster
+}
+
+// preparedNodeSpec gives a caller-built node its own log directory under its
+// root when none is set. Otherwise the product default ./logs resolves to the
+// test process working directory, shared by every node, and diagnostics,
+// which read <root>/logs, find nothing.
+func preparedNodeSpec(spec NodeSpec) NodeSpec {
+	if spec.LogDir == "" && spec.RootDir != "" {
+		spec.LogDir = filepath.Join(spec.RootDir, "logs")
+	}
+	return spec
 }

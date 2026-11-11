@@ -336,6 +336,25 @@ type replicaHarness struct {
 	stores        map[ch.NodeID]ReplicaStore
 	syncCalls     int
 	loseResponses int
+	// probeDown makes recovery probes to these voters fail as unreachable.
+	probeDown map[ch.NodeID]bool
+	// syncDown makes durability submissions to these voters fail as unreachable.
+	syncDown map[ch.NodeID]bool
+}
+
+// localReplicaHarness routes submitLocal to one chosen leader's store.
+type localReplicaHarness struct {
+	*replicaHarness
+	local ch.NodeID
+}
+
+func (h *replicaHarness) as(local ch.NodeID) durabilityDispatcher {
+	return localReplicaHarness{replicaHarness: h, local: local}
+}
+
+func (h localReplicaHarness) submitLocal(_ context.Context, proposal durableProposal, complete func(durabilityCompletion)) error {
+	h.submit(h.local, proposal, complete)
+	return nil
 }
 
 func newReplicaHarness(t *testing.T, voters ...ch.NodeID) *replicaHarness {
@@ -354,8 +373,12 @@ func newReplicaHarness(t *testing.T, voters ...ch.NodeID) *replicaHarness {
 }
 
 func (h *replicaHarness) submitRecoveryProbe(_ context.Context, query recoveryProbeQuery, complete func(ProbeResult, error)) error {
+	if h.probeDown[query.Voter] {
+		complete(ProbeResult{}, errors.New("voter unreachable"))
+		return nil
+	}
 	loaded, err := h.stores[query.Voter].Load(context.Background(), LoadBatch{Items: []LoadRequest{{
-		ChannelKey: query.ChannelKey, ChannelID: query.ChannelID, ProbeIndexes: query.Indexes,
+		ChannelKey: query.ChannelKey, ChannelID: query.ChannelID, ProbeIndexes: query.Indexes, Promise: query.Promise,
 	}}})
 	if err != nil || len(loaded.Items) != 1 || loaded.Items[0].Err != nil {
 		if err == nil && len(loaded.Items) == 1 {
@@ -406,9 +429,13 @@ func (h *replicaHarness) submitReplica(_ context.Context, voter ch.NodeID, propo
 
 func (h *replicaHarness) submit(voter ch.NodeID, proposal durableProposal, complete func(durabilityCompletion)) {
 	h.syncCalls++
+	if h.syncDown[voter] {
+		complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errors.New("voter unreachable")})
+		return
+	}
 	results := h.stores[voter].Sync(context.Background(), []Mutation{{
 		ChannelKey: proposal.channelKey, ChannelID: proposal.channelID,
-		Manifest: proposal.manifest, Records: proposal.records, Committed: proposal.committed,
+		Manifest: proposal.manifest, Records: proposal.records, Committed: proposal.committed, Writer: proposal.writer,
 	}})
 	if len(results) != 1 {
 		complete(durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: ch.ErrLogConflict})

@@ -18,7 +18,7 @@ func (d *channelMigrationDiagnostics) report(now time.Time, result channels.Repa
 	if d.logger == nil || now.Before(d.next) {
 		return
 	}
-	if executorErr == nil && scannerErr == nil && result.TasksCreated == 0 && result.TasksAborted == 0 && len(result.Blocked) == 0 {
+	if executorErr == nil && scannerErr == nil && result.TasksCreated == 0 && result.TasksAborted == 0 && result.TasksCompletedForFailover == 0 && len(result.Blocked) == 0 {
 		return
 	}
 	d.next = now.Add(10 * time.Second)
@@ -28,6 +28,7 @@ func (d *channelMigrationDiagnostics) report(now time.Time, result channels.Repa
 		wklog.Int("channels_scanned", result.ChannelsScanned),
 		wklog.Int("tasks_created", result.TasksCreated),
 		wklog.Int("tasks_aborted", result.TasksAborted),
+		wklog.Int("tasks_completed_for_failover", result.TasksCompletedForFailover),
 		wklog.Int("blocked_observations", len(result.Blocked)),
 	}
 	if len(result.Blocked) > 0 {

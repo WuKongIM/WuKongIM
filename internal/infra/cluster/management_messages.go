@@ -213,7 +213,7 @@ func (r *ManagementMessageReader) QueryMessages(ctx context.Context, req managem
 	if r == nil || r.node == nil {
 		return managementusecase.MessageQueryPage{}, nil
 	}
-	read, err := r.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, managementReadCommittedRequest(req))
+	read, err := r.readCommittedPage(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, managementReadCommittedRequest(req))
 	if err != nil {
 		return managementusecase.MessageQueryPage{}, mapAppendError(err)
 	}
@@ -230,6 +230,25 @@ func (r *ManagementMessageReader) QueryMessages(ctx context.Context, req managem
 		page.NextBeforeSeq = messages[len(messages)-1].MessageSeq
 	}
 	return page, nil
+}
+
+// readCommittedPage reads one page through the Channel leader when the node
+// supports routed reads, as client history sync does. A node-local read
+// returned errors on non-hosting nodes and stale pages on lagging replicas.
+// Routed errors never fall back to the local store.
+func (r *ManagementMessageReader) readCommittedPage(ctx context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	batchNode, ok := r.node.(channelMessageBatchReadNode)
+	if !ok {
+		return r.node.ReadChannelCommitted(ctx, id, req)
+	}
+	results, err := batchNode.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{ChannelID: id, Request: req}})
+	if err != nil {
+		return channelstore.ReadCommittedResult{}, err
+	}
+	if len(results) != 1 {
+		return channelstore.ReadCommittedResult{}, fmt.Errorf("management: routed page result count %d, want 1", len(results))
+	}
+	return results[0].Read, results[0].Err
 }
 
 // MaxMessageSeqForMeta returns the highest committed message sequence for one runtime metadata row.

@@ -40,6 +40,9 @@ type durableRound struct {
 	completed             map[ch.NodeID]bool
 	result                durableRoundResult
 	conflict, localFailed bool
+	// stale records a definitely-unwritten vote refused for a newer authority
+	// (a follower's stale fence or this replica's own authority promise).
+	stale bool
 	// dispatching fences callbacks against submissions that have been planned but
 	// have not yet transferred ownership to the local/peer dispatcher.
 	dispatching                   int
@@ -47,6 +50,9 @@ type durableRound struct {
 	terminalErr                   error
 	// complete is published outside mu after every planned dispatch returns.
 	complete func(durableRoundResult, error)
+	// proofs, when set, receives every voter's exact durable proof, including
+	// late and trailing (deferred) writes that no longer affect the result.
+	proofs durableProofSink
 	// Terminal publication stops both bounded asynchronous wakeup sources.
 	hedgeStopped bool
 	hedge        *time.Timer
@@ -55,7 +61,7 @@ type durableRound struct {
 
 // startDurableRound returns after initial dispatch, transferring exactly one
 // terminal callback on nil error. Admission rejection invokes no callback.
-func startDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, quorum int, proposal durableProposal, dispatcher durabilityDispatcher, complete func(durableRoundResult, error)) error {
+func startDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID, quorum int, proposal durableProposal, dispatcher durabilityDispatcher, proofs durableProofSink, complete func(durableRoundResult, error)) error {
 	if ctx == nil || dispatcher == nil || complete == nil || local == 0 || quorum <= 0 {
 		return ch.ErrInvalidConfig
 	}
@@ -80,7 +86,7 @@ func startDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID,
 		start := preferredFollowerIndex(proposal.channelKey, len(followers))
 		followers = append(append(make([]ch.NodeID, 0, len(followers)), followers[start:]...), followers[:start]...)
 	}
-	r := &durableRound{ctx: ctx, workCtx: context.WithoutCancel(ctx), local: local, quorum: quorum, proposal: proposal.freeze(), dispatcher: dispatcher, followers: followers, completed: make(map[ch.NodeID]bool, len(voters)), result: durableRoundResult{outcome: ch.AppendOutcomeDefinitelyNotWritten}, starting: true, complete: complete}
+	r := &durableRound{ctx: ctx, workCtx: context.WithoutCancel(ctx), local: local, quorum: quorum, proposal: proposal.freeze(), dispatcher: dispatcher, followers: followers, completed: make(map[ch.NodeID]bool, len(voters)), result: durableRoundResult{outcome: ch.AppendOutcomeDefinitelyNotWritten}, starting: true, complete: complete, proofs: proofs}
 	writes := []roundWrite{r.reserveLocked(local, roundWriteDirect)}
 	for r.nextFollower < len(followers) && r.nextFollower < quorum-1 {
 		writes = append(writes, r.reserveLocked(followers[r.nextFollower], roundWriteDirect))
@@ -168,7 +174,7 @@ func (r *durableRound) submit(write roundWrite, done func(durabilityCompletion))
 			err = r.dispatcher.(hedgedReplicaDispatcher).submitReplicaHedged(r.workCtx, write.voter, r.proposal, done)
 		case write.mode == roundWriteDeferred:
 			if d, ok := r.dispatcher.(deferredReplicaDispatcher); ok {
-				err = d.submitReplicaDeferred(r.workCtx, write.voter, r.proposal, func(durabilityCompletion) {})
+				err = d.submitReplicaDeferred(r.workCtx, write.voter, r.proposal, func(c durabilityCompletion) { r.reportProof(write.voter, c) })
 			} else {
 				err = r.dispatcher.submitReplica(r.workCtx, write.voter, r.proposal, done)
 			}
@@ -212,6 +218,7 @@ func (r *durableRound) cancel() {
 // onResult validates each distinct voter proof before advancing quorum. Late or
 // repeated callbacks cannot increase the vote count or publish another result.
 func (r *durableRound) onResult(voter ch.NodeID, c durabilityCompletion) {
+	r.reportProof(voter, c)
 	r.mu.Lock()
 	if r.terminal || r.completed[voter] {
 		r.mu.Unlock()
@@ -246,6 +253,8 @@ func (r *durableRound) onResult(voter ch.NodeID, c durabilityCompletion) {
 			r.result.outcome = ch.AppendOutcomeUnknown
 		case c.outcome == ch.AppendOutcomeConflict:
 			r.conflict = true
+		case c.outcome == ch.AppendOutcomeDefinitelyNotWritten && errors.Is(c.err, ch.ErrStaleMeta):
+			r.stale = true
 		}
 		switch {
 		case r.result.localDurable && r.result.durableVotes >= r.quorum:
@@ -266,6 +275,11 @@ func (r *durableRound) onResult(voter ch.NodeID, c durabilityCompletion) {
 			}
 			r.terminal = true
 			r.terminalErr = errDurableQuorumUnavailable
+			if r.stale {
+				// A replica already refused this authority: the owner is stale,
+				// which callers retry after a route refresh.
+				r.terminalErr = errors.Join(ch.ErrStaleMeta, errDurableQuorumUnavailable)
+			}
 		}
 	}
 	finish := r.finishLocked()
@@ -274,6 +288,15 @@ func (r *durableRound) onResult(voter ch.NodeID, c durabilityCompletion) {
 	if finish != nil {
 		finish()
 	}
+}
+
+// reportProof forwards only exact durable completions. Unknown, conflicting,
+// repair-needed or error-carrying results are never proofs. It runs outside mu.
+func (r *durableRound) reportProof(voter ch.NodeID, c durabilityCompletion) {
+	if r.proofs == nil || !c.outcome.Durable() || c.err != nil || c.follower != 0 || c.needFrom != 0 {
+		return
+	}
+	r.proofs(voter, r.proposal.last)
 }
 
 // finishLocked transfers terminal publication once every planned submission has

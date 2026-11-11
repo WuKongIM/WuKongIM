@@ -38,10 +38,10 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    adapter; it grants no Slot/Channel authority or proof on uncertain replies.
    Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
-   Planned transfers and replacement require fresh coverage at cutover and fence clearing.
+   Planned transfers and replacement require fresh coverage at cutover and fence clearing, except the dead-leader completion below, whose failover proves replay.
    Graceful drain applies/probes the fenced source; temporary catch-up yields without Slot writes.
    Failover selects a native leader before requiring replay; dead leaders preempt unpromoted replacement through guarded abort and rescan;
-   promoted tasks stay protected, and failover proof renewal never drains the dead source.
+   promoted (VerifyMembership) tasks never roll back but complete via the ordinary fence clear, then rescan; proof renewal never drains the dead source.
 4. Committed conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Conversation codec 10 carries UID-owned
    badge floors, excluded internal-position counts, and optional set-unread
@@ -82,8 +82,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 
 7. [Presence generations](node_presence_generation.go) use bounded control RPC108; Get/Capabilities retain caller cancellation, while admitted Ensure/Claim stay detached. Unknown requests never acquire read policy. Format-2 roster high water newer than M closes published gates even after membership ABA; a missing stamp cannot publish a fresh committed cut.
    app binds protocol/boot before advertisement and capability-proved G/M commits; self proof checks configured membership advertisement, which may differ from the listener.
-   Actual Slot F surrounds claims; per-HashSlot retirement closes the proven old G
-   before submit; failed/stale publication cannot reopen it. Fresh Get publishes same-cut G/M; hot checks stay local.
+   Actual Slot F surrounds claims; per-HashSlot retirement closes the proven old G before submit; failed/stale publication cannot reopen it. Fresh Get publishes same-cut G/M; hot checks stay local;
+   rejections keep their sentinels plus a closed `controller.PresenceRejectReason`, carried over RPC108 as `not_ready:<reason>` (older peers read plain not-ready). RPC110 answers the Channel replication capability (protocol 2: authority promises); the Controller leader paces one-way activation from 1s doubling to 30s and stops once active. The applied snapshot latches activation into one atomic flag that Channel replication reads per append.
 ## Invariants and Failure Semantics
 - `pkg/dataformat` owns immutable format/creator metadata; nonempty unregistered
   directories and corrupt or unsupported markers fail before storage opens.
@@ -141,7 +141,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   Observation values never transfer caller cancellation to started mutations. A separate local append observer times actual metadata resolve/apply and the enclosing runtime append, including its nested reserve/submit/future phases; shared owners retain aligned outcomes, remote forwarding invents no local work, and no observer is added to the wire.
 - Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.
 
-Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
+Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. Each write-readiness probe registers its node's reconstructed debt under nonwaiting restore/apply ownership before product admission, independently of free capacity or other nodes' completion. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
 
 - Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback joins transport owners before ingress batches and metadata/storage; business evaluation stays in the usecase.
 ## Read First

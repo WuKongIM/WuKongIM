@@ -41,7 +41,8 @@ func run(args []string) error {
 var Selectors = []string{
 	"go-format", "go-vet", "go-mod-tidy",
 	"flow-doc-contracts", "agent-artifact-contracts", "skill-focused-contracts",
-	"web", "demo", "docs", "docs-integration", "three-node",
+	"web", "demo", "docs", "docs-integration", "integration", "three-node", "gofail-e2e",
+	"e2e-shard-1", "e2e-shard-2", "e2e-shard-3", "e2e-shard-4",
 }
 
 func runCICheck(
@@ -78,8 +79,23 @@ func runCICheck(
 		return checkDocumentation(ctx, root, commands)
 	case "docs-integration":
 		return checkDocumentationIntegration(ctx, root, commands)
+	case "integration":
+		// Real clusters and fixed latency gates must not compete with unrelated
+		// package test processes for the same runner's CPU, disk and sockets.
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
+			"go", "test", "-tags=integration", "./internal/...", "./pkg/...", "-count=1", "-p=1", "-timeout=50m")
 	case "three-node":
 		return checkThreeNode(ctx, root, commands)
+	case "gofail-e2e":
+		return checkGofailE2E(ctx, root, commands)
+	case "e2e-shard-1":
+		return checkE2EShard(ctx, root, commands, 1)
+	case "e2e-shard-2":
+		return checkE2EShard(ctx, root, commands, 2)
+	case "e2e-shard-3":
+		return checkE2EShard(ctx, root, commands, 3)
+	case "e2e-shard-4":
+		return checkE2EShard(ctx, root, commands, 4)
 	default:
 		return errors.New("unknown CI check selector")
 	}

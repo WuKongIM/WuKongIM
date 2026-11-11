@@ -13,8 +13,9 @@ type ConsumerSessionReclamation interface {
 	ReclaimSession(context.Context, meta.MQTTSessionCursor) (bool, error)
 }
 
-// ConsumerReclamationIndex resumes at most one durable historical backfill page.
-// Coverage completion permits discovery; it never means cleanup is complete.
+// ConsumerReclamationIndex obtains fresh coverage evidence or resumes at most
+// one durable historical backfill page. Completion permits discovery; it never
+// means cleanup is complete.
 type ConsumerReclamationIndex interface {
 	BuildMQTTReclamationIndex(context.Context, uint16) (meta.MQTTReclamationIndexResult, error)
 }

@@ -4,6 +4,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -231,15 +232,21 @@ func verifyMQTTRetirementTypedRestartRetry(t *testing.T, ctx context.Context, a 
 	// A current write fence also blocks otherwise idempotent control admission.
 	a.ID.FenceVersion++
 	a.WriteFence = ch.WriteFence{Token: "retirement-transfer", Version: a.ID.FenceVersion, Reason: ch.WriteFenceReasonLeaderTransfer}
-	_, err = runtimes[a.Leader].Log().Install(ctx, a)
-	require.NoError(t, err)
+	install := func() {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			_, err = runtimes[a.Leader].Log().Install(ctx, a)
+			return !errors.Is(err, ch.ErrNotReady)
+		}, 2*time.Second, time.Millisecond)
+		require.NoError(t, err)
+	}
+	install()
 	q.Meta.RouteGeneration, q.Meta.WriteFence = a.ID.FenceVersion, a.WriteFence
 	after, err = runtimes[a.Leader].Log().(ch.MQTTReplayRetirementCommitter).CommitMQTTReplayRetirement(ctx, q)
 	require.ErrorIs(t, err, ch.ErrWriteFenced)
 	require.Zero(t, after)
 	a.ID.FenceVersion++
 	a.WriteFence = ch.WriteFence{}
-	_, err = runtimes[a.Leader].Log().Install(ctx, a)
-	require.NoError(t, err)
+	install()
 	return a
 }

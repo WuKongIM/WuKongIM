@@ -29,6 +29,15 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
 	waitNodeWriteReady(t, nodes[0])
+	// Fix the authority mode before asserting exact positions across failover.
+	require.Eventually(t, func() bool {
+		for _, node := range nodes {
+			if !node.ChannelAuthorityPromiseActive() {
+				return false
+			}
+		}
+		return true
+	}, 10*time.Second, 10*time.Millisecond)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 	defer cancel()
 	id := ch.ChannelID{ID: "mqtt-anchor-channel", Type: 2}
@@ -167,8 +176,8 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 	require.Equal(t, proof, recovered, "old proof survives a later anchor, restart and authority change")
 	recoveredPlan := planReplay()
 	require.Equal(t, next, recoveredPlan.Anchor, "planning retains the latest accepted anchor after an older exact retry")
-	// The new leader commits its native current-term barrier at position 6.
-	appendBusiness(907, 7)
+	// The new leader's durable promise consumes no log position.
+	appendBusiness(907, 6)
 	retirementRequest, selectionRequest := verifyRoutedMQTTRetirement(t, ctx, nodes, m, planRequest(), proof, next)
 	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, 3)

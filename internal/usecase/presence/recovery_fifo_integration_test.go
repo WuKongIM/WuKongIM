@@ -192,7 +192,7 @@ func TestRecoveryCanceledBatchMemberDoesNotPublishWithoutLiveFollower(t *testing
 		}
 		return out
 	})
-	recovery := presence.NewAuthorityRecovery(directory, owners)
+	recovery := presence.NewAuthorityRecovery(directory, boundedRecoveryCallsFunc(owners))
 	target := flightTarget(1)
 	directory.BecomeAuthority(target)
 	for i := 0; i < 16; i++ {
@@ -584,7 +584,7 @@ func TestRecoveryFIFOCoalescesQueuedCallsWithoutWaitingToFill(t *testing.T) {
 	directory := authority.NewDirectory(authority.DirectoryOptions{RequireRecovery: true})
 	owners := &fifoTraceOwners{entered: make(chan []presence.RecoveryCall, 64), release: make(chan struct{}, 16)}
 	t.Cleanup(func() { close(owners.release) })
-	recovery := presence.NewAuthorityRecovery(directory, owners)
+	recovery := presence.NewAuthorityRecovery(directory, boundedRecoveryCallsFunc(owners.RecoverRouteCalls))
 	seeds := make([]*flightCall, 16)
 	for i := 0; i < 48; i++ {
 		directory.BecomeAuthority(flightTarget(uint16(i)))
@@ -632,6 +632,36 @@ func TestRecoveryFIFOCoalescesQueuedCallsWithoutWaitingToFill(t *testing.T) {
 			t.Fatal("coalescing changed a caller's independent result")
 		}
 	}
+}
+
+// Prepaid results permit a whole queued batch when one execution slot returns.
+// Legacy providers retain only sixteen original-call result credits, so a
+// schedule releasing one seed at a time is allowed to dispatch single calls.
+type boundedRecoveryCallsFunc recoveryCallsFunc
+
+func (o boundedRecoveryCallsFunc) RecoverRoutes(ctx context.Context, target presence.RouteTarget, uids []string) ([]presence.Route, error) {
+	return recoveryCallsFunc(o).RecoverRoutes(ctx, target, uids)
+}
+
+func (o boundedRecoveryCallsFunc) RecoverRouteCalls(ctx context.Context, calls []presence.RecoveryCall) [][]presence.EndpointLookupResult {
+	return o(ctx, calls)
+}
+
+func (boundedRecoveryCallsFunc) SupportsBoundedRecoveryResults() bool { return true }
+
+func (o boundedRecoveryCallsFunc) RecoverRouteCallsBounded(ctx context.Context, calls []presence.RecoveryCall, budget *presence.RecoveryResultBudget, _ func(presence.RecoveryResultUsage)) (presence.OwnedRecoveryResults, error) {
+	var rows uint64
+	for _, call := range calls {
+		for _, group := range call.Groups {
+			rows += uint64(len(group.UIDs))
+		}
+	}
+	// Each fixed short-UID fixture call owns at most two small routes.
+	lease, err := budget.TryReserve(rows, uint64(len(calls))*4096)
+	if err != nil {
+		return presence.OwnedRecoveryResults{}, err
+	}
+	return presence.OwnedRecoveryResults{Results: o.RecoverRouteCalls(ctx, calls), Lease: lease}, nil
 }
 
 func TestRecoveryCloseRetainsActiveResultOwnershipUntilProviderReturns(t *testing.T) {

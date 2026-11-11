@@ -2,6 +2,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -22,6 +23,10 @@ type recoveryProbeRequest struct {
 	// Timeout bounds one accepted recovery attempt independently of its caller.
 	Timeout      time.Duration
 	Continuation *recoveryContinuation
+	// Promise, when set, makes every probe of this round a durable authority
+	// promise before the voter reports its frontier. Only promised voters then
+	// count toward the recovery quorum, and any higher promise aborts it.
+	Promise AuthorityID
 }
 
 // recoveryContinuation binds one next page to the exact frontier and stable
@@ -54,6 +59,8 @@ type recoveryProbeQuery struct {
 	Leader     ch.NodeID
 	Voter      ch.NodeID
 	Indexes    []uint64
+	// Promise is the authority the voter durably promises before reading.
+	Promise AuthorityID
 }
 
 // recoveryProbeDispatcher transfers one admitted query to a bounded local or
@@ -113,7 +120,7 @@ func (d *batchingRecoveryProbeDispatcher) submitRecoveryProbe(ctx context.Contex
 		}
 		request := ProbeRequest{
 			ChannelKey: query.ChannelKey, ChannelID: query.ChannelID,
-			Leader: query.Leader, Follower: query.Voter, Indexes: query.Indexes,
+			Leader: query.Leader, Follower: query.Voter, Indexes: query.Indexes, Promise: query.Promise,
 		}
 		return d.peers.submitProbe(ctx, query.Voter, request, complete)
 	}
@@ -169,7 +176,7 @@ func (d *batchingRecoveryProbeDispatcher) loadLocalRecoveryProbe(query recoveryP
 	defer cancel()
 	loaded, err := d.store.Load(loadContext, LoadBatch{Items: []LoadRequest{{
 		ChannelKey: query.ChannelKey, ChannelID: query.ChannelID,
-		ProbeIndexes: append([]uint64(nil), query.Indexes...),
+		ProbeIndexes: append([]uint64(nil), query.Indexes...), Promise: query.Promise,
 	}}})
 	if err != nil || len(loaded.Items) != 1 {
 		if err == nil {
@@ -520,6 +527,7 @@ func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest
 		query := recoveryProbeQuery{
 			ChannelKey: request.ChannelKey, ChannelID: request.ChannelID,
 			Leader: request.Leader, Voter: voter, Indexes: append([]uint64(nil), indexes...),
+			Promise: request.Promise,
 		}
 		complete := func(result ProbeResult, err error) {
 			completions <- recoveryProbeCompletion{voter: voter, result: result, err: err}
@@ -554,6 +562,11 @@ func collectRecoveryProbeRound(ctx context.Context, request recoveryProbeRequest
 		}
 		if completion.voter == request.Leader {
 			localPending = false
+		}
+		if completion.err != nil && request.Promise != (AuthorityID{}) && errors.Is(completion.err, ch.ErrStaleMeta) {
+			// A voter already promised a higher authority: this installation
+			// is stale and must not proceed on the remaining voters.
+			return nil, ch.ErrStaleMeta
 		}
 		if completion.err != nil {
 			// The installing leader must observe its own store successfully.

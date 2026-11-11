@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	gr "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,17 +68,29 @@ func verifyMQTTSessionReclamation(t *testing.T, ctx context.Context, nodes []*cl
 		require.NoError(t, worker.Start(ctx))
 	}
 
-	require.Eventually(t, func() bool {
+	// Cold discovery must visit the 256 hash Slots and durably backfill their
+	// indexes before finding old intents. Keep the successor live while waiting;
+	// renewing it cannot reclaim the previous generation's children.
+	renewAfter := time.Now().Add(10 * time.Second)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		if time.Now().After(renewAfter) {
+			call, done := context.WithTimeout(ctx, time.Second)
+			_, e := sessions[0].Renew(call, successor.Owner)
+			done()
+			require.NoError(c, e)
+			renewAfter = time.Now().Add(10 * time.Second)
+		}
 		for _, q := range queries {
 			call, done := context.WithTimeout(ctx, time.Second)
 			r, e := nodes[2].ReadMQTT(call, q)
 			done()
-			if e != nil || r.Session == nil || r.Session.UID != "alice" || r.Session.ReclaimedThroughGeneration < q.SessionGeneration || len(r.Subscriptions) != 0 {
-				return false
-			}
+			require.NoError(c, e)
+			require.NotNil(c, r.Session)
+			require.Equal(c, "alice", r.Session.UID)
+			require.GreaterOrEqual(c, r.Session.ReclaimedThroughGeneration, q.SessionGeneration, "client %s", q.ClientID)
+			require.Empty(c, r.Subscriptions)
 		}
-		return true
-	}, 20*time.Second, 100*time.Millisecond, "composed worker did not autonomously reclaim old intents")
+	}, 40*time.Second, 100*time.Millisecond, "composed worker did not autonomously reclaim old intents")
 	scope, e := owners[0].Begin(ctx, successor.Owner)
 	require.NoError(t, e)
 	scope.Done()

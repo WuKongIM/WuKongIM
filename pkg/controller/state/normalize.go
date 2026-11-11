@@ -134,6 +134,10 @@ func (s ClusterState) Clone() ClusterState {
 		presence := s.Presence.Clone()
 		out.Presence = &presence
 	}
+	if s.ChannelAuthorityPromise != nil {
+		promise := *s.ChannelAuthorityPromise
+		out.ChannelAuthorityPromise = &promise
+	}
 	return out
 }
 

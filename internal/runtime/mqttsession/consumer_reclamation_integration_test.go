@@ -12,6 +12,62 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Backfill is a replicated write. A valid commit may outlive a point-read
+// budget, but an expired turn or caller cancellation must never certify it.
+func TestConsumerReclamationBackfillCommitBudget(t *testing.T) {
+	for _, scenario := range []string{"commit", "expired_turn", "canceled_caller"} {
+		t.Run(scenario, func(t *testing.T) {
+			s := &deadlineSource{slots: []meta.HashSlot{0}}
+			row := consumerReclamationRow("backfill")
+			s.read = func(_ uint16, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+				if q.Kind == meta.MQTTReadSessionReclamation {
+					return meta.MQTTReadResult{Sessions: []meta.MQTTSession{row}, After: consumerReclamationCursor(row), Done: true}, nil
+				}
+				return meta.MQTTReadResult{Done: true, After: q.After}, nil
+			}
+			w := consumerWorkerFixture(t, s)
+			enableReclamationWork(w)
+			w.opts.CallTimeout = 20 * time.Millisecond
+			w.opts.ScanTimeout = 500 * time.Millisecond
+			if scenario == "expired_turn" {
+				w.opts.ScanTimeout = 40 * time.Millisecond
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w.opts.ReclamationIndex = consumerReclamationIndexFunc(func(call context.Context, _ uint16) (meta.MQTTReclamationIndexResult, error) {
+				if scenario == "canceled_caller" {
+					cancel()
+				} else {
+					timer := time.NewTimer(60 * time.Millisecond)
+					defer timer.Stop()
+					select {
+					case <-timer.C:
+					case <-call.Done():
+					}
+				}
+				// A late dependency reply cannot override the caller's deadline.
+				return meta.MQTTReclamationIndexResult{Done: true}, nil
+			})
+			var state consumerScanState
+			admitted := 0
+			observation := w.sweep(ctx, &state, func(k consumerWorkKey) bool {
+				require.Equal(t, consumerReclamationCursor(row).Session, k.session)
+				admitted++
+				return true
+			})
+			if scenario == "commit" {
+				require.Equal(t, 1, admitted)
+				require.True(t, state.indexReady[0])
+				require.Zero(t, observation.Failures)
+			} else {
+				require.Zero(t, admitted)
+				require.False(t, state.indexReady[0])
+				require.Equal(t, 1, observation.Failures)
+			}
+		})
+	}
+}
+
 func TestConsumerReclamationSharesCohortAndJoinsStop(t *testing.T) {
 	s := &deadlineSource{slots: []meta.HashSlot{0}}
 	s.read = func(_ uint16, q meta.MQTTRead) (meta.MQTTReadResult, error) {

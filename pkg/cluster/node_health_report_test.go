@@ -202,6 +202,10 @@ func TestStopHealthReportLoopReportsNotReadyAfterStopping(t *testing.T) {
 	if !initial.RuntimeReady {
 		t.Fatalf("initial RuntimeReady = false, want true")
 	}
+	// Controller receipt precedes the reporting caller's lease publication.
+	// Join that caller before capturing the baseline for the final stop report.
+	node.healthReportCancel()
+	node.healthReportWG.Wait()
 	visibleBeforeStop := node.channelDataPlaneLease.snapshot().lastVisibleAt
 	if visibleBeforeStop.IsZero() {
 		t.Fatal("channel data-plane lease lastVisibleAt is zero after ready health report")

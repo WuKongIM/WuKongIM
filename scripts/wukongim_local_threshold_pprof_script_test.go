@@ -19,7 +19,7 @@ func TestLocalThresholdPprofScriptStaticContract(t *testing.T) {
 		"--previous-utc", "--current-utc",
 		"--node", "--cpu-seconds", "wukongim.local_threshold_pprof/v1",
 		"WK_BENCH_API_TOKEN is required", "unset WK_BENCH_API_TOKEN",
-		`--header @<(write_authorization_header)`,
+		`write_authorization_header | curl `, `--header @-`,
 		"sendack_p99", "actual_offered_ratio", "terminal_product_failure", "normalize_rfc3339_nano",
 		`--connect-timeout "$CONNECT_TIMEOUT_SECONDS"`, `--max-time "$max_time"`, "CPU_MAX_TIME_SECONDS",
 		"/debug/pprof/profile?seconds=", "/debug/pprof/heap", "/debug/pprof/goroutine?debug=2",
@@ -33,7 +33,7 @@ func TestLocalThresholdPprofScriptStaticContract(t *testing.T) {
 	if strings.Contains(strings.ToLower(script), "docker") || strings.Contains(strings.ToLower(script), "aliyun") {
 		t.Fatal("local threshold pprof capture must not invoke container or cloud operations")
 	}
-	for _, forbidden := range []string{`--api-token`, `-H "Authorization: Bearer`, `--header "Authorization: Bearer`} {
+	for _, forbidden := range []string{`--api-token`, `-H "Authorization: Bearer`, `--header "Authorization: Bearer`, `<(write_authorization_header)`} {
 		if strings.Contains(script, forbidden) {
 			t.Fatalf("threshold pprof script must not expose the API token through %q", forbidden)
 		}

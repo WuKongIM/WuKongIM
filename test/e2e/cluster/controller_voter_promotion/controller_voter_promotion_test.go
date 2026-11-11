@@ -198,7 +198,14 @@ func requireNode4GatewaySend(t *testing.T, cluster *suite.StartedCluster, node4 
 	require.NoError(t, err)
 	defer func() { _ = sender.Close() }()
 
-	require.NoError(t, sender.Connect(node4.GatewayAddr(), "controller-voter-promotion-sender", "controller-voter-promotion-device"), cluster.DumpDiagnostics())
+	// Token authentication is on by default: provision a device token through
+	// public HTTP instead of connecting anonymously.
+	const uid, token = "controller-voter-promotion-sender", "controller-voter-promotion-token"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, suite.RegisterUserToken(ctx, node4.APIAddr(), uid, token), cluster.DumpDiagnostics())
+	_, err = sender.ConnectWithTokenContext(ctx, node4.GatewayAddr(), uid, "controller-voter-promotion-device", token)
+	require.NoError(t, err, cluster.DumpDiagnostics())
 	const clientSeq uint64 = 1
 	const clientMsgNo = "controller-voter-promotion-node4-send-1"
 	require.NoError(t, sender.SendFrame(&frame.SendPacket{

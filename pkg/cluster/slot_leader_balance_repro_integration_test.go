@@ -298,7 +298,11 @@ func transferSlotLeaderAndWait(t *testing.T, nodes []*Node, slotID uint32, targe
 					break
 				}
 			}
-			if allObserved {
+			// Raft status alone is not serving readiness: routers refresh on
+			// their own loop, and a fresh leader rejects reads with slot busy
+			// until it commits a current-term entry. One-shot calls right
+			// after a transfer need both.
+			if allObserved && slotLeaderServing(nodes, slotID, target) {
 				return
 			}
 			time.Sleep(10 * time.Millisecond)
@@ -313,6 +317,19 @@ func transferSlotLeaderAndWait(t *testing.T, nodes []*Node, slotID uint32, targe
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("slot %d did not transfer to node %d", slotID, target)
+}
+
+// slotLeaderServing reports whether every router routes slotID to target and
+// target can complete a Slot read barrier in its current term.
+func slotLeaderServing(nodes []*Node, slotID uint32, target uint64) bool {
+	for _, node := range nodes {
+		if node.router.Table().SlotLeaders[slotID] != target {
+			return false
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	return nodes[target-1].defaultSlotRuntime.ReadBarrier(ctx, multiraft.SlotID(slotID)) == nil
 }
 
 func stopSlotLeaderReproNodes(t *testing.T, nodes []*Node) {

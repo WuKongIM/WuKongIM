@@ -267,6 +267,36 @@ func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
 		recvCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 		defer stop()
 		received, err := receiverConn.Recv(recvCtx)
+		if err != nil {
+			mu.Lock()
+			observed := maps.Clone(counts)
+			mu.Unlock()
+			t.Logf("webhook receive failure: receive=%s callback_counts=%v warm_receipt=%+v queue=%+v", id, observed, warm, receiverConn.InboundQueueSnapshot())
+			// Capture only after the original receive failed; diagnostics never extend its deadline.
+			diagnosticCtx, finish := context.WithTimeout(context.Background(), 5*time.Second)
+			defer finish()
+			for node := uint64(1); node <= 3; node++ {
+				samples, metricErr := suite.FetchMetricSamples(diagnosticCtx, cluster.MustNode(node).APIAddr())
+				t.Logf("webhook receive failure: node=%d metrics_error=%v", node, metricErr)
+				var online any
+				_, onlineErr := suite.PostJSON(diagnosticCtx, "http://"+cluster.MustNode(node).APIAddr()+"/user/onlinestatus", []string{receiver}, &online)
+				t.Logf("webhook receive failure: node=%d receiver_online=%v error=%v queue=%+v", node, online, onlineErr, receiverConn.InboundQueueSnapshot())
+
+				shown, omitted := 0, 0
+				for _, sample := range samples {
+					if sample.Value != 0 && !strings.HasSuffix(sample.Name, "_bucket") && (strings.Contains(sample.Name, "delivery") || strings.Contains(sample.Name, "presence") || strings.Contains(sample.Name, "webhook") || strings.Contains(sample.Name, "gateway") || strings.Contains(sample.Name, "channelappend")) {
+						if shown == 100 {
+							omitted++
+							continue
+						}
+						t.Logf("webhook receive failure: node=%d metric=%s value=%v labels=%v", node, sample.Name, sample.Value, sample.Labels)
+						shown++
+					}
+				}
+				t.Logf("webhook receive failure: node=%d metric_samples=%d omitted=%d", node, shown, omitted)
+			}
+			t.Logf("webhook receive failure: %s", cluster.DumpDiagnostics())
+		}
 		require.NoError(t, err)
 		require.Equal(t, id, received.ClientMsgNo)
 		require.Equal(t, payload, string(received.Payload))

@@ -44,6 +44,36 @@ type MemoryChannelStore struct {
 	proposalsByCommand map[[32]byte]proposalRecord
 	proposalsByLast    map[uint64]proposalRecord
 	entriesByIndex     map[uint64]ch.EntryIdentity
+	// promise is the durable authority promise outside the log.
+	promise        AuthorityFence
+	promisePresent bool
+}
+
+// PromiseAuthority records promise; see AuthorityPromiser.
+func (s *MemoryChannelStore) PromiseAuthority(ctx context.Context, promise AuthorityFence) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if promise.IsZero() {
+		return ch.ErrInvalidConfig
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.promisePresent && promise.Compare(s.promise) < 0 {
+		return ch.ErrStaleMeta
+	}
+	s.promise, s.promisePresent = promise, true
+	return nil
+}
+
+// AuthorityPromise returns the current promise; see AuthorityPromiser.
+func (s *MemoryChannelStore) AuthorityPromise(ctx context.Context) (AuthorityFence, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return AuthorityFence{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.promise, s.promisePresent, nil
 }
 
 // Load returns the current in-memory offsets.
@@ -385,6 +415,10 @@ func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (A
 	if err := validatePublicationRecords(req.Records); err != nil {
 		return appendLeaderErrorResult(err), err
 	}
+	raise, err := fenceExactAppend(req, s.promise, s.promisePresent)
+	if err != nil {
+		return appendLeaderErrorResult(err), err
+	}
 	proposal, entries, err := buildProposalRecord(req.Proposal, req.ExpectedBaseOffset, req.Records)
 	if err != nil {
 		return appendLeaderErrorResult(err), err
@@ -451,6 +485,9 @@ func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (A
 	s.proposalsByLast[req.Proposal.LastOffset] = proposal
 	for _, entry := range entries {
 		s.entriesByIndex[entry.Index] = entry
+	}
+	if raise != nil {
+		s.promise, s.promisePresent = *raise, true
 	}
 	return AppendLeaderResult{BaseOffset: base, LastOffset: last, Outcome: AppendOutcomeDurable}, nil
 }

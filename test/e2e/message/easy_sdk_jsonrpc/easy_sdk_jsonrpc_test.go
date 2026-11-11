@@ -60,6 +60,12 @@ func TestEasySDKJSONRPCAndroidAndIOSExchangeMessagesAndReconnect(t *testing.T) {
 		}),
 	)
 	httpClient := &http.Client{Timeout: time.Second}
+	// CONNECT token authentication is on by default; provision the tokens
+	// the SDK clients present (device flag 0 is APP).
+	tokenCtx, cancelTokens := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelTokens()
+	require.NoError(t, suite.RegisterUserToken(tokenCtx, node.APIAddr(), "easy-ios-alice", "alice-token"), node.DumpDiagnostics())
+	require.NoError(t, suite.RegisterUserToken(tokenCtx, node.APIAddr(), "easy-android-bob", "bob-token"), node.DumpDiagnostics())
 
 	alice := dialEasySDKClient(t, node.WebSocketURL(), iosProfile)
 	bob := dialEasySDKClient(t, node.WebSocketURL(), androidProfile)

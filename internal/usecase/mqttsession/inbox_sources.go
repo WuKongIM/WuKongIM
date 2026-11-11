@@ -22,7 +22,7 @@ type InboxSourceMetadata interface {
 type InboxSourceOptions struct {
 	Store   InboxSourceMetadata
 	Sources SourceProtector
-	// Timeout bounds one pair, with no retry loop; default five seconds, at most a minute.
+	// Timeout bounds one pair, including at most three definitely rejected cursor Init proposals; default five seconds, at most a minute.
 	Timeout time.Duration
 	// Now supplies durable mutation timestamps, never a proof that a Session ended.
 	Now func() time.Time

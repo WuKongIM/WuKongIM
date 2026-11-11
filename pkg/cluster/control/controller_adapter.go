@@ -84,6 +84,7 @@ func snapshotFromControllerState(st controller.ClusterState, leaderID uint64, no
 		snap.Presence = &presence
 		snap.PresenceRosterCurrent = st.PresenceRosterCurrent(presence.OwnerSet.Owners)
 	}
+	snap.ChannelAuthorityPromiseActive = st.ChannelAuthorityPromise != nil
 	healthByNode := make(map[uint64]controller.NodeHealthReport, len(st.NodeHealthReports))
 	for _, report := range st.NodeHealthReports {
 		healthByNode[report.NodeID] = report

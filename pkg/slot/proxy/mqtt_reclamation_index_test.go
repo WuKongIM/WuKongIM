@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	db "github.com/WuKongIM/WuKongIM/pkg/db"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -37,9 +37,10 @@ func TestMQTTReclamationIndexRoutedCoverageAndFreshDiscovery(t *testing.T) {
 	build, e := store.BuildMQTTReclamationIndex(ctx, hs)
 	require.NoError(t, e)
 	require.Equal(t, metadb.MQTTReclamationIndexResult{Scanned: 1, Done: true}, build)
-	// A node-local empty replica has no coverage and cannot answer this query.
-	_, e = nodes[0].db.ReadMQTTState(ctx, hs, q)
-	require.ErrorIs(t, e, db.ErrConflict)
+	// The empty local replica differs from authority and must never substitute for it.
+	local, e := nodes[0].db.ReadMQTTState(ctx, hs, q)
+	require.NoError(t, e)
+	require.Empty(t, local.Sessions)
 	for range 2 {
 		before := nodes[1].cluster.nextIndex[2]
 		r, e := store.ReadMQTTRecovery(ctx, hs, q)
@@ -56,14 +57,19 @@ func TestMQTTReclamationIndexReplyValidation(t *testing.T) {
 	nodes := startTwoNodeHashSlotStores(t, 256)
 	store := &Store{cluster: nodes[0].cluster, db: nodes[0].db}
 	ctx := context.Background()
+	row := mqttProxySession("reply-validation")
+	_, seedErr := nodes[0].store.CompareAndSwapMQTTSession(ctx, 0, row)
+	require.NoError(t, seedErr)
+	key, _ := MQTTSessionRoutingKey(row.Namespace, row.ClientID)
+	hash := store.cluster.HashSlotForKey(key)
 	for _, body := range []string{"", "null", "{}", `{"Scanned":-1,"Done":true}`, `{"Scanned":65,"Done":true}`, `{"Scanned":63,"Done":false}`, `{"Scanned":64,"Done":false,"future":1}`} {
 		store.cluster = &mqttResultCluster{Cluster: nodes[0].cluster, body: []byte(body)}
-		_, e := store.BuildMQTTReclamationIndex(ctx, 1)
+		_, e := store.BuildMQTTReclamationIndex(ctx, hash)
 		require.Error(t, e, body)
 	}
 	noResult := &mqttNoResultCluster{Cluster: nodes[0].cluster}
 	store.cluster = noResult
-	_, e := store.BuildMQTTReclamationIndex(ctx, 1)
+	_, e := store.BuildMQTTReclamationIndex(ctx, hash)
 	require.Error(t, e)
 	require.Zero(t, noResult.writes)
 	for _, mode := range []string{"valid", "live", "duplicate", "backward", "missing_cursor", "foreign_cursor", "mixed"} {
@@ -99,4 +105,46 @@ func TestMQTTReclamationIndexReplyValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Count result-bearing backfills separately from the fixture's noop read barriers.
+type reclamationCountingCluster struct {
+	*proxyTestCluster
+	builds int
+}
+
+func (c *reclamationCountingCluster) ProposeWithHashSlotResult(ctx context.Context, slot multiraft.SlotID, hash uint16, cmd []byte) ([]byte, error) {
+	c.builds++
+	return c.proxyTestCluster.ProposeWithHashSlotResult(ctx, slot, hash, cmd)
+}
+func TestMQTTReclamationIndexAvoidsEmptyAndCertifiedBackfill(t *testing.T) {
+	nodes := startTwoNodeHashSlotStores(t, 256)
+	counted := &reclamationCountingCluster{proxyTestCluster: nodes[0].cluster}
+	store := &Store{cluster: counted, db: nodes[0].db}
+	ctx := context.Background()
+	row := mqttProxySession("coverage-fast-path")
+	key, _ := MQTTSessionRoutingKey(row.Namespace, row.ClientID)
+	hash := store.cluster.HashSlotForKey(key)
+	for range 2 {
+		got, err := store.BuildMQTTReclamationIndex(ctx, hash)
+		require.NoError(t, err)
+		require.Equal(t, metadb.MQTTReclamationIndexResult{Done: true}, got)
+		require.Zero(t, counted.builds, "empty authoritative snapshots do not require a backfill write")
+	}
+	_, err := nodes[0].store.CompareAndSwapMQTTSession(ctx, 0, row)
+	require.NoError(t, err)
+	got, err := store.BuildMQTTReclamationIndex(ctx, hash)
+	require.NoError(t, err)
+	require.Equal(t, metadb.MQTTReclamationIndexResult{Scanned: 1, Done: true}, got)
+	require.Equal(t, 1, counted.builds)
+	got, err = store.BuildMQTTReclamationIndex(ctx, hash)
+	require.NoError(t, err)
+	require.Equal(t, metadb.MQTTReclamationIndexResult{Done: true}, got)
+	require.Equal(t, 1, counted.builds, "certified authority does not require another backfill write")
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	got, err = store.BuildMQTTReclamationIndex(canceled, hash)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Zero(t, got)
+	require.Equal(t, 1, counted.builds)
 }

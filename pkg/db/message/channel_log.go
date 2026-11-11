@@ -31,6 +31,9 @@ type channelEntry struct {
 	// durableProposalTail caches the committed exact-append predecessor. It is
 	// guarded by appendMu and may only be published after the physical commit.
 	durableProposalTail durableProposalTail
+	// authorityPromise caches the durable authority promise (system ID 19)
+	// under appendMu, fenced by the database mutation generation.
+	authorityPromise authorityPromiseCache
 	// ordinaryIndexProof records durable sparse-index absence under appendMu;
 	// SyncOnce staging, restore discard and import generations invalidate it.
 	ordinaryIndexProof ordinaryIndexProof

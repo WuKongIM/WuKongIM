@@ -237,10 +237,10 @@ func (w *wal) appendAppliedIndex(ctx context.Context, index uint64) error {
 	if w.file == nil {
 		return fmt.Errorf("controller/raftstore: wal is closed")
 	}
+	// The applied marker only shortens replay; losing an unsynced tail record
+	// replays a few committed entries again. The next Ready fsync, a segment
+	// cut, compaction or close makes it durable (issue #1098).
 	if err := w.writeLocked(walRecord{Type: recordAppliedIndex, Payload: marshalUint64(index)}); err != nil {
-		return err
-	}
-	if err := w.file.Sync(); err != nil {
 		return err
 	}
 	return w.cutIfNeededLocked()
@@ -334,6 +334,16 @@ func (w *wal) releaseBefore(index uint64) error {
 		}
 	}
 	return nil
+}
+
+// sync makes every appended record durable, including unsynced applied markers.
+func (w *wal) sync() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.file == nil {
+		return fmt.Errorf("controller/raftstore: wal is closed")
+	}
+	return w.file.Sync()
 }
 
 func (w *wal) close() error {

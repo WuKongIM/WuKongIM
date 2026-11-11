@@ -103,6 +103,10 @@ func TestPresenceGenerationCommitsCASAcrossControllerRestart(t *testing.T) {
 	if _, err := runtime.ClaimPresenceGeneration(ctx, request); !errors.Is(err, controller.ErrPresenceGenerationConflict) {
 		t.Fatalf("obsolete predecessor error = %v, want generation conflict", err)
 	}
+	// An out-of-range Get names its closed reason while staying not-ready (#1097).
+	if _, err := runtime.GetPresenceGeneration(ctx, 65535); !errors.Is(err, controller.ErrPresenceGenerationNotReady) || controller.PresenceRejectReasonOf(err) != controller.PresenceRejectHashSlotOutOfRange {
+		t.Fatalf("out-of-range Get error = %v, want hash_slot_out_of_range", err)
+	}
 	before, err := runtime.GetPresenceGeneration(ctx, 37)
 	if err != nil || before.Generation != second || !reflect.DeepEqual(before.OwnerSet, owners) {
 		t.Fatalf("Get before restart = (%+v,%v), want second receipt and unchanged M", before, err)

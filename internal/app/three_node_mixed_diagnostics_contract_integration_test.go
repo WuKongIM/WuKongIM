@@ -63,8 +63,10 @@ func TestMixedSendCounterWindowRetainsOnlyBoundaryFiles(t *testing.T) {
 			t.Fatalf("invalid %s snapshot: %v", name, err)
 		}
 	}
-	if len(before.Families) != 1 || before.Families[0].Metric[0].Histogram.GetSampleCount() != 1 || after.Families[0].Metric[0].Histogram.GetSampleCount() != 2 {
-		t.Fatal("boundary snapshots did not detach warmup and measured counters")
+	// Other always-registered families (for example permission gauges) share
+	// the gatherer; select the observed histogram by name.
+	if beforeAppend, afterAppend := mixedSendAppendStageSamples(before), mixedSendAppendStageSamples(after); beforeAppend != 1 || afterAppend != 2 {
+		t.Fatalf("boundary snapshots did not detach warmup and measured counters: before=%d after=%d", beforeAppend, afterAppend)
 	}
 	if len(after.Runtime) != 5 {
 		t.Fatal("missing process runtime counters")
@@ -92,4 +94,19 @@ func TestMixedSendCounterWindowMarksEarlyExitIncomplete(t *testing.T) {
 	if err != nil || json.Unmarshal(data, &window) != nil || window["handlers_completed"] != false {
 		t.Fatal("cleanup claimed a completed measurement")
 	}
+}
+
+// mixedSendAppendStageSamples returns the append-stage histogram sample count,
+// or -1 when the snapshot lacks exactly one such series.
+func mixedSendAppendStageSamples(snapshot mixedSendSnapshot) int {
+	for _, family := range snapshot.Families {
+		if family.GetName() != "wukongim_channelv2_append_stage_duration_seconds" {
+			continue
+		}
+		if len(family.Metric) != 1 {
+			return -1
+		}
+		return int(family.Metric[0].GetHistogram().GetSampleCount())
+	}
+	return -1
 }

@@ -32,7 +32,8 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
    product MQTT feature and provision credentials. Raw WebSocket helpers use Paho
    packet encoding and stream binary messages without business retries.
 2. Migration helpers observe bounded CLI success/refusal and start caller-configured product
-   nodes on already imported data, without opening storage inside the harness.
+   nodes on already imported data, without opening storage inside the harness. A prepared
+   node without `LogDir` logs under `<RootDir>/logs`, where diagnostics read it.
 3. Wait for readiness, stable Slot authority, or active Channel runtime metadata
    through public evidence; restart or reconfigure only after previous
    process-group cleanup completes.
@@ -50,6 +51,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 
 - One `NodeProcess` owns the only leader `Wait`; readiness fails immediately on
   child exit. Restart never reuses ports/data before prior group cleanup.
+- A node still running after a failed suite readiness wait gets SIGQUIT; its
+  goroutine dump lands in `goroutines.txt` beside stderr and diagnostics print a
+  bounded grouped summary. The node does not survive; process-level waits never do this.
 - Binary publication is atomic. Plugin runtime is disabled by default and
   enabled only by plugin scenarios.
 - Managed-process WKProto readiness registers a dedicated device token through
@@ -64,7 +68,7 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   only explicit 401 refreshes login and definite plan-revision conflicts reread.
   Archive selection and convergence assertions belong to the scenario.
 - WKProto clients accept explicit registered device Tokens without changing
-  server authentication; tokenless fixtures remain explicit.
+  server authentication; `ConnectProvisioned` registers one via the node API; tokenless fixtures remain explicit.
 - WKProto clients may inject a Dialer to observe public socket bytes. Their
   synthetic future ACK bridge is not wire-order evidence; ordering probes must
   capture decoded ACKs directly from the TCP read stream.

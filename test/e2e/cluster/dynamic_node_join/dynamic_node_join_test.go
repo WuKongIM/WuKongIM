@@ -56,7 +56,7 @@ func requireNode4GatewaySend(t *testing.T, cluster *suite.StartedCluster, node4 
 	require.NoError(t, err)
 	defer func() { _ = sender.Close() }()
 
-	require.NoError(t, sender.Connect(node4.GatewayAddr(), "dynamic-join-sender", "dynamic-join-sender-device"), cluster.DumpDiagnostics())
+	require.NoError(t, sender.ConnectProvisioned(node4, "dynamic-join-sender", "dynamic-join-sender-device"), cluster.DumpDiagnostics())
 	const clientSeq uint64 = 1
 	const clientMsgNo = "dynamic-join-node4-send-1"
 	require.NoError(t, sender.SendFrame(&frame.SendPacket{

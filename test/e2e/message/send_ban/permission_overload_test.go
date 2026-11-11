@@ -165,8 +165,13 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 	envelopes := suite.SumMetricSamples(afterIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "node_envelopes"}) - suite.SumMetricSamples(beforeIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "node_envelopes"})
 	cohortBusy := suite.SumMetricSamples(afterIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "cohort_busy"}) - suite.SumMetricSamples(beforeIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "cohort_busy"})
 	evidence = append(evidence, map[string]any{"sampled_executing_peak": peak, "receiver_admission_busy": busy, "ingress_cohort_busy": cohortBusy, "remote_envelopes": envelopes})
-	require.Positive(t, busy+cohortBusy, "the fault must actually saturate permission admission")
-	require.Positive(t, envelopes)
+	// Since 0fbbd27c3 (2026-10-23), occupied permission execution queues
+	// waiting reads within the owned call/byte budget and coalesces them on
+	// release instead of rejecting busy. Busy counts are therefore evidence,
+	// not a requirement. The fault is proven by remote envelopes, bounded
+	// executing occupancy, every call failing closed with 503, and exact
+	// recovery history.
+	require.Positive(t, envelopes, "the fault must exercise remote permission reads")
 	require.Positive(t, peak)
 	require.Eventually(t, func() bool {
 		samples, err := suite.FetchMetricSamples(ctx, owner.APIAddr())

@@ -68,7 +68,7 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   this derived keyspace.
 - Sequences are contiguous and monotonic. A durable append updates its primary
   row, global message-ID index, idempotency/client index, sender index, and
-  catalog as one atomic unit where applicable.
+  catalog as one atomic unit where applicable. System 19 holds the durable authority promise outside the log: an exact append whose writer authority (or, without one, its proposal's own authority) is below it is rejected; only an explicit higher writer raises it in the same commit.
 - A 32,768-entry bounded warm cache retains LEO, idempotency membership, and the
   last committed exact proposal/entry identity across Channel lease reclamation.
   It also shares immutable encoded keys across matching identity generations;
@@ -102,7 +102,7 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   Replay table 2 atomically stores canonical content/counters; index 2 meters ranges.
   Preparation returns covered pages before extending, preserving short-page retries.
   Transfer requires committed log proofs plus an independent full-content digest;
-  native hashes omit fields. Local copy/import never advances System 12 or proves quorum.
+  native hashes omit fields. Local copy/import never advances System 12 or proves quorum. Verified replay imports retain sufficient larger prepaid charges despite native size hints; insufficient/corrupt receipts fail closed and ordinary funding remains exact.
   Format-5 anchors journal controls in System 14; pinned source/latest reads optionally
   include exact command lookup; planning also proves at most 64 maintenance-tail positions. Trims retain journals; suffix replacement
   removes pending entries. Backups require matching journals and format versions.
@@ -139,7 +139,7 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   Native/full/pruned/Will-receipt backups use versions 1/2/3/4. Byte and streaming imports share preflight for chains, originals/trim proof and immutable target receipts; allocation high-water statistics include receipts.
   Restore rebuilds meters without global IDs, publishing baseline/frontier together after the suffix; legacy header frontiers wait until then.
 
-Message System 17 stores derived source-shared original plus future replay charges; System 18 stores one exact prepared/consumed/canceled funding ticket per Channel. Preparation/cancellation and charge rows commit atomically. One node-owned unknown physical proof survives handle reclamation; only exact charge witnesses or canceled/deleted proof settles it. Periodic exact cancellation skips busy locks, shares normal original-presence checks and transfers locks/pins to the existing managed commit owner; caller expiry retains charged proof. Suffix replacement excludes an unresolved refund on the same Channel. Restart/restore scans canonical sources in bounded pages, rebuilds charges and retains unknown debt. Only independently verified native control formats 4–7 are uncharged; ordinary SyncOnce content is charged.
+Message System 17 stores derived source-shared original plus future replay charges; System 18 stores one exact prepared/consumed/canceled funding ticket per Channel. Preparation/cancellation and charge rows commit atomically. Incoming funding validates its log chain before refusing a previous unresolved ticket, so a missing original reports exact repair progress without replacing its ticket or refunding its charge. One node-owned unknown physical proof survives handle reclamation; only exact charge witnesses or canceled/deleted proof settles it. Periodic exact cancellation skips busy locks, shares normal original-presence checks and transfers locks/pins to the existing managed commit owner; caller expiry retains charged proof. Suffix replacement excludes an unresolved refund on the same Channel. Restart/restore scans canonical sources in bounded pages, rebuilds charges and retains unknown debt. Write readiness registers that debt under nonwaiting budget ownership; exact initialization may succeed even when growth is refused, while missing/changed rosters and uncertain receipts stay closed. Only independently verified native control formats 4–7 are uncharged; ordinary SyncOnce content is charged.
 
 ## Read First
 - [Database lifecycle](db.go), [Channel lease](channel_log.go), [Atomic append](append.go), [Indexes](indexes.go), [Snapshots](snapshot.go)

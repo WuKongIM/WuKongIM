@@ -6,13 +6,54 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-### 🐛 Fixes / 修复
+### 🐛 Bug Fixes / 问题修复
 
 - Personal whitelist additions prepare both users' Memberships and refresh only the whitelist owner's conversation activation, preserving existing read and hidden-history boundaries. / 添加个人白名单时确保双方 Membership，并刷新白名单所属用户的会话激活时间，保留已有已读位置和历史隐藏边界。
 
 - Refresh conversation activation when setting or clearing unread counts, including already-current read positions; preserve monotonic read and hidden-history boundaries. / 设置或清除未读数时同步刷新会话激活时间，已读位置不变时同样生效，并保留单调已读位置和历史隐藏边界。
 
 - Prioritize person conversations when `activated_at` is zero in legacy `/conversation/sync`, including candidate selection beyond the first 1,000 raw memberships. / 旧版 `/conversation/sync` 在激活时间为零时优先选择并返回个人会话，避免私聊被前 1000 条原始成员目录记录挤出候选范围。
+- MQTT replay recovery now retains sufficient prepaid storage when canonical payload sizes differ from native accounting hints, avoiding a spurious log conflict during subscription. Existing capacity remains charged and underfunded imports still fail. / MQTT 回放恢复在规范化 payload 大小与原始记账提示不同的情况下保留足额预留，避免订阅时误报日志冲突；已有额度不退款，预留不足仍拒绝导入。
+
+- MQTT inbox subscriptions now tolerate unrelated Session updates during cursor initialization, avoiding needless disconnects after quota cleanup. Retries require definite CAS rejection and preserve the original owner, intent and consumption boundary. / MQTT 收件箱订阅初始化游标时可处理无关 Session 更新，避免配额清理后的重新订阅被误断开；重试仅限明确的 CAS 拒绝，并保留原 Owner、订阅意图和消费边界。
+
+- MQTT-protected sends now repair a lagging funded replica instead of reporting full storage when its previous original has not arrived yet. Exact funding and capacity limits remain enforced. / MQTT 受保护消息的副本已预留额度但尚未收到上一条原始日志时，改为触发现有副本修复，避免误报存储背压；保留精确资金凭据和容量限制。
+
+- Nodes now register reconstructed MQTT storage debt before reporting write readiness, preventing startup messages from being rejected while waiting for the periodic health loop. Existing capacity limits and recovery of accepted messages are preserved. / 节点在报告写就绪前登记重建出的 MQTT 存储债务，避免启动后的消息因等待周期健康检查而被拒绝；保留原有容量限制和已接收消息的恢复能力。
+
+- MQTT preview startup avoids reclamation-index writes for authoritatively empty Session tables and already certified indexes, reducing interference with the first messages while preserving historical backfill and cleanup checks. / MQTT 预览功能启动时跳过已由权威快照证明为空或已有完整覆盖证明的会话回收索引写入，减少对首批消息的干扰，同时保留历史索引回填和回收校验。
+
+- MQTT preview cleanup now gives replicated reclamation-index backfill the remaining scan-turn budget, preventing the shorter read timeout from repeatedly interrupting valid commits on slower disks. / MQTT 预览功能的会话回收索引构建改用本轮扫描的剩余时间，避免在磁盘较慢时被更短的读取超时反复中断。
+
+- Channel-scoped Manager message queries now work through nodes that do not host the Channel or its metadata replicas by reading committed history from the Channel leader; pagination and retention boundaries are preserved. / 管理后台按频道查询消息时改为读取 Channel leader 的已提交历史，修复从未保存该频道或元数据副本的节点查询不到消息的问题，保留原有分页和消息保留边界。
+
+- The Manager goroutine monitor no longer reports the cluster module as critical on every multi-node cluster. Slot leader refresh ran local and remote loops under one single-instance task; they are now tracked as separate tasks. / 修复管理后台 goroutine 监控在多节点集群中总是把 cluster 模块报为 critical 的问题：slot leader 刷新的本地循环和远端循环此前共用一个单实例任务，现在分开记录。
+- Message retention advances again on replicated Channels. Since v3.0.0-beta.1, the Manager retention API stayed `blocked: min_isr_match_offset` on every multi-replica Channel, and physical cleanup never deleted on the leader. Durable-quorum replication now records each replica's proven durable position, and retention advances once every ISR replica has proven the boundary. / 修复多副本 channel 的消息保留无法推进的问题：自 v3.0.0-beta.1 起，管理后台推进保留位置在多副本 channel 上一直报 `blocked: min_isr_match_offset`，leader 上的物理清理也从不执行；现在 durable quorum 复制会记录每个副本已证明持久化的位置，所有 ISR 副本都证明到达后即可推进。
+- A dynamic data node that restarts while it is leaving (during scale-in) now finishes starting and resumes draining. Previously its startup waited forever for a re-join the Controller rejects, and healthy nodes could then reject client connections while presence activation waited on it. / 修复缩容过程中处于 leaving 状态的动态数据节点重启后无法完成启动的问题：此前它会无限等待一次会被 Controller 拒绝的重新加入，健康节点上的 presence 激活也会因等待它而拒绝客户端连接；现在它会正常启动并继续排空。
+- Client connections no longer fail cluster-wide with "stale generation" after a leaving dynamic node restarts. The restarted node stopped learning the leaders of Slots already drained away from it, so it rejected every presence recovery round as an owner. / 修复处于 leaving 状态的动态节点重启后全集群客户端连接因 "stale generation" 失败的问题：重启后的节点不再获取已迁出 Slot 的 leader，作为 presence owner 会拒绝每一轮恢复；现在它会继续获取这些 leader。
+- Restore Channel writes when the leader stops while a replica replacement is verifying its already-committed membership; the replacement now completes and normal leader failover proceeds instead of returning `503 retry required` until the old leader returns. No data format or protocol change. / 修复副本替换在校验已提交成员时 leader 宕机导致频道持续返回 `503 retry required` 的问题：该替换任务改为直接完成，随后照常进行 leader 故障转移；数据格式与协议不变。
+
+### 🔧 Improvements / 改进
+
+- Webhook E2E receive failures now retain bounded callback, client queue, online-state, metric and node-log evidence while preserving the original receive deadline. / Webhook E2E 接收失败时保留有界的回调、客户端队列、在线状态、指标及节点日志证据，原有接收时限不变。
+
+- Three-node smoke evidence now preserves fractional-second phase boundaries and metric timestamps, preventing a last-second throughput observation from being excluded from the final timeline. / 三节点冒烟检查的阶段边界和指标时间戳保留亚秒精度，避免最后一秒内已观察到的吞吐采样被最终时间线排除。
+
+- Presence batch-cancellation integration checks now use prepaid result fixtures so the required shared batch forms even on single-CPU runners; cancellation and publication assertions are unchanged. / Presence 批量取消集成检查改用预付结果额度的夹具，确保单 CPU 环境也能形成所需共享批次；保留取消隔离与发布断言。
+
+- MQTT lifecycle integration checks now retry the explicit stale-read-route response within their existing cleanup deadline while retaining exact pending-message and owner-drain assertions. / MQTT 生命周期集成检查在原有清理时限内重试明确的读取路由失效响应，保留待处理消息和 Owner 清理的精确断言。
+
+- Nightly recovery checks now synchronize with committed Channel authority and completed background work, recognize explicit retryable recovery responses, and allow a second Raft election after split voting while retaining exact durability checks. Integration packages run separately to avoid cross-package contention on fixed latency gates. / Nightly 恢复检查改为等待已提交的 Channel 权威状态和后台工作完成，只重试明确允许恢复重试的响应，并为同票后的第二轮 Raft 选举保留有界时间，同时保持精确的持久化断言。集成测试包分别执行，避免包间资源争用干扰固定延迟检查。
+
+- Nightly MQTT.js quickstart checks now install the pinned example dependencies before running the selected E2E shard. / Nightly 的 MQTT.js 快速入门检查会先安装锁定的示例依赖，再运行对应 E2E 分片。
+
+- A Channel leader change no longer consumes a `message_seq`. Previously each leader change on a non-empty multi-replica Channel wrote a hidden authority barrier, so clients saw gaps such as 3 → 5 after failover. Each replica now stores a durable authority promise outside the message log instead. The cluster switches over automatically, once and permanently, after every node runs a version that supports it (log event `cluster.channel_promise.activated`); until then behavior is unchanged and rollback stays possible. **After activation, rolling back to an earlier version is not supported.** Gaps already in existing history are left as they are. / Channel leader 切换不再占用 `message_seq`：此前非空多副本 channel 每次切换 leader 都会写入一条隐藏的 authority barrier，故障转移后客户端会看到 3 → 5 这样的空洞；现在改为每个副本在消息日志之外保存持久的 authority 承诺。所有节点都升级到支持该功能的版本后，集群会自动、一次性且永久地切换（日志事件 `cluster.channel_promise.activated`）；切换前行为不变，仍可回滚。**激活后不支持回滚到更早版本。** 已有历史中的空洞保持原样。
+
+- Presence diagnostics: a node that rejects a presence recovery round as an owner now logs `presence_owner_begin_rejected` with a fixed `owner_reject_reason` (for example `no_slot_leader`, `roster_not_current` or `own_boot_not_in_owner_set`), and stale-generation login failures keep their recovery evidence in the gateway log. / Presence 诊断：节点作为 owner 拒绝 presence 恢复时会记录 `presence_owner_begin_rejected` 及固定的 `owner_reject_reason`（如 `no_slot_leader`、`roster_not_current`、`own_boot_not_in_owner_set`）；因 stale generation 失败的登录在网关日志中保留恢复证据。
+
+- Controller writes now fsync only the Raft WAL once per entry instead of eight times; Controller metadata and cluster state files become checkpoints written before log compaction, periodically and on shutdown. A 256-hash-slot single-node cluster on a slow-fsync disk now becomes ready in about 5–6 s instead of about 26 s, removing intermittent startup timeouts. No data format, protocol or configuration change; rollback to earlier v3 versions remains supported. / Controller 每条日志的 fsync 从 8 次降为 1 次（仅 Raft WAL），元数据和集群状态文件改为检查点，在日志压缩前、定期和关闭时写入。fsync 较慢的磁盘上，256 哈希槽单节点集群启动就绪从约 26 秒缩短到约 5–6 秒，消除偶发的启动超时；数据格式、协议和配置均不变，仍可回滚到更早的 v3 版本。
+
+- Manager now downloads only the active language's text, cutting the login page's initial JavaScript by about a third (222 KB to 148 KB gzip), and shows Chinese labels for MQTT, storage, startup readiness and diagnostics node configuration entries. / 管理后台只加载当前语言的文案，登录页首屏 JavaScript 减少约三分之一（gzip 222 KB 降至 148 KB）；节点配置页补全 MQTT、存储、启动就绪与诊断配置项的中文标签。
 
 ## [v3.0.0-beta.27] - 2026-11-04
 

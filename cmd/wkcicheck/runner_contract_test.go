@@ -53,6 +53,12 @@ func (executor *fakeCommandExecutor) Output(
 		return []byte(executor.revision + "\n"), nil
 	case step.name == "git" && slices.Contains(step.arguments, "status"):
 		return nil, nil
+	case step.name == "go" && slices.Equal(step.arguments, []string{"list", "-tags=e2e", "./test/e2e/..."}):
+		var listing strings.Builder
+		for i := 0; i < e2eShardCount; i++ {
+			fmt.Fprintf(&listing, "%s/fixture%d\n", e2ePackagePrefix, i)
+		}
+		return []byte(listing.String()), nil
 	case executor.unexpectedOK:
 		return nil, nil
 	default:
@@ -108,6 +114,9 @@ func TestEverySelectorRunsOnlyPinnedTools(t *testing.T) {
 	require.NoError(t, os.MkdirAll(sampleRoot, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(sampleRoot, "package-lock.json"), lockfile, 0o600))
 	lockHash := sha256.Sum256(lockfile)
+	// gofail-e2e fails closed without a failpoint package and a gated suite.
+	writeGofailFixture(t, root, "pkg/a/a.go", "package a\n// gofail: var wkA string\n")
+	writeGofailFixture(t, root, "test/e2e/x/x_test.go", `package x // WK_E2E_GOFAIL_ALPHA`)
 
 	for _, selector := range selectors {
 		selector := selector
@@ -126,6 +135,15 @@ func TestEverySelectorRunsOnlyPinnedTools(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIntegrationSelectorSeparatesResourceHeavyPackageProcesses(t *testing.T) {
+	executor := &fakeCommandExecutor{}
+	require.NoError(t, runCICheck(context.Background(), "/workspace", "integration", executor))
+	require.Equal(t, []checkStep{{
+		directory: "/workspace", environment: []string{"GOWORK=off"}, name: "go",
+		arguments: []string{"test", "-tags=integration", "./internal/...", "./pkg/...", "-count=1", "-p=1", "-timeout=50m"},
+	}}, executor.runs)
 }
 
 func TestThreeNodeSelectorKeepsTheFixedFailSafeScenario(t *testing.T) {

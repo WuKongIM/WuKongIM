@@ -104,6 +104,8 @@ scheduled backup or restore
   and tokens remain excluded from the added evidence. Register hashes the decoded
   original Route for gateway correlation; token-only Commit keeps that hash unknown.
   Deadline failures use a distinct fixed event; cancellation and unknown errors add no activation event.
+- A rejected Full owner Begin logs one `presence_owner_begin_rejected` event with a
+  closed `owner_reject_reason` and numeric claim fields before the status drops the cause.
 - Full presence uses independent `WKVG`/`WKVg` format-1 frames over services
   13/14. Register and final conflict Commit carry the actual generation receipt;
   pending candidates retain its claim. Begin/Page/End/Abort and UID rechecks bind

@@ -401,6 +401,8 @@ func TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata(t *te
 	outDir := filepath.Join(t.TempDir(), "capture")
 	command := localThresholdPprofCommand(root, "local-threshold-pprof-test-token",
 		localThresholdPprofArgs(outDir, phasePath, "sendack_p99", servers)...)
+	var output bytes.Buffer
+	command.Stdout, command.Stderr = &output, &output
 	if err := command.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +417,8 @@ func TestLocalThresholdPprofInterruptJoinsRequestsAndWritesPartialMetadata(t *te
 		t.Fatal(err)
 	}
 	if err := command.Wait(); err != nil {
-		t.Fatalf("interrupted helper must return success after preserving evidence: %v", err)
+		metadata, _ := os.ReadFile(filepath.Join(outDir, "metadata.json"))
+		t.Fatalf("interrupted helper must return success after preserving evidence: %v\noutput:\n%s\nmetadata:\n%s", err, output.String(), metadata)
 	}
 	if elapsed := time.Since(started); elapsed > 3*time.Second {
 		t.Fatalf("interrupt did not join bounded child requests promptly: %s", elapsed)

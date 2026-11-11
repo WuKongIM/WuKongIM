@@ -38,6 +38,9 @@ const (
 	messageSystemIDWillReceipt            uint16 = 16
 	messageSystemIDMQTTStorage            uint16 = 17
 	messageSystemIDMQTTStoragePreparation uint16 = 18
+	// messageSystemIDAuthorityPromise stores the replica's durable Channel
+	// authority promise; it never occupies a message sequence.
+	messageSystemIDAuthorityPromise uint16 = 19
 
 	messageColumnIDMessageSeq          uint16 = 1
 	messageColumnIDMessageID           uint16 = 2

@@ -397,11 +397,12 @@ func TestCheckpointMembershipChangeRestart(t *testing.T) {
 	for id := uint64(1); id <= 4; id++ {
 		if id == 4 {
 			// Start the static seed cluster before its dynamically joined node.
+			// Logins wait for node 4: it is an active Presence owner, and
+			// Presence fails closed while any owner is down.
 			for seed := uint64(1); seed <= 3; seed++ {
 				node := cluster.MustNode(seed)
 				_, err := node.Process.WaitHTTPReady(ctx, node.APIAddr(), "/readyz")
 				require.NoError(t, err, node.DumpDiagnostics())
-				require.NoError(t, node.Process.WaitWKProtoReady(ctx, node.GatewayAddr()), node.DumpDiagnostics())
 			}
 		}
 		data, err := os.ReadFile(filepath.Join(cluster.MustNode(id).Spec.LogDir, "app.log"))
@@ -410,6 +411,10 @@ func TestCheckpointMembershipChangeRestart(t *testing.T) {
 		require.NoError(t, cluster.StartStoppedNode(id))
 	}
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	for id := uint64(1); id <= 4; id++ {
+		node := cluster.MustNode(id)
+		require.NoError(t, node.Process.WaitWKProtoReady(ctx, node.GatewayAddr()), node.DumpDiagnostics())
+	}
 	_, err = cluster.WaitSlotLeadersStable(ctx, time.Second)
 	require.NoError(t, err, cluster.DumpDiagnostics())
 	for _, id := range peers {

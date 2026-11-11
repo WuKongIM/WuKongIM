@@ -54,7 +54,7 @@ func TestDurableContinuationStartsIndependentRoundsWithoutWaiting(t *testing.T) 
 	completed := 0
 	for i := 0; i < 8; i++ {
 		key := fmt.Sprintf("round-%d", i)
-		if err := startDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{channelKey: ch.ChannelKey(key)}, w, func(r durableRoundResult, e error) {
+		if err := startDurableRound(context.Background(), 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{channelKey: ch.ChannelKey(key)}, w, nil, func(r durableRoundResult, e error) {
 			if e != nil || !r.localDurable || r.durableVotes < 2 {
 				t.Error(r, e)
 			}
@@ -92,7 +92,7 @@ func TestDurableContinuationInlineConflictWaitsForInitialSubmissionTransfer(t *t
 	conflict := durabilityCompletion{outcome: ch.AppendOutcomeConflict, err: ch.ErrLogConflict}
 	w := &continuationWriter{inlineLocal: &conflict}
 	completed := 0
-	err := startDurableRound(context.Background(), 1, []ch.NodeID{1, 2}, 2, durableProposal{channelKey: "inline"}, w, func(r durableRoundResult, e error) {
+	err := startDurableRound(context.Background(), 1, []ch.NodeID{1, 2}, 2, durableProposal{channelKey: "inline"}, w, nil, func(r durableRoundResult, e error) {
 		if w.callback("inline", 2) == nil {
 			t.Fatal("completion escaped before initial transfer")
 		}
@@ -114,7 +114,7 @@ func TestDurableContinuationCancelOwnsRemainingWritesAndFinishesOnce(t *testing.
 		ctx, cancel := context.WithCancel(context.Background())
 		w := &continuationWriter{}
 		done := make(chan durableRoundResult, 2)
-		if err := startDurableRound(ctx, 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{channelKey: "cancel"}, w, func(r durableRoundResult, e error) {
+		if err := startDurableRound(ctx, 1, []ch.NodeID{1, 2, 3}, 2, durableProposal{channelKey: "cancel"}, w, nil, func(r durableRoundResult, e error) {
 			if !errors.Is(e, context.Canceled) {
 				t.Error(e)
 			}
@@ -151,7 +151,7 @@ func TestDurableContinuationRejectsBeforeOwnership(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, c := range []context.Context{nil, ctx} {
-		if err := startDurableRound(c, 1, []ch.NodeID{1, 2}, 2, durableProposal{}, w, func(durableRoundResult, error) { t.Fatal("rejected callback") }); err == nil {
+		if err := startDurableRound(c, 1, []ch.NodeID{1, 2}, 2, durableProposal{}, w, nil, func(durableRoundResult, error) { t.Fatal("rejected callback") }); err == nil {
 			t.Fatal("accepted invalid context")
 		}
 	}

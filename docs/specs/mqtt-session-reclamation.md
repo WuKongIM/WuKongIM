@@ -119,8 +119,12 @@ encoded string order (length, then bytes); it contains no revision or authority.
 
 Table 22 **System 1** stores one key-bound, checksummed version-1 fixed coverage
 record per logical hash Slot. It contains the last scanned primary identity and
-Done. Missing/incomplete coverage is not empty work: read kind **23** rejects it
-with Conflict. A corrupt record fails closed. Raw metadata snapshots include both
+Done. Incomplete coverage rejects with Conflict. When the certificate is missing,
+read kind **23** checks the entire Session primary prefix in its pinned snapshot:
+any primary row still requires backfill, even beyond the requested cursor. An
+empty primary table permits discovery only in that snapshot, without persisting
+a certificate. A later row requires coverage on its next fresh read. Corrupt
+certificates and index witnesses still fail closed. Raw metadata snapshots include both
 the checkpoint and all index entries in the same pinned state.
 
 Slot command **76** accepts only a version-1 body, with a 128-byte total bound.
@@ -170,8 +174,11 @@ completion witness. All errors clear returned outcome flags.
 The existing `ConsumerWorker` cohort now rotates a third stream per led hash
 Slot. It retains at most three cursors and one coverage hint per Slot (768 cursors
 and 256 hints at the default topology), independent of Session count. Before first
-discovery it proposes one bounded backfill page; incomplete pages yield, and a
-completed build permits a strict kind-23 read. Failed reads discard the coverage
+discovery the builder first tries a fresh authoritative kind-23 read. Existing
+coverage or snapshot-proved primary emptiness avoids a write; otherwise it
+proposes one bounded backfill page. Incomplete pages yield, and a completed
+build permits a strict kind-23 read. Backfill uses the remaining scan-turn budget,
+while discovery reads keep their shorter per-call timeout. Failed reads discard the coverage
 hint; authoritative storage still checks coverage on every read. Lost leadership
 and joined restart clear process hints, not durable progress.
 

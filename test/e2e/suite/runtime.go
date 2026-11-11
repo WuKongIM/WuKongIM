@@ -234,8 +234,14 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_, readyErr := process.WaitHTTPReady(ctx, spec.APIAddr, "/readyz")
+	if readyErr != nil {
+		captureStuckNodeForDiagnostics(process)
+	}
 	require.NoError(s.t, readyErr, process.DumpDiagnostics())
-	require.NoError(s.t, process.WaitWKProtoReady(ctx, spec.GatewayAddr), process.DumpDiagnostics())
+	if err := process.WaitWKProtoReady(ctx, spec.GatewayAddr); err != nil {
+		captureStuckNodeForDiagnostics(process)
+		require.NoError(s.t, err, process.DumpDiagnostics())
+	}
 
 	return node
 }
@@ -349,6 +355,9 @@ func (c *StartedCluster) StartSeedJoinNode(t testing.TB, cfg SeedJoinNodeConfig)
 	defer cancel()
 	observation, err := started.Process.WaitHTTPReady(ctx, started.Spec.APIAddr, "/readyz")
 	c.lastReadyz[started.Spec.ID] = observation
+	if err != nil {
+		captureStuckNodeForDiagnostics(started.Process)
+	}
 	require.NoError(t, err, c.DumpDiagnostics())
 
 	return started
@@ -410,6 +419,8 @@ func (c *StartedCluster) WaitHTTPReady(ctx context.Context) error {
 		observation, err := node.Process.WaitHTTPReady(ctx, node.Spec.APIAddr, "/readyz")
 		c.lastReadyz[node.Spec.ID] = observation
 		if err != nil {
+			// The failing node is the stuck one: keep its stacks (issue #1098).
+			captureStuckNodeForDiagnostics(node.Process)
 			return fmt.Errorf("node %d http not ready: %w", node.Spec.ID, err)
 		}
 	}
@@ -423,6 +434,7 @@ func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
 	}
 	for _, node := range c.Nodes {
 		if err := node.Process.WaitWKProtoReady(ctx, node.Spec.GatewayAddr); err != nil {
+			captureStuckNodeForDiagnostics(node.Process)
 			return fmt.Errorf("node %d wkproto not ready: %w", node.Spec.ID, err)
 		}
 	}

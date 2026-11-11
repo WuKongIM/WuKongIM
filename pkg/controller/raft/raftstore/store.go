@@ -30,6 +30,8 @@ type Store struct {
 	meta     metadata
 	snapshot raftpb.Snapshot
 	entries  []raftpb.Entry
+	// closed makes Close idempotent; only Close writes the shutdown checkpoint.
+	closed bool
 }
 
 // Open opens or creates a Controller Raft store rooted at cfg.Dir.
@@ -113,7 +115,22 @@ func (s *Store) Close() error {
 	if s == nil || s.wal == nil {
 		return nil
 	}
-	return s.wal.close()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	// A clean shutdown leaves a current metadata checkpoint. The WAL is synced
+	// first so the checkpoint never claims state the WAL does not hold.
+	err := s.wal.sync()
+	if err == nil {
+		err = saveMetadata(context.Background(), s.metaPath, s.meta)
+	}
+	if closeErr := s.wal.close(); err == nil {
+		err = closeErr
+	}
+	return err
 }
 
 // SaveReady persists a Raft Ready's durable state and updates the in-memory storage view.
@@ -162,8 +179,13 @@ func (s *Store) SaveReady(ctx context.Context, hs raftpb.HardState, entries []ra
 			}
 		}
 	}
-	if err := saveMetadata(ctx, s.metaPath, s.meta); err != nil {
-		return err
+	// Metadata is a checkpoint of WAL-recoverable state (issue #1098): Open
+	// replays HardState, entries and the applied marker over it. Only a
+	// snapshot boundary is checkpointed here; Compact and Close cover the rest.
+	if !raft.IsEmptySnap(snap) {
+		if err := saveMetadata(ctx, s.metaPath, s.meta); err != nil {
+			return err
+		}
 	}
 	s.publishReadViewLocked()
 	return nil
@@ -180,9 +202,6 @@ func (s *Store) MarkAppliedBatch(ctx context.Context, index uint64) error {
 		return err
 	}
 	s.meta.AppliedIndex = index
-	if err := saveMetadata(ctx, s.metaPath, s.meta); err != nil {
-		return err
-	}
 	s.publishReadViewLocked()
 	return nil
 }
@@ -225,6 +244,15 @@ func (s *Store) Compact(ctx context.Context, compactTo uint64) error {
 	}
 	s.entries = trimEntriesAfter(s.entries, compactTo)
 	s.entriesDirty = true
+	// WAL segments do not carry HardState or ConfState forward, so a released
+	// prefix may hold their only record. Checkpoint metadata before deleting
+	// any segment (issue #1098); the WAL sync keeps the checkpoint behind it.
+	if err := s.wal.sync(); err != nil {
+		return err
+	}
+	if err := saveMetadata(ctx, s.metaPath, s.meta); err != nil {
+		return err
+	}
 	if err := s.wal.releaseBefore(compactTo + 1); err != nil {
 		return err
 	}

@@ -203,6 +203,9 @@ type Snapshot struct {
 	Presence *controller.PresenceState
 	// PresenceRosterCurrent preserves membership invalidation independently of health.
 	PresenceRosterCurrent bool
+	// ChannelAuthorityPromiseActive reports one-way Controller activation of
+	// Channel authority promises; leaders keep in-log barriers until it is set.
+	ChannelAuthorityPromiseActive bool
 	// ChannelDataPlaneLease is this node's local append-admission visibility lease.
 	ChannelDataPlaneLease ChannelDataPlaneLease
 }

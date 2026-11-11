@@ -78,7 +78,15 @@ type RepairScannerResult struct {
 	TasksCreated    int
 	// TasksAborted counts guarded pre-promotion replacements released for failover.
 	TasksAborted int
-	Blocked      []RepairScannerBlocked
+	// TasksCompletedForFailover counts promoted replacements completed so a
+	// dead leader can be failed over on the next tick (Issue #1077).
+	TasksCompletedForFailover int
+	Blocked                   []RepairScannerBlocked
+}
+
+// mutations returns the Slot task writes this tick, bounded by MaxTasksPerTick.
+func (r RepairScannerResult) mutations() int {
+	return r.TasksCreated + r.TasksAborted + r.TasksCompletedForFailover
 }
 
 // RepairScanner scans Slot-owned channel metadata and creates bounded repair work.
@@ -160,7 +168,7 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 		index = sort.Search(len(slotIDs), func(i int) bool { return slotIDs[i] > s.lastSlot }) % len(slotIDs)
 	}
 	finished := make(map[uint32]bool, len(slotIDs))
-	for result.PagesScanned < s.cfg.MaxPagesPerTick && result.TasksCreated+result.TasksAborted < s.cfg.MaxTasksPerTick && len(finished) < len(slotIDs) {
+	for result.PagesScanned < s.cfg.MaxPagesPerTick && result.mutations() < s.cfg.MaxTasksPerTick && len(finished) < len(slotIDs) {
 		slotID := slotIDs[index]
 		index = (index + 1) % len(slotIDs)
 		if finished[slotID] {
@@ -174,7 +182,7 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 		result.PagesScanned++
 		processed := 0
 		for _, item := range page {
-			if result.TasksCreated+result.TasksAborted >= s.cfg.MaxTasksPerTick {
+			if result.mutations() >= s.cfg.MaxTasksPerTick {
 				break
 			}
 			if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
@@ -212,19 +220,12 @@ func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot,
 			return err
 		}
 		if active {
-			if preemptor, ok := s.store.(interface {
-				AbortReplicaReplacementForFailover(context.Context, ch.ChannelID, uint64, uint64) (bool, error)
-			}); ok {
-				aborted, err := preemptor.AbortReplicaReplacementForFailover(ctx, id, meta.Leader, meta.LeaderEpoch)
-				if err != nil {
-					return err
-				}
-				if aborted {
-					result.TasksAborted++
-				}
+			if err := s.preemptReplicaReplacementForFailover(ctx, meta, id, result); err != nil {
+				return err
 			}
-			// The abort can advance the Channel epoch and remove a learner.
-			// Elect only from a new authoritative snapshot on a later tick.
+			// Abort can advance the Channel epoch and remove a learner; both
+			// abort and completion change the active task. Elect only from a
+			// new authoritative snapshot on a later tick.
 			return nil
 		}
 		return s.scanLeaderFailover(ctx, snapshot, meta, id, result)
@@ -242,6 +243,36 @@ func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot,
 		return nil
 	}
 	return s.scanReplicaRepair(ctx, meta, id, decision, result)
+}
+
+// preemptReplicaReplacementForFailover releases an active replacement that
+// would otherwise hide a dead leader from failover. Unpromoted tasks abort and
+// roll back their learner; promoted tasks (VerifyMembership) only complete,
+// because their membership change is already committed.
+func (s *RepairScanner) preemptReplicaReplacementForFailover(ctx context.Context, meta metadb.ChannelRuntimeMeta, id ch.ChannelID, result *RepairScannerResult) error {
+	if preemptor, ok := s.store.(interface {
+		AbortReplicaReplacementForFailover(context.Context, ch.ChannelID, uint64, uint64) (bool, error)
+	}); ok {
+		aborted, err := preemptor.AbortReplicaReplacementForFailover(ctx, id, meta.Leader, meta.LeaderEpoch)
+		if err != nil || aborted {
+			if aborted {
+				result.TasksAborted++
+			}
+			return err
+		}
+	}
+	if completer, ok := s.store.(interface {
+		CompletePromotedReplicaReplacementForFailover(context.Context, ch.ChannelID, uint64, uint64) (bool, error)
+	}); ok {
+		completed, err := completer.CompletePromotedReplicaReplacementForFailover(ctx, id, meta.Leader, meta.LeaderEpoch)
+		if err != nil {
+			return err
+		}
+		if completed {
+			result.TasksCompletedForFailover++
+		}
+	}
+	return nil
 }
 
 func (s *RepairScanner) scanLeaderFailover(ctx context.Context, snapshot control.Snapshot, meta metadb.ChannelRuntimeMeta, id ch.ChannelID, result *RepairScannerResult) error {

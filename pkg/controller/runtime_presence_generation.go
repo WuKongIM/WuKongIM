@@ -143,8 +143,14 @@ func (r *Runtime) GetPresenceGeneration(ctx context.Context, hashSlot uint16) (P
 	if err != nil {
 		return PresenceGenerationSnapshot{}, err
 	}
-	if st.Presence == nil || hashSlot >= st.Config.HashSlotCount || !st.PresenceRosterCurrent(st.Presence.OwnerSet.Owners) {
-		return PresenceGenerationSnapshot{}, ErrPresenceGenerationNotReady
+	// Each not-ready cause is named so remote owners can report it (#1097).
+	switch {
+	case st.Presence == nil:
+		return PresenceGenerationSnapshot{}, PresenceRejection(PresenceRejectNoPresenceState)
+	case hashSlot >= st.Config.HashSlotCount:
+		return PresenceGenerationSnapshot{}, PresenceRejection(PresenceRejectHashSlotOutOfRange)
+	case !st.PresenceRosterCurrent(st.Presence.OwnerSet.Owners):
+		return PresenceGenerationSnapshot{}, PresenceRejection(PresenceRejectRosterNotCurrent)
 	}
 	out := PresenceGenerationSnapshot{RosterRevision: st.Presence.RosterRevision, Revision: st.Revision, OwnerSet: st.Presence.OwnerSet.Clone()}
 	for _, generation := range st.Presence.Generations {
@@ -198,7 +204,7 @@ func (r *Runtime) presenceAppliedState(ctx context.Context) (ClusterState, error
 	}
 	st := sm.Snapshot(ctx)
 	if st.Revision == 0 {
-		return ClusterState{}, ErrPresenceGenerationNotReady
+		return ClusterState{}, PresenceRejection(PresenceRejectControllerStateEmpty)
 	}
 	return st, nil
 }

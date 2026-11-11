@@ -248,7 +248,11 @@ func (l *seedJoinLoop) joinObserved(ctx context.Context) bool {
 			return false
 		}
 		switch node.JoinState {
-		case "", control.NodeJoinStateJoining, control.NodeJoinStateActive:
+		// A leaving node is still a member: after a restart during scale-in it
+		// must start to finish draining. The Controller rejects its re-join,
+		// so waiting for another state would block startup forever (#1097).
+		// Only a removed node stays unadmitted.
+		case "", control.NodeJoinStateJoining, control.NodeJoinStateActive, control.NodeJoinStateLeaving:
 			return true
 		default:
 			return false
@@ -426,6 +430,23 @@ func (a *App) PrepareControllerVoter(ctx context.Context, req accessnode.Prepare
 		resp.ObservedVoters = append([]uint64(nil), status.Voters...)
 	}
 	return resp, nil
+}
+
+// startupRequiresClusterWriteReady reports whether startup must wait for
+// cluster write readiness. A joining node waits for activation instead; a
+// leaving node only finishes its drain while its own Slot may be moving
+// without a leader, so waiting would make a restart exit and leave a presence
+// owner missing (issue #1097). Unknown membership stays strict.
+func startupRequiresClusterWriteReady(node control.Node, known bool) bool {
+	if !known {
+		return true
+	}
+	switch node.JoinState {
+	case control.NodeJoinStateJoining, control.NodeJoinStateLeaving:
+		return false
+	default:
+		return true
+	}
 }
 
 func (a *App) seedJoinPreActivationMode(ctx context.Context) bool {

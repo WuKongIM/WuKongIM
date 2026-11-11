@@ -5,6 +5,7 @@ package cluster
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -62,8 +63,18 @@ func TestMQTTReplayRoutingThreeNodeRecoveryAndIsolation(t *testing.T) {
 	_, err = nodes[0].PrepareChannelMQTTReplay(ctx, q)
 	require.Error(t, err)
 	q.ExpectedLeaderEpoch, q.ExpectedRouteGeneration = 2, 2
-	recovered, err := nodes[0].PrepareChannelMQTTReplay(ctx, q)
-	require.NoError(t, err)
+	// Cluster/Slot readiness does not complete this Channel's quorum recovery.
+	// Retry only its explicit pending result under the same exact replay fence.
+	recoverReplay := func() ch.MQTTReplayPage {
+		var page ch.MQTTReplayPage
+		require.Eventually(t, func() bool {
+			page, err = nodes[0].PrepareChannelMQTTReplay(ctx, q)
+			return !errors.Is(err, ch.ErrNotReady)
+		}, 5*time.Second, 10*time.Millisecond)
+		require.NoError(t, err)
+		return page
+	}
+	recovered := recoverReplay()
 	require.Equal(t, all, recovered, "another voter must derive identical shared original content")
 	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, 3)
@@ -78,8 +89,7 @@ func TestMQTTReplayRoutingThreeNodeRecoveryAndIsolation(t *testing.T) {
 	actual, err := nodes[0].GetChannelRuntimeMetaFresh(ctx, id.ID, 2)
 	require.NoError(t, err)
 	q.ExpectedChannelEpoch, q.ExpectedLeaderEpoch, q.ExpectedRouteGeneration = actual.ChannelEpoch, actual.LeaderEpoch, actual.RouteGeneration
-	restarted, err := nodes[0].PrepareChannelMQTTReplay(ctx, q)
-	require.NoError(t, err)
+	restarted := recoverReplay()
 	require.Equal(t, all, restarted)
 	route = waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, 3)
