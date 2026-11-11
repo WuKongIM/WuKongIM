@@ -167,9 +167,9 @@ func (w *ConsumerWorker) sweepPage(ctx context.Context, state *consumerScanState
 	q := meta.MQTTRead{Kind: kind, Limit: w.opts.PageSize, After: state.cursors[stream]}
 	out.Pages++
 	if kind == meta.MQTTReadSessionReclamation && !state.indexReady[slot] {
-		call, done := context.WithTimeout(ctx, w.opts.CallTimeout)
-		built, buildErr := w.buildReclamationIndex(call, slot)
-		done()
+		// Backfill commits a Raft write, so use the remaining turn budget rather
+		// than the shorter point-read deadline. Late receipts remain untrusted.
+		built, buildErr := w.buildReclamationIndex(ctx, slot)
 		if buildErr != nil {
 			out.Failures++
 			return false

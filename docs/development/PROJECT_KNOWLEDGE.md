@@ -902,6 +902,15 @@ specification, runbook, report, or module documentation; link to them when neede
   or write-fenced: an ISR replica may hold the anchor while its HW still lags.
   The hint carries exact placement, no caller HW, and grants no recovery proof.
 
+- MQTT reclamation-index backfill commits a bounded Raft write and uses the
+  remaining scan-turn deadline; the 250 ms discovery timeout is for reads.
+  Late or canceled build receipts cannot certify coverage or dispatch work.
+- MQTT recovery tests must wait for both the committed anchor journal and the
+  published log frontier before comparing content-import side effects. Durable
+  journal visibility can precede in-memory LEO publication. Long recovery
+  fixtures must renew live Owners through the existing lifecycle APIs; elapsed
+  test setup or cold 256-hash-Slot index discovery cannot stand in for renewal.
+
 - The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved
   target contract; the default-off product listener now has single-node and three-node process interop coverage. Complete durable/Will/restore/scale acceptance remains pending. MQTT Session subscriptions are separate from IM
   membership; protocol ACKs are separate from read state; delivery obligations

@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- MQTT preview cleanup now gives replicated reclamation-index backfill the remaining scan-turn budget, preventing the shorter read timeout from repeatedly interrupting valid commits on slower disks. / MQTT 预览功能的会话回收索引构建改用本轮扫描的剩余时间，避免在磁盘较慢时被更短的读取超时反复中断。
+
 - Channel-scoped Manager message queries now work through nodes that do not host the Channel or its metadata replicas by reading committed history from the Channel leader; pagination and retention boundaries are preserved. / 管理后台按频道查询消息时改为读取 Channel leader 的已提交历史，修复从未保存该频道或元数据副本的节点查询不到消息的问题，保留原有分页和消息保留边界。
 
 - The Manager goroutine monitor no longer reports the cluster module as critical on every multi-node cluster. Slot leader refresh ran local and remote loops under one single-instance task; they are now tracked as separate tasks. / 修复管理后台 goroutine 监控在多节点集群中总是把 cluster 模块报为 critical 的问题：slot leader 刷新的本地循环和远端循环此前共用一个单实例任务，现在分开记录。

@@ -59,6 +59,10 @@ leases, publish messages, or interpret MQTT packets.
 
 ## Invariants and Failure Semantics
 
+- Reclamation-index backfill is a replicated write and uses the remaining scan-turn
+  deadline, not the shorter point-read timeout. Expired or canceled turns cannot
+  publish index-ready hints or dispatch candidates from a late completion.
+
 - Pending/closing owners count toward capacity; admitted operations are bounded.
 - Lease expiry is an admission fence, not proof of drained in-flight work.
 - Exact receipt retries cannot extend deadlines; stale/expired owners never reopen.
