@@ -905,6 +905,11 @@ specification, runbook, report, or module documentation; link to them when neede
 - MQTT reclamation-index backfill commits a bounded Raft write and uses the
   remaining scan-turn deadline; the 250 ms discovery timeout is for reads.
   Late or canceled build receipts cannot certify coverage or dispatch work.
+  The builder first uses a fresh authoritative kind-23 read: existing coverage
+  or an empty primary table in that same snapshot avoids a Raft write. Empty
+  evidence is not persisted; later rows still need coverage, and corrupt
+  certificates/indexes remain errors. This prevents empty-Slot startup backfill
+  from competing with first-message preparation on the shared durable apply path.
 - MQTT recovery tests must wait for both the committed anchor journal and the
   published log frontier before comparing content-import side effects. Durable
   journal visibility can precede in-memory LEO publication. Long recovery
@@ -974,7 +979,8 @@ specification, runbook, report, or module documentation; link to them when neede
   results independent of Raft apply grouping. The retained parent prevents old
   child recreation; source tombstones and detached Wills remain separate. The
   completion marker proves no owner isolation or shared-content GC. Discovery uses table-22
-  index 3 and read kind 23, rejecting missing/incomplete System-1 coverage.
+  index 3 and read kind 23. Nonempty primary tables require complete System-1
+  coverage; a missing certificate permits only snapshot-proved primary emptiness.
   Command 76 backfills at most 64 historical rows and its cursor atomically;
   ordinary writes maintain eligibility behind the cursor. Matched writers are
   required. The shared consumer cohort now builds coverage and schedules one

@@ -294,3 +294,59 @@ func TestMQTTReclamationIndexProgressCodecAndOldJSON(t *testing.T) {
 	require.NoError(t, e)
 	require.NotContains(t, string(body), `"session":`)
 }
+
+// Empty-table evidence is scoped to one snapshot, not durable index coverage.
+func TestMQTTReclamationEmptySnapshotDoesNotCertifyLaterRows(t *testing.T) {
+	st := openTestMetaStore(t)
+	defer st.close(t)
+	ctx := context.Background()
+	q := MQTTRead{Kind: MQTTReadSessionReclamation, Limit: 1}
+	empty, err := st.db.ReadMQTTState(ctx, 7, q)
+	require.NoError(t, err)
+	require.True(t, empty.Done)
+	require.Empty(t, empty.Sessions)
+	_, found, err := st.engine.Get(mqttReclamationIndexKey(7))
+	require.NoError(t, err)
+	require.False(t, found, "read cannot persist a coverage certificate")
+	snapshot, err := st.engine.NewSnapshot()
+	require.NoError(t, err)
+	defer snapshot.Close()
+	pinned := &Shard{db: st.db, hashSlot: 7, readSnapshot: snapshot}
+	s := mqttSessionFixture()
+	require.Equal(t, MQTTSessionCASApplied, writeMQTTSession(t, st.db, s, 0).Status)
+	rows, _, done, err := pinned.ListMQTTSessionReclamation(ctx, MQTTSessionCursor{}, 1)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Empty(t, rows)
+	for _, after := range []MQTTReadCursor{{}, {Session: MQTTSessionCursor{Namespace: "main", ClientID: "zzzzzzzzzzzz"}}} {
+		q.After = after
+		_, err = st.db.ReadMQTTState(ctx, 7, q)
+		require.ErrorIs(t, err, dberrors.ErrConflict, "a primary row anywhere requires durable backfill coverage")
+	}
+	require.True(t, buildMQTTReclamationIndex(t, st.db).Done)
+	q.After = MQTTReadCursor{}
+	empty, err = st.db.ReadMQTTState(ctx, 7, q)
+	require.NoError(t, err)
+	require.True(t, empty.Done)
+	require.Empty(t, empty.Sessions, "active first lifetime has no reclamation debt")
+}
+
+func TestMQTTReclamationEmptyPrimaryRetainsCorruptionChecks(t *testing.T) {
+	for _, damage := range []string{"coverage", "index"} {
+		t.Run(damage, func(t *testing.T) {
+			st := openTestMetaStore(t)
+			defer st.close(t)
+			b := st.engine.NewBatch()
+			defer b.Close()
+			if damage == "coverage" {
+				require.NoError(t, b.Set(mqttReclamationIndexKey(7), []byte("broken")))
+			} else {
+				prefix := encodeIndexPrefix(7, TableIDMQTTSession, 3)
+				require.NoError(t, b.Set(append(prefix, 0xff), nil))
+			}
+			require.NoError(t, b.Commit(true))
+			_, err := st.db.ReadMQTTState(context.Background(), 7, MQTTRead{Kind: MQTTReadSessionReclamation, Limit: 1})
+			require.ErrorIs(t, err, dberrors.ErrCorruptValue)
+		})
+	}
+}

@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- MQTT preview startup avoids reclamation-index writes for authoritatively empty Session tables and already certified indexes, reducing interference with the first messages while preserving historical backfill and cleanup checks. / MQTT 预览功能启动时跳过已由权威快照证明为空或已有完整覆盖证明的会话回收索引写入，减少对首批消息的干扰，同时保留历史索引回填和回收校验。
+
 - MQTT preview cleanup now gives replicated reclamation-index backfill the remaining scan-turn budget, preventing the shorter read timeout from repeatedly interrupting valid commits on slower disks. / MQTT 预览功能的会话回收索引构建改用本轮扫描的剩余时间，避免在磁盘较慢时被更短的读取超时反复中断。
 
 - Channel-scoped Manager message queries now work through nodes that do not host the Channel or its metadata replicas by reading committed history from the Channel leader; pagination and retention boundaries are preserved. / 管理后台按频道查询消息时改为读取 Channel leader 的已提交历史，修复从未保存该频道或元数据副本的节点查询不到消息的问题，保留原有分页和消息保留边界。
