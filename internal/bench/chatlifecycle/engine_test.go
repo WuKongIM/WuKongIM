@@ -543,6 +543,16 @@ func TestEngineSampledPersonRecipientDoesNotExpireBeforeCorrelationSettles(t *te
 		WorkCapacity: 64, InflightCapacity: 16, MaxWorkPerAdvance: 16,
 	})
 	fixture.factory.autoAck = true
+	readCycles := make(chan struct{}, 4)
+	fixture.factory.readCycles = readCycles
+	waitReadCycle := func() {
+		t.Helper()
+		select {
+		case <-readCycles:
+		case <-time.After(time.Second):
+			t.Fatal("sampled client did not complete its previous frame")
+		}
+	}
 	if err := fixture.engine.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -611,6 +621,11 @@ func TestEngineSampledPersonRecipientDoesNotExpireBeforeCorrelationSettles(t *te
 	if snapshot := fixture.verifier.Snapshot(); snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.Acknowledged != 1 {
 		t.Fatalf("sampled correlation after SENDACK = %+v", snapshot)
 	}
+	// Join both initial reads and the sender's post-SENDACK read before
+	// advancing fake time; the next cycle will belong to the recipient's RECV.
+	for range 3 {
+		waitReadCycle()
+	}
 
 	recipient := routed.intent.Logical.Target
 	deadline := sessions[recipient].Deadline
@@ -632,16 +647,12 @@ func TestEngineSampledPersonRecipientDoesNotExpireBeforeCorrelationSettles(t *te
 		t.Fatalf("recipient client %q is missing", recipient)
 	}
 	recipientClient.frames <- mustRecvPacket(t, fixture.traffic, routed.intent.Logical, 1, 1)
-	leaseOutstanding := true
-	for attempts := 0; attempts < 10_000; attempts++ {
-		fixture.pool.mu.RLock()
-		_, leaseOutstanding = fixture.pool.correlationLeases[routed.intent.Logical.ClientMsgNo]
-		fixture.pool.mu.RUnlock()
-		if fixture.verifier.Snapshot().CorrelationCurrent == 0 && !leaseOutstanding {
-			break
-		}
-		runtime.Gosched()
-	}
+	// Entering the next read proves verification and lease release completed;
+	// a fixed number of scheduler yields provides no completion guarantee.
+	waitReadCycle()
+	fixture.pool.mu.RLock()
+	_, leaseOutstanding := fixture.pool.correlationLeases[routed.intent.Logical.ClientMsgNo]
+	fixture.pool.mu.RUnlock()
 	if snapshot := fixture.verifier.Snapshot(); snapshot.CorrelationCurrent != 0 || snapshot.SampledDelivered != 1 || snapshot.Losses != 0 || leaseOutstanding {
 		t.Fatalf("sampled correlation after RECV = %+v", snapshot)
 	}
