@@ -1844,6 +1844,10 @@ specification, runbook, report, or module documentation; link to them when neede
 - `wkcicheck integration` runs internal/pkg package processes serially so real
   cluster fixtures and fixed latency gates do not compete with unrelated test
   processes. Their workloads, latency thresholds and timeouts remain unchanged.
+- Authenticated Webhook E2E performs its first warm receive before injecting
+  callback failures. Its receive-failure diagnostics run afterward under a
+  separate five-second read bound; missing delivery must be attributed from
+  captured state, not from SEND acceptance or a later passing rerun alone.
 - Nightly E2E shards provision pinned Node.js. `cmd/wkcicheck` installs locked
   MQTT.js quickstart dependencies only on its selected shard; installation
   failure stops before product tests. Direct scenario runs retain the documented
