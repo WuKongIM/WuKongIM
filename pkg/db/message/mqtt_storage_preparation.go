@@ -190,9 +190,6 @@ func (s *ChannelStore) PrepareMQTTStorage(ctx context.Context, manifest DurableP
 				old.Charges = nil
 			}
 		}
-		if old.Phase == mqttStoragePrepared {
-			return out, channel.ErrBackpressured
-		}
 	}
 	mode := AppendStrict
 	seen := newAppendValidationSeen(len(records))
@@ -202,6 +199,12 @@ func (s *ChannelStore) PrepareMQTTStorage(ctx context.Context, manifest DurableP
 			out.NeedFrom = gap.needFrom
 		}
 		return out, toChannelError(err)
+	}
+	// A funded follower may still lack the previous quorum-committed original.
+	// Validate the incoming chain first so its gap yields NeedFrom and schedules
+	// exact repair. Keep the old ticket/debt until that original is present.
+	if found && old.Phase == mqttStoragePrepared {
+		return out, channel.ErrBackpressured
 	}
 	if prepared.alreadyDurable {
 		if err = s.log.db.mqttStorage.ensureFunded(ctx); err != nil {
