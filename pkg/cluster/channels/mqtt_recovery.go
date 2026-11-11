@@ -2,6 +2,8 @@ package channels
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -27,6 +29,9 @@ func (s *Service) StepMQTTReplayRecovery(ctx context.Context, q ch.MQTTReplayRec
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:30 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	if s == nil || !q.Valid() {
@@ -41,6 +46,9 @@ func (s *Service) StepMQTTReplayRecovery(ctx context.Context, q ch.MQTTReplayRec
 	authority := ch.MQTTReplayRequest{ChannelID: q.Source.ChannelID, ExpectedChannelEpoch: q.Source.ExpectedChannelEpoch, ExpectedLeaderEpoch: q.Source.ExpectedLeaderEpoch, ExpectedRouteGeneration: q.Source.ExpectedRouteGeneration}
 	m, err := s.mqttRepairAuthority(ctx, authority, q.Target)
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:44 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	var result ch.MQTTReplayRecoveryResult
@@ -52,12 +60,19 @@ func (s *Service) StepMQTTReplayRecovery(ctx context.Context, q ch.MQTTReplayRec
 		return empty, ch.ErrInvalidConfig
 	}
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:55 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	if err = s.recheckMQTTRepairAuthority(ctx, authority, m, q.Target); err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:58 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	if !result.ValidFor(q) || (result.DonorAfter != 0 && !slices.Contains(m.Replicas, result.DonorAfter)) {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:61 log conflict\n")
 		return empty, ch.ErrLogConflict
 	}
 	return result, nil
@@ -72,6 +87,9 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	}
 	handle, err := s.store.ChannelStore(ch.ChannelKeyForID(q.Source.ChannelID), q.Source.ChannelID)
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:75 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	defer handle.Close()
@@ -84,9 +102,15 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	// must supply that checkpoint before any repair or retirement can run.
 	state, err := handle.Load(ctx)
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:87 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	if err = ctx.Err(); err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:90 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	if state.HW < q.TargetAnchor {
@@ -96,14 +120,21 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	if q.ApplyRetirement {
 		pending, err = s.applyMQTTRecoveryRetirement(ctx, handle, q, authority, m)
 		if err != nil {
+			if errors.Is(err, ch.ErrLogConflict) {
+				fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:99 propagated log conflict\n")
+			}
 			return empty, err
 		}
 	}
 	plan, err := planner.PlanMQTTReplayRepair(ctx, ch.MQTTReplayRepairScan{Generation: q.Source.Generation, TargetAnchor: q.TargetAnchor, AfterAnchor: q.AfterAnchor, Limit: q.ScanLimit})
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:104 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	if !q.AcceptsPlan(plan) {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:107 log conflict\n")
 		return empty, ch.ErrLogConflict
 	}
 	result := ch.MQTTReplayRecoveryResult{Plan: plan, RetirementPending: pending}
@@ -114,11 +145,17 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 				return empty, ch.ErrInvalidConfig
 			}
 			if err = s.recheckMQTTRepairAuthority(ctx, authority, m, q.Target); err != nil {
+				if errors.Is(err, ch.ErrLogConflict) {
+					fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:117 propagated log conflict\n")
+				}
 				return empty, err
 			}
 			// The plan is scheduling evidence, not a substitute for the store's
 			// independent atomic revalidation of this exact committed anchor.
 			if err = release.ReleaseMQTTSourceAtAnchor(ctx, q.Source.Generation, q.TargetAnchor); err != nil {
+				if errors.Is(err, ch.ErrLogConflict) {
+					fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:122 propagated log conflict\n")
+				}
 				return empty, err
 			}
 			result.SourceReleased = true
@@ -127,9 +164,13 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	}
 	interval, has, err := plan.NextRange()
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:130 propagated log conflict\n")
+		}
 		return empty, err
 	}
 	if !has {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:133 log conflict\n")
 		return empty, ch.ErrLogConflict
 	}
 	donors := mqttRecoveryDonors(m, q.Target)
@@ -153,10 +194,16 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	for attempt := 0; attempt < min(len(donors), mqttRecoveryDonorAttempts); attempt++ {
 		repair.Donor = donors[(start+attempt)%len(donors)]
 		if err = s.recheckMQTTRepairMeta(ctx, repair, m); err != nil {
+			if errors.Is(err, ch.ErrLogConflict) {
+				fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:156 propagated log conflict\n")
+			}
 			return empty, err
 		}
 		page, fetchErr := fetchMQTTRecoveryDonor(ctx, forward, repair)
 		if err = ctx.Err(); err != nil {
+			if errors.Is(err, ch.ErrLogConflict) {
+				fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:160 propagated log conflict\n")
+			}
 			return empty, err
 		}
 		if fetchErr != nil || !page.ValidFor(interval) || page.After != plan.Next.Prefix() {
@@ -164,15 +211,22 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 			continue
 		}
 		if err = s.recheckMQTTRepairMeta(ctx, repair, m); err != nil {
+			if errors.Is(err, ch.ErrLogConflict) {
+				fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:167 propagated log conflict\n")
+			}
 			return empty, err
 		}
 		// Import atomically reloads the receiver's committed proof. Local failures
 		// remain errors even when other donors exist; only fetch failures rotate.
 		prefix, err := transfer.ImportMQTTReplayAnchor(ctx, repair.AnchorPosition, page)
 		if err != nil {
+			if errors.Is(err, ch.ErrLogConflict) {
+				fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:173 propagated log conflict\n")
+			}
 			return empty, err
 		}
 		if prefix != plan.Next.Prefix() {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:176 log conflict\n")
 			return empty, ch.ErrLogConflict
 		}
 		result.Repaired = true
@@ -193,28 +247,45 @@ func (s *Service) applyMQTTRecoveryRetirement(ctx context.Context, handle channe
 	}
 	proof, found, err := reader.LoadLatestMQTTReplayRetirement(ctx, q.Source.Generation)
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:196 propagated log conflict\n")
+		}
 		return false, err
 	}
 	if err = ctx.Err(); err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:199 propagated log conflict\n")
+		}
 		return false, err
 	}
 	if !found {
 		if proof != (ch.MQTTReplayRetirementProof{}) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:203 log conflict\n")
 			return false, ch.ErrLogConflict
 		}
 		return false, nil
 	}
 	if !q.AcceptsRetirement(proof) {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:208 log conflict\n")
 		return false, ch.ErrLogConflict
 	}
 	if err = s.recheckMQTTRepairAuthority(ctx, authority, m, q.Target); err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:211 propagated log conflict\n")
+		}
 		return false, err
 	}
 	r, err := retirer.RetireMQTTReplay(ctx, q.Source.Generation, proof.Manifest.LastOffset, mqttRecoveryRetireLimit)
 	if err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:215 propagated log conflict\n")
+		}
 		return false, err
 	}
 	if err = ctx.Err(); err != nil {
+		if errors.Is(err, ch.ErrLogConflict) {
+			fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:218 propagated log conflict\n")
+		}
 		return false, err
 	}
 	a, p := proof.Retirement.Anchor, r.Retired
@@ -222,6 +293,7 @@ func (s *Service) applyMQTTRecoveryRetirement(ctx context.Context, handle channe
 		p.Through < a.Through || p.Through >= r.RetirementPosition || p.TotalBytes < a.TotalBytes || p.TotalStoredBytes < a.TotalStoredBytes ||
 		p.TotalBytes > p.TotalStoredBytes || p.Digest == [32]byte{} || (p.Through == a.Through && (p.TotalBytes != a.TotalBytes || p.TotalStoredBytes != a.TotalStoredBytes || p.Digest != a.Digest)) ||
 		r.Deleted < 0 || r.Deleted > mqttRecoveryRetireLimit || r.DeletedThrough < p.StartAfter || r.DeletedThrough > p.Through || r.Done != (r.DeletedThrough == p.Through) {
+		fmt.Printf("[DEBUG-sub-confirm] mqtt_recovery.go:225 log conflict\n")
 		return false, ch.ErrLogConflict
 	}
 	return !r.Done, nil
