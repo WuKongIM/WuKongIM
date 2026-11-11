@@ -26,6 +26,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Three-node smoke evidence now preserves fractional-second phase boundaries, preventing a last-second throughput observation from being excluded from the final timeline. / 三节点冒烟检查的阶段边界保留亚秒精度，避免最后一秒内已观察到的吞吐采样被最终时间线排除。
+
 - Presence batch-cancellation integration checks now use prepaid result fixtures so the required shared batch forms even on single-CPU runners; cancellation and publication assertions are unchanged. / Presence 批量取消集成检查改用预付结果额度的夹具，确保单 CPU 环境也能形成所需共享批次；保留取消隔离与发布断言。
 
 - MQTT lifecycle integration checks now retry the explicit stale-read-route response within their existing cleanup deadline while retaining exact pending-message and owner-drain assertions. / MQTT 生命周期集成检查在原有清理时限内重试明确的读取路由失效响应，保留待处理消息和 Owner 清理的精确断言。

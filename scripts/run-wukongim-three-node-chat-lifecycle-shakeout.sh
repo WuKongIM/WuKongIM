@@ -915,7 +915,14 @@ printf 'observed_at_utc\tphase\tnode\tstatus\n' >"$EVIDENCE_DIR/timeline.tsv"
 printf 'observed_at_utc\trun_id\tsample\tnode\tstatus\tcompaction_count\tcompactions_in_progress\tsnapshot_files\tsnapshot_bytes\tsnapshot_identity\tsnapshot_inventory\n' >"$STORAGE_OVERLAP_FILE"
 
 record_timeline_boundary() {
-  printf '%s\t%s\tboundary\tcomplete\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$EVIDENCE_DIR/timeline.tsv"
+  # Keep subsecond cuts observed before this boundary inside the frozen window.
+  # jq is already required and provides the same clock precision on Linux/macOS.
+  jq -nr --arg phase "$1" '
+    now as $now |
+    (($now | floor | strftime("%Y-%m-%dT%H:%M:%S")) + "." +
+      (($now * 1000000 | floor) % 1000000 | tostring | ("000000" + .)[-6:]) + "Z") as $at |
+    [$at, $phase, "boundary", "complete"] | @tsv
+  ' >>"$EVIDENCE_DIR/timeline.tsv"
 }
 
 record_timeline_boundary_at() {
