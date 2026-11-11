@@ -527,7 +527,10 @@ specification, runbook, report, or module documentation; link to them when neede
   protected source on each storage replica, independently of Session quotas.
   Funding covers all voters/learners before original dispatch; capacity receipts
   never vote for durability. Startup/restore debt closes admission until every
-  storage node registers. Cancellation and retirement require exact durable
+  storage node registers. Each node's write-readiness probe publishes its own
+  reconstructed debt before product admission, without depending on the health
+  timer. Registration alone neither grants growth nor requires free capacity;
+  full/lowered limits must not strand accepted responsibilities. Cancellation and retirement require exact durable
   evidence, including unknown outcomes. This is logical responsibility capacity,
   so operators still need WAL/compaction/metadata disk headroom. Only typed native
   controls are exempt; ordinary SyncOnce flags grant no exemption. See

@@ -478,6 +478,7 @@ func (b *mqttStorageBudget) register(ctx context.Context) error {
 	if len(members) == 0 {
 		b.spendable = 0
 		b.ready = false
+		b.registered = false
 		return channel.ErrBackpressured
 	}
 	b.membershipRevision = max(b.membershipRevision, revision)
