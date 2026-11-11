@@ -3167,3 +3167,9 @@ completion, installation and provider-reference release.
   after a definite CAS rejection and fresh evidence of a newer parent with the
   same Owner and complete subscription child. Keep the first durable consumption
   boundary; unknown replies and changed intent never grant retry.
+
+- MQTT native `SizeBytes` is a replica-local accounting hint; canonical replay
+  binds actual payload length. After independent native and anchor verification,
+  replay imports retain a sufficient larger prepaid charge without refund or
+  grant growth. Insufficient/corrupt receipts fail closed; ordinary funding
+  continues to require exact charges. This also holds after original trimming.

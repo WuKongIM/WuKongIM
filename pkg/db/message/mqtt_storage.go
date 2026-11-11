@@ -178,6 +178,18 @@ func (e *channelEntry) mqttStorageSource(proposals []durableProposalRecord) (MQT
 }
 
 func (e *channelEntry) prepareMQTTStorageBooking(ctx context.Context, rows []messageRow, proposals []durableProposalRecord) ([]mqttStorageCharge, uint64, error) {
+	return e.prepareMQTTStorageBookingRows(ctx, rows, proposals, false)
+}
+
+// prepareMQTTReplayStorageBooking keeps sufficient existing funding intact.
+// Replay content has independently verified native and full-content proofs but
+// canonicalizes PayloadSize, unlike replica-local append/fetch size hints.
+// A larger durable charge remains occupied; an insufficient one fails closed.
+func (e *channelEntry) prepareMQTTReplayStorageBooking(ctx context.Context, rows []messageRow) ([]mqttStorageCharge, uint64, error) {
+	return e.prepareMQTTStorageBookingRows(ctx, rows, nil, true)
+}
+
+func (e *channelEntry) prepareMQTTStorageBookingRows(ctx context.Context, rows []messageRow, proposals []durableProposalRecord, retainExcess bool) ([]mqttStorageCharge, uint64, error) {
 	if e.db.mqttStorage == nil || len(rows) == 0 {
 		return nil, 0, nil
 	}
@@ -208,7 +220,7 @@ func (e *channelEntry) prepareMQTTStorageBooking(ctx context.Context, rows []mes
 			if err != nil {
 				return nil, 0, err
 			}
-			if old != n {
+			if old < n || (!retainExcess && old != n) {
 				return nil, 0, dberrors.ErrCorruptState
 			}
 			continue
