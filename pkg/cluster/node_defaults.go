@@ -116,6 +116,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			LocalNode: channelruntime.NodeID(n.cfg.NodeID), Store: storeAdapter, Link: peerLink,
 			Goroutines: n.cfg.Goroutines, MaxChannels: n.cfg.Channel.MaxChannels,
 			MaxVoters: int(n.cfg.Channel.ReplicaCount), Observer: replicationObserver,
+			PromiseActive: n.ChannelAuthorityPromiseActive,
 		})
 		if err != nil {
 			if createdStoreFactory {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -15,15 +16,19 @@ import (
 )
 
 // channelReplicationImplementsPromises reports whether this binary's Channel
-// replication fences new authorities with durable promises. It stays false
-// until the replication step lands: nodes then answer the barrier protocol,
-// so a cluster can never activate before every node acts on activation.
-const channelReplicationImplementsPromises = false
+// replication fences new authorities with durable promises once activation is
+// committed. Older binaries answer the barrier protocol or not at all, so a
+// cluster can never activate before every node acts on activation.
+const channelReplicationImplementsPromises = true
 
 const (
 	// channelReplicationBarrierProtocolVersion fences authorities with in-log barriers.
 	channelReplicationBarrierProtocolVersion uint32 = 1
-	// channelPromiseActivationInterval paces the leader's activation attempts.
+	// channelPromiseActivationFirstDelay is the first attempt's delay after
+	// start; later attempts double it up to channelPromiseActivationInterval,
+	// so a freshly formed cluster activates within seconds of becoming ready.
+	channelPromiseActivationFirstDelay = time.Second
+	// channelPromiseActivationInterval caps the pace of activation attempts.
 	channelPromiseActivationInterval = 30 * time.Second
 	// channelPromiseActivationTimeout bounds one activation attempt.
 	channelPromiseActivationTimeout = 10 * time.Second
@@ -44,15 +49,19 @@ func (n *Node) ChannelReplicationCapability() controller.ChannelReplicationCapab
 	return controller.ChannelReplicationCapability{NodeID: n.cfg.NodeID, ProtocolVersion: version}
 }
 
-// ChannelAuthorityPromiseActive reports committed one-way activation from the
-// latest applied Controller snapshot.
+// ChannelAuthorityPromiseActive reports committed one-way activation from an
+// applied Controller snapshot. Channel replication reads it on every append,
+// so it is one atomic load rather than the Node lock.
 func (n *Node) ChannelAuthorityPromiseActive() bool {
-	if n == nil {
-		return false
+	return n != nil && n.channelPromiseActive.Load()
+}
+
+// observeChannelPromiseActivation latches activation from an applied snapshot.
+// Activation is one-way: a later snapshot can never clear it.
+func (n *Node) observeChannelPromiseActivation(active bool) {
+	if active {
+		n.channelPromiseActive.Store(true)
 	}
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return n.controlSnapshot.ChannelAuthorityPromiseActive
 }
 
 // tickChannelPromiseActivation attempts activation once when this node is the
@@ -90,17 +99,20 @@ func (n *Node) startChannelPromiseActivationLoop() {
 	n.channelPromiseWG.Add(1)
 	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterChannelPromiseActivation, func() {
 		defer n.channelPromiseWG.Done()
-		ticker := time.NewTicker(channelPromiseActivationInterval)
-		defer ticker.Stop()
+		delay := channelPromiseActivationFirstDelay
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-timer.C:
 				if n.ChannelAuthorityPromiseActive() {
 					return
 				}
 				n.tickChannelPromiseActivation(ctx)
+				delay = min(2*delay, channelPromiseActivationInterval)
+				timer.Reset(delay)
 			}
 		}
 	})
@@ -168,6 +180,8 @@ func (n *Node) selfMembershipAddr() string {
 
 // channelPromiseProbeState guards the private pinned probe client.
 type channelPromiseProbeState struct {
+	// channelPromiseActive latches committed one-way activation.
+	channelPromiseActive  atomic.Bool
 	channelPromiseProbeMu sync.Mutex
 	channelPromiseCancel  context.CancelFunc
 	channelPromiseWG      sync.WaitGroup

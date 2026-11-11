@@ -75,6 +75,9 @@ type RuntimeConfig struct {
 
 	MaxChannels         int
 	MaxRetainedCommands int
+	// PromiseActive reports committed one-way Controller activation of
+	// authority promises; see quorumLogConfig.PromiseActive. Nil keeps barriers.
+	PromiseActive func() bool
 }
 
 // Runtime owns all bounded local durability, peer exchange, recovery, and
@@ -302,6 +305,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		RecoveryTimeout:   cfg.RecoveryTimeout, RecoveryPageBytes: cfg.RecoveryPageBytes,
 		MaxChannels: cfg.MaxChannels, MaxVoters: cfg.MaxVoters, MaxProposalRecords: cfg.BatchItems,
 		MaxProposalBytes: cfg.BatchBytes, MaxRetainedCommands: cfg.MaxRetainedCommands,
+		PromiseActive: cfg.PromiseActive,
 	})
 	if err != nil {
 		cancel()
@@ -535,6 +539,7 @@ func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabi
 			ChannelKey:        proposal.channelKey, ChannelID: proposal.channelID,
 			Manifest: proposal.manifest, Records: proposal.records, Committed: proposal.committed, Class: MutationClassLeaderQuorum,
 			ServerAllocatedMessageIDs: proposal.serverAllocatedMessageIDs,
+			Writer:                    proposal.writer,
 		}
 	}
 	ctx, cancel := context.WithTimeout(l.runtime.ctx, l.timeout)
@@ -772,7 +777,13 @@ func (o *runtimeRepairOwner) retireReleasedAuthorityLocked(key ch.ChannelKey) {
 	delete(o.authorities, key)
 }
 
+// repairAuthorityID is the authority that owns a repair: its explicit writer
+// once promises are active (a promise-mode leader may repair an older
+// authority's tail, since no barrier is written), otherwise the manifest's.
 func repairAuthorityID(repair followerRepair) AuthorityID {
+	if repair.writer != (AuthorityID{}) {
+		return repair.writer
+	}
 	return AuthorityID{
 		ChannelEpoch: repair.manifest.ChannelEpoch,
 		LeaderTerm:   repair.manifest.LeaderTerm,
@@ -796,7 +807,7 @@ func validFollowerRepair(repair followerRepair) bool {
 }
 
 func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool) {
-	comparison := compareRepairAuthority(incoming.manifest, current.manifest)
+	comparison := compareAuthorityID(repairAuthorityID(incoming), repairAuthorityID(current))
 	if comparison < 0 {
 		return current, false
 	}
@@ -809,18 +820,12 @@ func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool
 		merged.needFrom = incoming.needFrom
 	}
 	if incoming.manifest.LastOffset > merged.manifest.LastOffset {
+		merged.writer = incoming.writer
 		merged.channelID = incoming.channelID
 		merged.leader = incoming.leader
 		merged.manifest = incoming.manifest
 	}
 	return merged, merged != current
-}
-
-func compareRepairAuthority(left, right ch.ProposalManifest) int {
-	return compareAuthorityID(
-		AuthorityID{ChannelEpoch: left.ChannelEpoch, LeaderTerm: left.LeaderTerm, FenceVersion: left.FenceVersion},
-		AuthorityID{ChannelEpoch: right.ChannelEpoch, LeaderTerm: right.LeaderTerm, FenceVersion: right.FenceVersion},
-	)
 }
 
 func (o *runtimeRepairOwner) signal() {
@@ -996,6 +1001,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 				Leader: repair.leader, Follower: repair.follower,
 				Manifest: proposal.Manifest, Records: proposal.Records,
 				Committed: minUint64(max(state.Committed, repair.committed), proposal.Manifest.LastOffset),
+				Writer:    repair.writer,
 			}
 			resultCh := make(chan ReplicateResult, 1)
 			errCh := make(chan error, 1)

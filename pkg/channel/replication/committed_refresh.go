@@ -39,8 +39,13 @@ func (l *quorumLog) RequestCommittedReplicaRefresh(ctx context.Context, a Author
 	if state.hw == 0 {
 		return nil
 	}
+	// A barrier-mode frontier must end in this authority's barrier or
+	// proposal. A promise-mode frontier may end in an older authority's entry:
+	// its prefix was proven by the promise quorum, and the replay is fenced by
+	// this authority as writer.
 	manifest := state.frontier.Manifest
-	if !manifest.StructurallyValid() || manifest.LastOffset != state.hw || !frontierUsesAuthority(state.frontier, a.ID) {
+	promised := state.promised == a.ID
+	if !manifest.StructurallyValid() || manifest.LastOffset != state.hw || (!promised && !frontierUsesAuthority(state.frontier, a.ID)) {
 		return ch.ErrLogConflict
 	}
 	sink := l.cfg.RepairAuthorities
@@ -51,7 +56,7 @@ func (l *quorumLog) RequestCommittedReplicaRefresh(ctx context.Context, a Author
 		if voter == l.cfg.Local {
 			continue
 		}
-		sink.RecordFollowerRepair(followerRepair{channelKey: a.Key, channelID: a.ChannelID, leader: a.Leader, follower: voter, manifest: manifest, needFrom: manifest.BaseOffset + 1, committed: state.hw})
+		sink.RecordFollowerRepair(followerRepair{channelKey: a.Key, channelID: a.ChannelID, leader: a.Leader, follower: voter, manifest: manifest, needFrom: manifest.BaseOffset + 1, committed: state.hw, writer: l.writerFor(a.ID)})
 	}
 	return nil
 }

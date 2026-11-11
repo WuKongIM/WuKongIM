@@ -40,7 +40,8 @@ func TestChannelPromiseActivationTickRunsOnlyOnInactiveLeader(t *testing.T) {
 		t.Fatal("a failed Ensure activated promises locally")
 	}
 	fake.err = nil
-	n.controlSnapshot.ChannelAuthorityPromiseActive = true
+	n.observeChannelPromiseActivation(true)
+	n.observeChannelPromiseActivation(false)
 	if n.tickChannelPromiseActivation(context.Background()) || fake.ensures != 1 {
 		t.Fatal("an active cluster attempted activation again")
 	}
@@ -49,8 +50,8 @@ func TestChannelPromiseActivationTickRunsOnlyOnInactiveLeader(t *testing.T) {
 	}
 }
 
-// Until the replication protocol implements promises, nodes must answer with
-// the barrier protocol so a cluster can never activate early.
+// Nodes answer with the protocol their replication actually implements, so a
+// cluster activates only after every node acts on activation.
 func TestChannelReplicationCapabilityReportsTheImplementedProtocol(t *testing.T) {
 	n := &Node{cfg: Config{NodeID: 7}}
 	got := n.ChannelReplicationCapability()

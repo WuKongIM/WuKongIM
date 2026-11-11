@@ -250,7 +250,9 @@ type AppendBatchItem struct {
 	// writer is rejected with ErrStaleAuthority, and a higher writer raises the
 	// promise atomically with the append. It binds the writer, not Proposal's
 	// own authority, so the current leader may repair old-authority entries.
-	// Nil keeps the barrier-mode behavior and never reads or writes a promise.
+	// Nil fences the append by Proposal's own authority without ever raising
+	// the promise: a stale barrier-mode leader stays fenced after activation,
+	// and no promise is created before activation.
 	WriterAuthority *AuthorityPromise
 }
 
@@ -1062,7 +1064,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 		)
 		for _, index := range entryIndexes {
 			item := items[index]
-			if item.WriterAuthority != nil && !promiseLoaded {
+			if item.ExactBaseOffset && !promiseLoaded {
 				promise, promisePresent, promiseErr = entry.loadAuthorityPromiseLocked()
 				promiseLoaded = true
 			}
@@ -3989,13 +3991,22 @@ func copyCommitCohortRef(ref *rpctrace.CommitCohortRef) *rpctrace.CommitCohortRe
 }
 
 // authorityWriterFence rejects an exact append whose writer authority is lower
-// than the replica's durable promise. Items without a writer are unaffected.
+// than the replica's durable promise. An item without an explicit writer is
+// fenced by its proposal's own authority. Non-exact appends are not replicated
+// log writes and are unaffected.
 func authorityWriterFence(item AppendBatchItem, promise AuthorityPromise, present bool, loadErr error) error {
 	writer := item.WriterAuthority
-	if writer == nil {
+	if !item.ExactBaseOffset {
+		if writer != nil {
+			return channel.ErrInvalidArgument
+		}
 		return nil
 	}
-	if !item.ExactBaseOffset || writer.IsZero() {
+	if writer == nil {
+		writer = &AuthorityPromise{
+			ChannelEpoch: item.Proposal.ChannelEpoch, LeaderTerm: item.Proposal.LeaderTerm, FenceVersion: item.Proposal.FenceVersion,
+		}
+	} else if writer.IsZero() {
 		return channel.ErrInvalidArgument
 	}
 	if loadErr != nil {

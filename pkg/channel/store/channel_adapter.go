@@ -332,6 +332,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			ExactBaseOffset:           item.Request.ExactBaseOffset,
 			ExpectedBaseOffset:        item.Request.ExpectedBaseOffset,
 			Proposal:                  item.Request.Proposal,
+			WriterAuthority:           messageDBWriterAuthority(item.Request.WriterAuthority),
 		})
 		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
 	}
@@ -728,6 +729,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 		ExactBaseOffset:           req.ExactBaseOffset,
 		ExpectedBaseOffset:        req.ExpectedBaseOffset,
 		Proposal:                  req.Proposal,
+		WriterAuthority:           messageDBWriterAuthority(req.WriterAuthority),
 	}})
 	if len(results) != 1 {
 		return AppendLeaderResult{Outcome: AppendOutcomeUnknown}, ch.ErrInvalidConfig
@@ -1618,4 +1620,35 @@ func (f *MessageDBFactory) MaintainMQTTStorage(ctx context.Context) error {
 		return nil
 	}
 	return f.engine.MaintainMQTTStorage(ctx)
+}
+
+// messageDBWriterAuthority converts an explicit writer authority to the
+// message DB promise type; nil keeps manifest-authority fencing.
+func messageDBWriterAuthority(writer *AuthorityFence) *messagedb.AuthorityPromise {
+	if writer == nil {
+		return nil
+	}
+	return &messagedb.AuthorityPromise{ChannelEpoch: writer.ChannelEpoch, LeaderTerm: writer.LeaderTerm, FenceVersion: writer.FenceVersion}
+}
+
+// PromiseAuthority durably records one authority promise; see AuthorityPromiser.
+func (a *messageDBChannelStoreAdapter) PromiseAuthority(ctx context.Context, promise AuthorityFence) error {
+	if err := a.ensureOpen(); err != nil {
+		return err
+	}
+	return a.mapError(a.store.PromiseAuthority(ctx, messagedb.AuthorityPromise{
+		ChannelEpoch: promise.ChannelEpoch, LeaderTerm: promise.LeaderTerm, FenceVersion: promise.FenceVersion,
+	}))
+}
+
+// AuthorityPromise returns the durable authority promise; see AuthorityPromiser.
+func (a *messageDBChannelStoreAdapter) AuthorityPromise(ctx context.Context) (AuthorityFence, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return AuthorityFence{}, false, err
+	}
+	promise, ok, err := a.store.AuthorityPromise(ctx)
+	if err != nil {
+		return AuthorityFence{}, false, a.mapError(err)
+	}
+	return AuthorityFence{ChannelEpoch: promise.ChannelEpoch, LeaderTerm: promise.LeaderTerm, FenceVersion: promise.FenceVersion}, ok, nil
 }

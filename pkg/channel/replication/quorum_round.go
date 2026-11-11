@@ -24,6 +24,10 @@ type durableProposal struct {
 	committed                 uint64
 	payloadsImmutable         bool
 	serverAllocatedMessageIDs bool
+	// writer is the installing leader's authority, set once Controller
+	// activation of authority promises is observed; zero fences each append by
+	// its manifest authority and never raises a follower promise.
+	writer AuthorityID
 }
 
 func (p durableProposal) freeze() durableProposal {
@@ -57,6 +61,8 @@ type followerRepair struct {
 	needFrom   uint64
 	// committed is independently quorum-proven, even before local HW checkpointing.
 	committed uint64
+	// writer fences repair appends against follower promises; see durableProposal.
+	writer AuthorityID
 }
 
 func followerRepairFor(proposal durableProposal, follower ch.NodeID, needFrom uint64) followerRepair {
@@ -67,6 +73,7 @@ func followerRepairFor(proposal durableProposal, follower ch.NodeID, needFrom ui
 		manifest:   proposal.manifest,
 		follower:   follower,
 		needFrom:   needFrom,
+		writer:     proposal.writer,
 	}
 }
 
