@@ -1836,7 +1836,7 @@ specification, runbook, report, or module documentation; link to them when neede
   The sequence-contiguity history proof uses its existing 15-second read bound
   for the exact `503 unavailable` recovery response; successful pages must
   immediately satisfy contiguous positions and every acknowledged identity.
-- Recovery FIFO coalescing fixtures use prepaid result providers: the legacy
+- Recovery FIFO coalescing and shared-batch cancellation fixtures use prepaid result providers: the legacy
   sixteen-original-call result cap legitimately dispatches single queued calls
   when each prior caller retires separately. RPC trace completion likewise
   preserves an unfinished request-write span when the response beats the local
@@ -3162,3 +3162,8 @@ completion, installation and provider-reference release.
 - Product startup supports registered format 1 to 2 through a verified retained cold backup, crash-atomic bounded metadata batches and final atomic format publication. All cluster nodes require matching binaries and a coordinated cold upgrade.
 - Old UID-person Channel SendBan means a UID-wide policy: project it into User state, including policy-only users, and clear that legacy source flag. Old snapshot rows and pre-policy-version TLV command replay must perform the same translation; live decoders remain strict.
 - Metadata global System 7 retains the migration cursor/witness outside Hash-Slot replacement. New Channel delete commands carry policy-version tag 8 to distinguish current semantics. Rollback restores complete per-node and external Controller generations. See `docs/development/DATA_FORMAT_UPGRADE.md`.
+
+- Chat-lifecycle phase boundaries and metric captures share a fractional-second
+  clock; mixing their precision can make adjacent evidence rows regress. Flooring a
+  measurement end to whole seconds can exclude an already observed worker cut
+  and falsely invalidate its profile trigger against the frozen timeline.

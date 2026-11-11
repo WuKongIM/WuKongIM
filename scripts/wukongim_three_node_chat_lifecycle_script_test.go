@@ -503,3 +503,38 @@ func TestChatLifecycleShakeoutDefaultSendBudget(t *testing.T) {
 		t.Fatalf("default budget is not 500 SEND/s: %s", output)
 	}
 }
+
+// A live worker cut can be observed just before a measurement boundary in the
+// same second. Rounding that boundary down excludes the cut from the frozen
+// timeline and falsely reports inconsistent profile evidence. Preserve fractions
+// across low/middle/high microseconds and keep the existing TSV shape.
+func TestChatLifecycleTimelineBoundaryPreservesFractionalSecond(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	for _, tc := range []struct{ name, stamp, want string }{
+		{"low", "1794384698.000001", "2026-11-11T08:11:38.000001Z"},
+		{"captured-stop", "1794384698.831163", "2026-11-11T08:11:38.831163Z"},
+		{"high", "1794384698.999999", "2026-11-11T08:11:38.999999Z"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			harness := `set -euo pipefail
+date() { printf '2026-11-11T08:11:38Z\n'; }
+jq() {
+  local count=$# filter="${!#}"
+  command jq "${@:1:count-1}" "def now: (env.WK_TEST_TIMESTAMP | tonumber); $filter"
+}
+` + extractDefaultBashFunction(t, script, "timeline_observed_at") + "\n" + extractDefaultBashFunction(t, script, "record_timeline_boundary") + `
+record_timeline_boundary measurement_end
+`
+			cmd := exec.Command("bash", "-c", harness)
+			cmd.Env = append(os.Environ(), "EVIDENCE_DIR="+dir, "WK_TEST_TIMESTAMP="+tc.stamp)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("boundary transform: %v\n%s", err, out)
+			}
+			got := readFile(t, filepath.Join(dir, "timeline.tsv"))
+			if want := tc.want + "\tmeasurement_end\tboundary\tcomplete\n"; got != want {
+				t.Fatalf("boundary = %q, want %q", got, want)
+			}
+		})
+	}
+}
