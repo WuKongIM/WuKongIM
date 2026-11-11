@@ -6,11 +6,11 @@ permissions:
 jobs:
   diagnostic:
     runs-on: ubuntu-24.04
-    timeout-minutes: 27
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        scenario: [warm, prefix]
+        selector: [webhook-prefix-single-cpu-diagnostic, webhook-prefix-placement-diagnostic, e2e-shard-2]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
@@ -18,4 +18,8 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
           go-version-file: go.mod
-      - run: go run ./cmd/wkcicheck webhook-${{ matrix.scenario }}-diagnostic
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        if: matrix.selector == 'e2e-shard-2'
+        with:
+          node-version: "22.12.0"
+      - run: go run ./cmd/wkcicheck "${{ matrix.selector }}"

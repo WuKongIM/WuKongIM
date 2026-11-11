@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -132,6 +133,8 @@ func TestWukongIMWebhookReceivesNotifyOfflineAndOnlineStatus(t *testing.T) {
 
 // TestBeforeSendWebhookAuthenticatedFaults exercises callback failure boundaries
 // through real authenticated sessions and verifies decisions against public metrics.
+var diagnosticWarmIteration atomic.Uint64
+
 func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
 	var mu sync.Mutex
 	counts, active, peak := map[string]int{}, map[string]int{}, map[string]int{}
@@ -230,7 +233,12 @@ func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
 	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
 	_, err := cluster.WaitSlotLeadersStable(ctx, time.Second)
 	require.NoError(t, err, cluster.DumpDiagnostics())
-	const sender, receiver, group = "fault-sender", "fault-receiver", "fault-group"
+	sender, receiver, group := "fault-sender", "fault-receiver", "fault-group"
+	if os.Getenv("WK_E2E_WEBHOOK_PLACEMENT") == "1" {
+		iteration := diagnosticWarmIteration.Add(1)
+		sender, receiver, group = fmt.Sprintf("fault-sender-%d", iteration), fmt.Sprintf("fault-receiver-%d", iteration), fmt.Sprintf("fault-group-%d", iteration)
+		t.Logf("[DEBUG-webhook-warm] placement iteration=%d sender=%s receiver=%s group=%s", iteration, sender, receiver, group)
+	}
 	for _, uid := range []string{sender, receiver} {
 		_, err = suite.PostJSON(ctx, "http://"+cluster.MustNode(1).APIAddr()+"/user/token", map[string]any{
 			"uid": uid, "token": uid + "-test-token", "device_flag": uint8(frame.APP), "device_level": 0,
@@ -287,7 +295,7 @@ func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
 					if shown == 100 {
 						break
 					}
-					if sample.Value != 0 && !strings.HasSuffix(sample.Name, "_bucket") && (strings.Contains(sample.Name, "delivery") || strings.Contains(sample.Name, "presence") || strings.Contains(sample.Name, "webhook") || strings.Contains(sample.Name, "gateway")) {
+					if sample.Value != 0 && !strings.HasSuffix(sample.Name, "_bucket") && (strings.Contains(sample.Name, "delivery") || strings.Contains(sample.Name, "presence") || strings.Contains(sample.Name, "webhook") || strings.Contains(sample.Name, "gateway") || strings.Contains(sample.Name, "channel_append")) {
 						t.Logf("[DEBUG-webhook-warm] node=%d metric=%s value=%v labels=%v", node, sample.Name, sample.Value, sample.Labels)
 						shown++
 					}

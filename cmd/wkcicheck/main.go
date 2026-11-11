@@ -39,7 +39,7 @@ func run(args []string) error {
 
 // Selectors lists every named check accepted by wkcicheck.
 var Selectors = []string{
-	"webhook-warm-diagnostic", "webhook-prefix-diagnostic",
+	"webhook-warm-diagnostic", "webhook-prefix-diagnostic", "webhook-prefix-single-cpu-diagnostic", "webhook-prefix-placement-diagnostic",
 	"go-format", "go-vet", "go-mod-tidy",
 	"flow-doc-contracts", "agent-artifact-contracts", "skill-focused-contracts",
 	"web", "demo", "docs", "docs-integration", "integration", "three-node", "gofail-e2e",
@@ -56,16 +56,22 @@ func runCICheck(
 		return fmt.Errorf("CI check canceled: %w", err)
 	}
 	switch selector {
-	case "webhook-warm-diagnostic", "webhook-prefix-diagnostic":
+	case "webhook-warm-diagnostic", "webhook-prefix-diagnostic", "webhook-prefix-single-cpu-diagnostic", "webhook-prefix-placement-diagnostic":
 		binary := filepath.Join(os.TempDir(), "wukongim-webhook-diagnostic")
 		if err := runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"}, "go", "build", "-buildvcs=false", "-o", binary, "./cmd/wukongim"); err != nil {
 			return err
 		}
 		env := []string{"GOWORK=off", "WK_E2E_BINARY=" + binary}
 		pattern, count := ".", "10"
-		if selector == "webhook-prefix-diagnostic" {
+		if strings.HasPrefix(selector, "webhook-prefix-") {
 			env = append(env, "WK_E2E_WEBHOOK_WARM_ONLY=1")
 			pattern, count = "^TestBeforeSendWebhookAuthenticatedFaults$", "50"
+		}
+		if selector == "webhook-prefix-single-cpu-diagnostic" {
+			env = append(env, "GOMAXPROCS=1")
+		}
+		if selector == "webhook-prefix-placement-diagnostic" {
+			env = append(env, "WK_E2E_WEBHOOK_PLACEMENT=1")
 		}
 		return runCommandWithEnvironment(ctx, commands, root, env, "go", "test", "-tags=e2e", "./test/e2e/message/webhook", "-run", pattern, "-count="+count, "-failfast", "-timeout=20m", "-p=1", "-v")
 
