@@ -63,7 +63,10 @@ The nightly schedule additionally runs race on every listed package,
 `-tags=integration ./internal/... ./pkg/...`, every E2E suite and
 `wkcicheck gofail-e2e`. E2E runs as `wkcicheck e2e-shard-1` through
 `e2e-shard-4`: each discovers every `test/e2e` package and runs a stable
-round-robin slice of the sorted list serially, because one serial job over all
+round-robin slice of the sorted list serially. E2E shard jobs provision pinned
+Node.js; the named check installs the locked MQTT.js example dependencies only
+when that shard selects `mqtt/docs_quickstart`, and stops on installation failure.
+Sharding is required because one serial job over all
 suites exceeded its 60-minute limit and never reached the last packages. The last builds one server with every discovered
 failpoint package and runs every E2E package that references a
 `WK_E2E_GOFAIL_*` gate with those gates enabled, uploading its evidence (not
