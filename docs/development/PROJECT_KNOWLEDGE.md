@@ -526,7 +526,10 @@ specification, runbook, report, or module documentation; link to them when neede
 - MQTT aggregate storage counts one original plus reserved future replay body per
   protected source on each storage replica, independently of Session quotas.
   Funding covers all voters/learners before original dispatch; capacity receipts
-  never vote for durability. Startup/restore debt closes admission until every
+  never vote for durability. A prepared follower can still lack a quorum-committed
+  original; subsequent funding must report the exact log gap before rejecting
+  its unresolved ticket, preserving the old charge until normal repair arrives.
+  Startup/restore debt closes admission until every
   storage node registers. Each node's write-readiness probe publishes its own
   reconstructed debt before product admission, without depending on the health
   timer. Registration alone neither grants growth nor requires free capacity;

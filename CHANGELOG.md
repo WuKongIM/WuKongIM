@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- MQTT-protected sends now repair a lagging funded replica instead of reporting full storage when its previous original has not arrived yet. Exact funding and capacity limits remain enforced. / MQTT 受保护消息的副本已预留额度但尚未收到上一条原始日志时，改为触发现有副本修复，避免误报存储背压；保留精确资金凭据和容量限制。
+
 - Nodes now register reconstructed MQTT storage debt before reporting write readiness, preventing startup messages from being rejected while waiting for the periodic health loop. Existing capacity limits and recovery of accepted messages are preserved. / 节点在报告写就绪前登记重建出的 MQTT 存储债务，避免启动后的消息因等待周期健康检查而被拒绝；保留原有容量限制和已接收消息的恢复能力。
 
 - MQTT preview startup avoids reclamation-index writes for authoritatively empty Session tables and already certified indexes, reducing interference with the first messages while preserving historical backfill and cleanup checks. / MQTT 预览功能启动时跳过已由权威快照证明为空或已有完整覆盖证明的会话回收索引写入，减少对首批消息的干扰，同时保留历史索引回填和回收校验。
