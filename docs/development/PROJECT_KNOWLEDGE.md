@@ -1823,6 +1823,9 @@ specification, runbook, report, or module documentation; link to them when neede
   `503` responses whose public code is `mcp_owner_unavailable` or
   `mcp_state_changed` and whose `retryable` field is true; authentication,
   disabled state, other responses and transport failures fail immediately.
+  The sequence-contiguity history proof uses its existing 15-second read bound
+  for the exact `503 unavailable` recovery response; successful pages must
+  immediately satisfy contiguous positions and every acknowledged identity.
 - Nightly E2E shards provision pinned Node.js. `cmd/wkcicheck` installs locked
   MQTT.js quickstart dependencies only on its selected shard; installation
   failure stops before product tests. Direct scenario runs retain the documented

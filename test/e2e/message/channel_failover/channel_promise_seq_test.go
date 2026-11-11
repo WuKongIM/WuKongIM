@@ -6,7 +6,9 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -134,10 +136,35 @@ func requireContiguousHistory(t *testing.T, node *suite.StartedNode, channel fai
 			Client string `json:"client_msg_no"`
 		} `json:"messages"`
 	}
-	_, err := suite.PostJSON(ctx, "http://"+node.APIAddr()+"/channel/messagesync", map[string]any{
+	request := map[string]any{
 		"login_uid": "channel-ha-member-a", "channel_id": channel.ChannelID, "channel_type": channel.ChannelType,
 		"start_message_seq": 0, "end_message_seq": 0, "pull_mode": 0, "limit": 100,
-	}, &page)
+	}
+	var err error
+	for {
+		_, err = suite.PostJSON(ctx, "http://"+node.APIAddr()+"/channel/messagesync", request, &page)
+		if err == nil {
+			break
+		}
+		// Fresh routed history can still be recovering after a successful
+		// write through another ingress. Preserve the original 15-second read
+		// bound and retry only the explicit unavailable response, never bad data.
+		var status *suite.HTTPStatusError
+		var unavailable struct {
+			Code    string `json:"code"`
+			Message string `json:"msg"`
+			Status  int    `json:"status"`
+		}
+		if !errors.As(err, &status) || status.StatusCode != http.StatusServiceUnavailable ||
+			json.Unmarshal([]byte(status.Body), &unavailable) != nil || unavailable.Code != "unavailable" ||
+			unavailable.Message != "temporarily unavailable" || unavailable.Status != http.StatusServiceUnavailable || ctx.Err() != nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 	require.NoError(t, err, node.DumpDiagnostics())
 	require.Zero(t, page.More, "history must fit one page")
 	bySeq := make(map[string]uint64, len(page.Messages))
