@@ -3162,3 +3162,8 @@ completion, installation and provider-reference release.
 - Product startup supports registered format 1 to 2 through a verified retained cold backup, crash-atomic bounded metadata batches and final atomic format publication. All cluster nodes require matching binaries and a coordinated cold upgrade.
 - Old UID-person Channel SendBan means a UID-wide policy: project it into User state, including policy-only users, and clear that legacy source flag. Old snapshot rows and pre-policy-version TLV command replay must perform the same translation; live decoders remain strict.
 - Metadata global System 7 retains the migration cursor/witness outside Hash-Slot replacement. New Channel delete commands carry policy-version tag 8 to distinguish current semantics. Rollback restores complete per-node and external Controller generations. See `docs/development/DATA_FORMAT_UPGRADE.md`.
+
+- Inbox-source cursor Init, like group-source Init, permits at most three proposals
+  after a definite CAS rejection and fresh evidence of a newer parent with the
+  same Owner and complete subscription child. Keep the first durable consumption
+  boundary; unknown replies and changed intent never grant retry.
