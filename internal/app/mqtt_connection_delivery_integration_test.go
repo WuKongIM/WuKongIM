@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -22,6 +23,7 @@ import (
 	transport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet"
 	gt "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	wire "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/eclipse/paho.golang/paho"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -210,11 +212,31 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool, protocol
 		require.Equal(t, entryEnabled, ack.Properties.SubIDAvailable)
 		return peer{client: client, received: received}
 	}
+	sessionRead := meta.MQTTRead{Kind: meta.MQTTReadSession, Namespace: key.Namespace, ClientID: key.ClientID}
 	read := func() *meta.MQTTSession {
-		r, e := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSession, Namespace: key.Namespace, ClientID: key.ClientID})
+		r, e := node.ReadMQTT(ctx, sessionRead)
 		require.NoError(t, e)
 		require.NotNil(t, r.Session)
 		return r.Session
+	}
+	// State-transition observations retry only the typed read-route fence. Other
+	// errors and missing Sessions terminate the poll and fail on the test goroutine.
+	waitSession := func(ready func(*meta.MQTTSession) bool) {
+		readCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		var observed *meta.MQTTSession
+		var readErr error
+		require.Eventually(t, func() bool {
+			result, err := node.ReadMQTT(readCtx, sessionRead)
+			readErr = err
+			if err != nil {
+				return !errors.Is(err, proxy.ErrReadStaleRoute)
+			}
+			observed = result.Session
+			return observed == nil || ready(observed)
+		}, 3*time.Second, time.Millisecond)
+		require.NoError(t, readErr)
+		require.NotNil(t, observed)
 	}
 	await := func(p peer) *paho.Publish {
 		deadline, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -246,16 +268,15 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool, protocol
 	require.Equal(t, "two", string(next.Payload))
 	require.False(t, next.Duplicate())
 	require.NoError(t, second.client.Ack(next))
-	require.Eventually(t, func() bool {
-		r := read()
+	waitSession(func(r *meta.MQTTSession) bool {
 		return r.PendingMessages == 0 && r.PendingBytes == 0 && r.OutboundInflight == 0
-	}, 3*time.Second, time.Millisecond)
+	})
 	if entryEnabled {
-		verifyMQTTSubscriptionPackets(t, ctx, a, second.client, second.received, deliveries, read)
+		verifyMQTTSubscriptionPackets(t, ctx, a, second.client, second.received, deliveries, read, waitSession)
 	}
 	require.NoError(t, second.client.Disconnect(&paho.Disconnect{}))
-	require.Eventually(t, func() bool {
-		return read().State == meta.MQTTSessionOffline && deliveries.Snapshot().Tracked == 0 && connections.Snapshot().Tracked == 0 && owners.Snapshot().Held == 0
-	}, 3*time.Second, time.Millisecond)
+	waitSession(func(r *meta.MQTTSession) bool {
+		return r.State == meta.MQTTSessionOffline && deliveries.Snapshot().Tracked == 0 && connections.Snapshot().Tracked == 0 && owners.Snapshot().Held == 0
+	})
 	t.Logf("mqtt_connection_delivery_evidence: initially_empty=%t client=Paho transport=gnet/TCP hash_slots=256 subscription_setup=real_usecase_direct source_protection=real replay=real source_discovery=automatic accounting=real delivery_registration=entry sender=real gateway_sink=real receive_maximum=1 takeover_same_packet_dup=true ack_wake=true close_wake=true idle_poll=%s pending_zero=true cleanup_joined=true product_listener=false", !existingMessage, idle)
 }

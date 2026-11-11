@@ -1812,6 +1812,10 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- MQTT Session transition observations retry only `proxy.ErrReadStaleRoute`
+  within their existing deadline. Other read errors or missing Sessions terminate
+  observation and fail; pending/inflight, offline and owner-drain proofs remain exact.
+
 - MQTT recovery fixtures must distinguish cluster/Slot readiness from the
   Channel's bounded quorum recovery: repeat only `ErrNotReady` with the same
   authority/request and a fixed deadline, then assert exact recovered content.

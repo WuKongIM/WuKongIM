@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func verifyMQTTSubscriptionPackets(t *testing.T, ctx context.Context, a *App, client *paho.Client, received <-chan *paho.Publish, deliveries *runtime.Deliveries, read func() *meta.MQTTSession) {
+func verifyMQTTSubscriptionPackets(t *testing.T, ctx context.Context, a *App, client *paho.Client, received <-chan *paho.Publish, deliveries *runtime.Deliveries, read func() *meta.MQTTSession, waitSession func(func(*meta.MQTTSession) bool)) {
 	t.Helper()
 	node := a.cluster.(*cluster.Node)
 	channel := ch.ChannelID{ID: "mqtt-wire-empty", Type: 2}
@@ -65,10 +65,9 @@ func verifyMQTTSubscriptionPackets(t *testing.T, ctx context.Context, a *App, cl
 	require.Equal(t, meta.MQTTSubscriptionRemoved, sub.Subscriptions[0].Stage)
 	require.EqualValues(t, 1, read().OutboundInflight)
 	require.NoError(t, client.Ack(publication))
-	require.Eventually(t, func() bool {
-		r := read()
+	waitSession(func(r *meta.MQTTSession) bool {
 		return r.PendingMessages == 0 && r.PendingBytes == 0 && r.OutboundInflight == 0
-	}, 3*time.Second, time.Millisecond)
+	})
 	_, err = a.Messages().Send(ctx, message.SendCommand{FromUID: "alice", DeviceFlag: 1, ChannelID: channel.ID, ChannelType: channel.Type, ClientMsgNo: "after-unsubscribe", Payload: []byte("after-unsubscribe"), Origin: message.SendOriginClient})
 	require.NoError(t, err)
 	turns := deliveries.Snapshot().Turns
