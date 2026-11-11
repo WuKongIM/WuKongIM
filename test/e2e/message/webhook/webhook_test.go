@@ -267,6 +267,29 @@ func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
 		recvCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 		defer stop()
 		received, err := receiverConn.Recv(recvCtx)
+		if err != nil {
+			mu.Lock()
+			observed := maps.Clone(counts)
+			mu.Unlock()
+			t.Logf("[DEBUG-webhook-warm] receive=%s callback_counts=%v", id, observed)
+			diagnosticCtx, finish := context.WithTimeout(context.Background(), 5*time.Second)
+			defer finish()
+			for node := uint64(1); node <= 3; node++ {
+				samples, metricErr := suite.FetchMetricSamples(diagnosticCtx, cluster.MustNode(node).APIAddr())
+				t.Logf("[DEBUG-webhook-warm] node=%d metrics_error=%v", node, metricErr)
+				shown := 0
+				for _, sample := range samples {
+					if shown == 100 {
+						break
+					}
+					if sample.Value != 0 && !strings.HasSuffix(sample.Name, "_bucket") && (strings.Contains(sample.Name, "delivery") || strings.Contains(sample.Name, "presence") || strings.Contains(sample.Name, "webhook") || strings.Contains(sample.Name, "gateway")) {
+						t.Logf("[DEBUG-webhook-warm] node=%d metric=%s value=%v labels=%v", node, sample.Name, sample.Value, sample.Labels)
+						shown++
+					}
+				}
+			}
+			t.Logf("[DEBUG-webhook-warm] %s", cluster.DumpDiagnostics())
+		}
 		require.NoError(t, err)
 		require.Equal(t, id, received.ClientMsgNo)
 		require.Equal(t, payload, string(received.Payload))

@@ -39,6 +39,7 @@ func run(args []string) error {
 
 // Selectors lists every named check accepted by wkcicheck.
 var Selectors = []string{
+	"webhook-warm-diagnostic",
 	"go-format", "go-vet", "go-mod-tidy",
 	"flow-doc-contracts", "agent-artifact-contracts", "skill-focused-contracts",
 	"web", "demo", "docs", "docs-integration", "integration", "three-node", "gofail-e2e",
@@ -55,6 +56,13 @@ func runCICheck(
 		return fmt.Errorf("CI check canceled: %w", err)
 	}
 	switch selector {
+	case "webhook-warm-diagnostic":
+		binary := filepath.Join(os.TempDir(), "wukongim-webhook-diagnostic")
+		if err := runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"}, "go", "build", "-buildvcs=false", "-o", binary, "./cmd/wukongim"); err != nil {
+			return err
+		}
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off", "WK_E2E_BINARY=" + binary}, "go", "test", "-tags=e2e", "./test/e2e/message/webhook", "-run", "^TestBeforeSendWebhookAuthenticatedFaults$", "-count=20", "-failfast", "-timeout=15m", "-p=1", "-v")
+
 	case "go-vet":
 		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
 			"go", "vet", "./cmd/...", "./internal/...", "./pkg/...", "./scripts/...", "./docker/...")
