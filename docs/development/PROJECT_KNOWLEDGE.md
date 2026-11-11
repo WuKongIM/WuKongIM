@@ -568,8 +568,10 @@ specification, runbook, report, or module documentation; link to them when neede
   persisted Controller count; changing this setting does not resize them.
 - Slot Raft randomizes election waiting from `ElectionTick` through
   `2*ElectionTick-1` ticks. Defaults (50 ms, 40 ticks) therefore allow 2–3.95 s
-  before campaigning; failover tests must cover this window plus bounded voting
-  and durable-apply time rather than treating three seconds as an upper bound.
+  before each campaign. Two surviving candidates can split a vote; failover
+  fixtures allow a second election window plus bounded voting, route publication
+  and durable apply. Runtime leader IDs alone do not prove proposal routing has
+  converged; retain the newer-term proposal and both survivors' applied proof.
 - Node snapshot application serializes watches and readiness probes, rejecting
   older logical revisions before maintenance, placement or task side effects.
   Watch notifications trigger a current Controller read rather than replaying
@@ -1812,6 +1814,15 @@ specification, runbook, report, or module documentation; link to them when neede
   authority/request and a fixed deadline, then assert exact recovered content.
   A learner-missing-content fixture must activate protection before appending
   a real business message; an activation-only anchor can already be covered.
+- Exact post-failover sequence fixtures wait for committed authority-promise
+  activation before expecting leader changes to consume no log positions.
+  Caller return or a fixed number of scheduler yields does not join background
+  completion: use the actual read-cycle or permit-retirement boundary.
+- Recovery HTTP tests keep a stable send body/idempotency key and retry only
+  `503 {"error":"retry required"}`. MCP initialization retries only bounded
+  `503` responses whose public code is `mcp_owner_unavailable` or
+  `mcp_state_changed` and whose `retryable` field is true; authentication,
+  disabled state, other responses and transport failures fail immediately.
 - Nightly E2E shards provision pinned Node.js. `cmd/wkcicheck` installs locked
   MQTT.js quickstart dependencies only on its selected shard; installation
   failure stops before product tests. Direct scenario runs retain the documented
