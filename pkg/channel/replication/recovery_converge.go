@@ -10,7 +10,8 @@ import (
 // convergeRecoverySuffix copies one bounded page of immutable proposals only
 // when a read quorum proves that every observed tail belongs to the donor's
 // chain. It never truncates a replica or promotes an unproved commit frontier.
-// A new quorum probe, followed by the authority barrier, still gates readiness.
+// A fresh quorum probe still gates readiness; before promise activation it
+// must also be followed by the current-authority barrier.
 func (l *quorumLog) convergeRecoverySuffix(ctx context.Context, authority Authority, selected recoverySelection, promise AuthorityID) error {
 	ctx, cancel := context.WithTimeout(ctx, l.cfg.RecoveryTimeout)
 	defer cancel()

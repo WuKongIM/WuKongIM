@@ -38,7 +38,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
    bounded checkpoint path; idle leaders and caught-up followers coordinate checkpointed stop before either runtime can be evicted.
    In durable-log mode, authority installation seeds non-voting learner catch-up
    from the quorum-proved frontier; fixed repair workers retain one-page progress.
-   Tail growth preserves that cursor; new gap/authority fence it. Unavailable prefixes resume only after a bounded peer probe matches the local exact tail identity under an unchanged frontier.
+   Tail growth preserves that cursor; new gap/authority fence it. Promise-mode repair ownership follows the explicit writer, even when the recovered tail belongs to an older authority. Unavailable prefixes resume only after a bounded peer probe matches the local exact tail identity under an unchanged frontier.
 3. Committed reads expose only HW-covered records above the logical retention
    floor. Runtime probes distinguish a loaded Leader from completed quorum
    recovery, including when a durable write fence permits only reads. Optional

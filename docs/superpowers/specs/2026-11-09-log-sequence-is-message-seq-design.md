@@ -81,9 +81,10 @@ Channel replication exchange. It is not a log append and never gets a log index.
   `SpaceSystem`. It sits beside checkpoint (1), retention (4), proposal manifests
   (8, 9) and entry identity (10), and never in the message table
   (`TableIDMessage`).
-- **Value:** one record per Channel per replica, `{authority (ChannelEpoch,
-  LeaderTerm, FenceVersion), prefix end N, tail digest D}`. A newer authority
-  overwrites it, and a lower one is rejected.
+- **Value:** one record per Channel per replica, `{ChannelEpoch, LeaderTerm,
+  FenceVersion}`. A newer authority overwrites it, and a lower one is rejected.
+  The existing exact log state supplies prefix end N and tail digest D after
+  the promise is durable; they are not duplicated in the promise record.
 - **What Slot still decides:** Slot metadata (`ChannelRuntimeMeta`) still
   decides who the leader is and what the new authority is. The promise only
   enforces that decision at the Channel replicas.
@@ -136,7 +137,10 @@ re-checked, so later pages write nothing.
   not yet observed activation fenced, and creates no promise before activation.
 - Committed replica refresh may replay a tail written under an older
   authority when the installation was proven by a promise quorum. Leader
-  failover verification depends on this.
+  failover verification depends on this. Learner repair admission and merging
+  compare the explicit writer authority with the installed repair generation,
+  not the historical manifest authority; otherwise replacement learners never
+  receive the recovered prefix.
 
 ### Append-side enforcement
 

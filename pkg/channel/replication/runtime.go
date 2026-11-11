@@ -777,7 +777,13 @@ func (o *runtimeRepairOwner) retireReleasedAuthorityLocked(key ch.ChannelKey) {
 	delete(o.authorities, key)
 }
 
+// repairAuthorityID is the authority that owns a repair: its explicit writer
+// once promises are active (a promise-mode leader may repair an older
+// authority's tail, since no barrier is written), otherwise the manifest's.
 func repairAuthorityID(repair followerRepair) AuthorityID {
+	if repair.writer != (AuthorityID{}) {
+		return repair.writer
+	}
 	return AuthorityID{
 		ChannelEpoch: repair.manifest.ChannelEpoch,
 		LeaderTerm:   repair.manifest.LeaderTerm,
@@ -801,7 +807,7 @@ func validFollowerRepair(repair followerRepair) bool {
 }
 
 func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool) {
-	comparison := compareRepairAuthority(incoming.manifest, current.manifest)
+	comparison := compareAuthorityID(repairAuthorityID(incoming), repairAuthorityID(current))
 	if comparison < 0 {
 		return current, false
 	}
@@ -814,18 +820,12 @@ func mergeFollowerRepair(current, incoming followerRepair) (followerRepair, bool
 		merged.needFrom = incoming.needFrom
 	}
 	if incoming.manifest.LastOffset > merged.manifest.LastOffset {
+		merged.writer = incoming.writer
 		merged.channelID = incoming.channelID
 		merged.leader = incoming.leader
 		merged.manifest = incoming.manifest
 	}
 	return merged, merged != current
-}
-
-func compareRepairAuthority(left, right ch.ProposalManifest) int {
-	return compareAuthorityID(
-		AuthorityID{ChannelEpoch: left.ChannelEpoch, LeaderTerm: left.LeaderTerm, FenceVersion: left.FenceVersion},
-		AuthorityID{ChannelEpoch: right.ChannelEpoch, LeaderTerm: right.LeaderTerm, FenceVersion: right.FenceVersion},
-	)
 }
 
 func (o *runtimeRepairOwner) signal() {

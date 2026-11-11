@@ -47,7 +47,7 @@ typed bounded workers and returns as `EventWorkerResult`.
   leader epoch, and operation ID. Stale results cannot advance or evict a newer
   incarnation.
 - Quorum install remains pending work and keeps append admission closed until
-  recovery plus the current-authority barrier succeeds. Runtime probes mark
+  recovery plus the current-authority barrier (or activated promise quorum) succeeds. Runtime probes mark
   pending or failed installation as requiring recovery, so reads cannot mistake
   metadata loading for a recovered HW. A write fence still permits recovered
   reads. Each accepted append
