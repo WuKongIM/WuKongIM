@@ -60,12 +60,16 @@ change runs them. Without this, a route change once broke documentation
 publishing on `main` for six days.
 
 The nightly schedule additionally runs race on every listed package,
-`-tags=integration ./internal/... ./pkg/...`, every E2E suite and
+`wkcicheck integration`, every E2E suite and
 `wkcicheck gofail-e2e`. E2E runs as `wkcicheck e2e-shard-1` through
 `e2e-shard-4`: each discovers every `test/e2e` package and runs a stable
 round-robin slice of the sorted list serially. E2E shard jobs provision pinned
 Node.js; the named check installs the locked MQTT.js example dependencies only
 when that shard selects `mqtt/docs_quickstart`, and stops on installation failure.
+The integration selector runs all internal/pkg tests with the integration tag
+and one package process at a time, isolating real clusters and fixed latency
+gates from unrelated package workloads. Workloads, thresholds and timeouts stay
+unchanged.
 Sharding is required because one serial job over all
 suites exceeded its 60-minute limit and never reached the last packages. The last builds one server with every discovered
 failpoint package and runs every E2E package that references a

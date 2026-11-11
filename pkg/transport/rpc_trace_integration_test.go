@@ -163,6 +163,12 @@ func TestRPCTraceDisabledAndConnectionIdentity(t *testing.T) {
 				}
 				for _, stage := range stages {
 					if span := traceStage(t, sample, stage); span.Incomplete {
+						// A peer may reply before the local socket Write returns.
+						// Finish freezes that truthful uncertainty, as proved by
+						// TestRPCTraceResponseBeforeWriteCompletionIsExplicit.
+						if stage == rpctrace.StageRequestWrite && span.Result == rpctrace.ResultUnfinished {
+							continue
+						}
 						t.Fatalf("successful stage incomplete: %+v", span)
 					}
 				}

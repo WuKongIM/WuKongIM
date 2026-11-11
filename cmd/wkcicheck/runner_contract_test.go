@@ -137,6 +137,15 @@ func TestEverySelectorRunsOnlyPinnedTools(t *testing.T) {
 	}
 }
 
+func TestIntegrationSelectorSeparatesResourceHeavyPackageProcesses(t *testing.T) {
+	executor := &fakeCommandExecutor{}
+	require.NoError(t, runCICheck(context.Background(), "/workspace", "integration", executor))
+	require.Equal(t, []checkStep{{
+		directory: "/workspace", environment: []string{"GOWORK=off"}, name: "go",
+		arguments: []string{"test", "-tags=integration", "./internal/...", "./pkg/...", "-count=1", "-p=1", "-timeout=50m"},
+	}}, executor.runs)
+}
+
 func TestThreeNodeSelectorKeepsTheFixedFailSafeScenario(t *testing.T) {
 	t.Parallel()
 

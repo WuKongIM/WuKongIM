@@ -1814,6 +1814,9 @@ specification, runbook, report, or module documentation; link to them when neede
   authority/request and a fixed deadline, then assert exact recovered content.
   A learner-missing-content fixture must activate protection before appending
   a real business message; an activation-only anchor can already be covered.
+  Foreground confirmation can repair replicas before yielding for another
+  replica's checkpoint; hold the intended learner's recovery port until its
+  real missing coverage has been observed, then resume normal composition.
 - Exact post-failover sequence fixtures wait for committed authority-promise
   activation before expecting leader changes to consume no log positions.
   Caller return or a fixed number of scheduler yields does not join background
@@ -1826,6 +1829,14 @@ specification, runbook, report, or module documentation; link to them when neede
   The sequence-contiguity history proof uses its existing 15-second read bound
   for the exact `503 unavailable` recovery response; successful pages must
   immediately satisfy contiguous positions and every acknowledged identity.
+- Recovery FIFO coalescing fixtures use prepaid result providers: the legacy
+  sixteen-original-call result cap legitimately dispatches single queued calls
+  when each prior caller retires separately. RPC trace completion likewise
+  preserves an unfinished request-write span when the response beats the local
+  socket write return; a successful call does not invent that completion.
+- `wkcicheck integration` runs internal/pkg package processes serially so real
+  cluster fixtures and fixed latency gates do not compete with unrelated test
+  processes. Their workloads, latency thresholds and timeouts remain unchanged.
 - Nightly E2E shards provision pinned Node.js. `cmd/wkcicheck` installs locked
   MQTT.js quickstart dependencies only on its selected shard; installation
   failure stops before product tests. Direct scenario runs retain the documented

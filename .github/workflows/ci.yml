@@ -354,7 +354,7 @@ jobs:
           case "$SUITE" in
             race) go test -race ./internal/app ./internal/runtime/... ./pkg/plugin/pluginhost ./pkg/wklog \
                     ./pkg/gateway/... ./pkg/transport/... ./pkg/channel/... ./pkg/cluster/... ./pkg/slot/... -count=1 -p=1 -timeout=50m ;;
-            integration) go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=50m ;;
+            integration) go run ./cmd/wkcicheck integration ;;
             e2e-shard-*|gofail-e2e) go run ./cmd/wkcicheck "$SUITE" ;;
           esac
       - name: Upload gofail E2E evidence
