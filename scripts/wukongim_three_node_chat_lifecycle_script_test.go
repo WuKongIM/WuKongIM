@@ -523,7 +523,7 @@ jq() {
   local count=$# filter="${!#}"
   command jq "${@:1:count-1}" "def now: (env.WK_TEST_TIMESTAMP | tonumber); $filter"
 }
-` + extractDefaultBashFunction(t, script, "record_timeline_boundary") + `
+` + extractDefaultBashFunction(t, script, "timeline_observed_at") + "\n" + extractDefaultBashFunction(t, script, "record_timeline_boundary") + `
 record_timeline_boundary measurement_end
 `
 			cmd := exec.Command("bash", "-c", harness)

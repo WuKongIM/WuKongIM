@@ -3163,6 +3163,7 @@ completion, installation and provider-reference release.
 - Old UID-person Channel SendBan means a UID-wide policy: project it into User state, including policy-only users, and clear that legacy source flag. Old snapshot rows and pre-policy-version TLV command replay must perform the same translation; live decoders remain strict.
 - Metadata global System 7 retains the migration cursor/witness outside Hash-Slot replacement. New Channel delete commands carry policy-version tag 8 to distinguish current semantics. Rollback restores complete per-node and external Controller generations. See `docs/development/DATA_FORMAT_UPGRADE.md`.
 
-- Chat-lifecycle phase boundaries must retain fractional seconds: flooring a
+- Chat-lifecycle phase boundaries and metric captures share a fractional-second
+  clock; mixing their precision can make adjacent evidence rows regress. Flooring a
   measurement end to whole seconds can exclude an already observed worker cut
   and falsely invalidate its profile trigger against the frozen timeline.

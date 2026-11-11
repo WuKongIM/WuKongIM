@@ -1306,3 +1306,57 @@ func recordShakeoutLatencyAdvisory(t *testing.T, report *chatlifecycle.Report) {
 	defer file.Close()
 	_, _ = fmt.Fprintf(file, "- %s\n", line)
 }
+
+// Mixed whole-second metric rows must not move the evidence clock behind a
+// preceding subsecond phase boundary; exercise both real capture entrypoints.
+func TestChatLifecycleMetricTimelinePreservesBoundaryOrder(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	dir := t.TempDir()
+	harness := `set -euo pipefail
+EVIDENCE_DIR="$TEST_DIR"
+METRICS_DIR="$TEST_DIR"
+DATA_DIR="$TEST_DIR"
+STORAGE_OVERLAP_FILE="$TEST_DIR/storage.tsv"
+STORAGE_OVERLAP_CAPTURE=true
+RUN_ID=test
+mkdir -p "$TEST_DIR/snapshot-inventory"
+date() { printf '2026-11-11T08:11:38Z\n'; }
+jq() {
+  local count=$# filter="${!#}"
+  command jq "${@:1:count-1}" "def now: 1794384698.831163; $filter"
+}
+capture_metric_target() { :; }
+capture_consistent_service_metric_target() { :; }
+api_port() { printf 1; }
+host_metrics_port() { printf 1; }
+load_host_metrics_port() { printf 1; }
+wait_child_uninterrupted() { wait "$1"; WAIT_CHILD_STATUS=$?; }
+`
+	// Load an optional shared clock when present so the regression runs against
+	// both the original independent clocks and the repaired capture functions.
+	if strings.Contains(script, "timeline_observed_at() {") {
+		harness += extractBashFunction(t, script, "timeline_observed_at") + "\n"
+	}
+	for _, name := range []string{"record_timeline_boundary", "capture_service_metrics", "capture_product_queue_metrics"} {
+		harness += extractBashFunction(t, script, name) + "\n"
+	}
+	harness += "record_timeline_boundary warmup_start\ncapture_service_metrics warmup-before\ncapture_product_queue_metrics product-drain\n"
+	command := exec.Command("bash", "-c", harness)
+	command.Env = append(os.Environ(), "TEST_DIR="+dir)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("metric timeline: %v\n%s", err, out)
+	}
+	rows := strings.Split(strings.TrimSpace(readFile(t, filepath.Join(dir, "timeline.tsv"))), "\n")
+	if len(rows) != 11 {
+		t.Fatalf("timeline rows = %d, want one boundary and ten metric rows", len(rows))
+	}
+	var previous time.Time
+	for _, row := range rows {
+		stamp := strings.Split(row, "\t")[0]
+		at, err := time.Parse(time.RFC3339Nano, stamp)
+		if err != nil || at.Before(previous) || stamp != "2026-11-11T08:11:38.831163Z" {
+			t.Fatalf("timeline clock regressed or lost precision after %s: %q (%v)", previous, row, err)
+		}
+		previous = at
+	}
+}

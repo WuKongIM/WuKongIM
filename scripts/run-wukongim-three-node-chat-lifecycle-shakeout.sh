@@ -914,15 +914,18 @@ wait_url host-metrics-load "http://127.0.0.1:$(load_host_metrics_port)/healthz"
 printf 'observed_at_utc\tphase\tnode\tstatus\n' >"$EVIDENCE_DIR/timeline.tsv"
 printf 'observed_at_utc\trun_id\tsample\tnode\tstatus\tcompaction_count\tcompactions_in_progress\tsnapshot_files\tsnapshot_bytes\tsnapshot_identity\tsnapshot_inventory\n' >"$STORAGE_OVERLAP_FILE"
 
-record_timeline_boundary() {
-  # Keep subsecond cuts observed before this boundary inside the frozen window.
-  # jq is already required and provides the same clock precision on Linux/macOS.
-  jq -nr --arg phase "$1" '
+timeline_observed_at() {
+  # Boundaries and metric rows share subsecond precision so adjacent samples
+  # cannot round backward or exclude a cut already observed before shutdown.
+  jq -nr '
     now as $now |
-    (($now | floor | strftime("%Y-%m-%dT%H:%M:%S")) + "." +
-      (($now * 1000000 | floor) % 1000000 | tostring | ("000000" + .)[-6:]) + "Z") as $at |
-    [$at, $phase, "boundary", "complete"] | @tsv
-  ' >>"$EVIDENCE_DIR/timeline.tsv"
+    ($now | floor | strftime("%Y-%m-%dT%H:%M:%S")) + "." +
+      (($now * 1000000 | floor) % 1000000 | tostring | ("000000" + .)[-6:]) + "Z"
+  '
+}
+
+record_timeline_boundary() {
+  printf '%s\t%s\tboundary\tcomplete\n' "$(timeline_observed_at)" "$1" >>"$EVIDENCE_DIR/timeline.tsv"
 }
 
 record_timeline_boundary_at() {
@@ -1320,7 +1323,7 @@ capture_consistent_service_metric_target() {
 capture_service_metrics() {
   local phase="$1" node destination observed status host_name index storage_observed row_file
   local -a capture_pids=() capture_names=() storage_pids=()
-  observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  observed="$(timeline_observed_at)"
   for node in 1 2 3; do
     destination="$METRICS_DIR/node-$node-$phase.prom"
     if [[ "$phase" == before || "$phase" == after ]]; then
@@ -1348,7 +1351,7 @@ capture_service_metrics() {
     (( WAIT_CHILD_STATUS == 0 )) || status=missing
     printf '%s\t%s\t%s\t%s\n' "$observed" "$phase" "${capture_names[$index]}" "$status" >>"$EVIDENCE_DIR/timeline.tsv"
   done
-  storage_observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  storage_observed="$(timeline_observed_at)"
   for node in 1 2 3; do
     row_file="$EVIDENCE_DIR/snapshot-inventory/$phase-node-$node.row"
     "$STORAGE_OVERLAP_CAPTURE" \
@@ -1374,7 +1377,7 @@ capture_service_metrics() {
 capture_product_queue_metrics() {
   local phase="$1" node destination observed status index
   local -a capture_pids=() capture_names=()
-  observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  observed="$(timeline_observed_at)"
   for node in 1 2 3; do
     destination="$METRICS_DIR/node-$node-$phase.prom"
     capture_metric_target "http://127.0.0.1:$(api_port "$node")/metrics" 3 "$destination" &
