@@ -91,7 +91,7 @@ func runConsumerScenario(t *testing.T, count int, scenario string) {
 		require.NoError(t, alice.SendFrame(&frame.SendPacket{ChannelID: "bob", ChannelType: frame.ChannelTypePerson, ClientSeq: uint64(seq), ClientMsgNo: fmt.Sprintf("quota-%s-%d", scenario, seq), Payload: payload}))
 		ack, e := alice.ReadSendAck()
 		require.NoError(t, e)
-		require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
+		require.Equal(t, frame.ReasonSuccess, ack.ReasonCode, "WKProto client_seq=%d", seq)
 	}
 	t.Cleanup(func() {
 		if !t.Failed() {
@@ -103,10 +103,11 @@ func runConsumerScenario(t *testing.T, count int, scenario string) {
 			done()
 			t.Logf("consumer diagnostics: node=%s metrics_error=%v", node.Spec.RootDir, err)
 			for _, sample := range samples {
-				if strings.HasPrefix(sample.Name, "wukongim_mqtt_consumer_") {
+				if strings.HasPrefix(sample.Name, "wukongim_mqtt_consumer_") || strings.HasPrefix(sample.Name, "wukongim_mqtt_storage_") {
 					t.Logf("%s %v = %g", sample.Name, sample.Labels, sample.Value)
 				}
 			}
+			t.Logf("failed quota node diagnostics:\n%s", node.DumpDiagnostics())
 		}
 	})
 	waitEvent := func(event string) {

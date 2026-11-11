@@ -41,7 +41,7 @@ func run(args []string) error {
 var Selectors = []string{
 	"go-format", "go-vet", "go-mod-tidy",
 	"flow-doc-contracts", "agent-artifact-contracts", "skill-focused-contracts",
-	"web", "demo", "docs", "docs-integration", "three-node", "gofail-e2e",
+	"web", "demo", "docs", "docs-integration", "integration", "three-node", "gofail-e2e",
 	"e2e-shard-1", "e2e-shard-2", "e2e-shard-3", "e2e-shard-4",
 }
 
@@ -79,6 +79,11 @@ func runCICheck(
 		return checkDocumentation(ctx, root, commands)
 	case "docs-integration":
 		return checkDocumentationIntegration(ctx, root, commands)
+	case "integration":
+		// Real clusters and fixed latency gates must not compete with unrelated
+		// package test processes for the same runner's CPU, disk and sockets.
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
+			"go", "test", "-tags=integration", "./internal/...", "./pkg/...", "-count=1", "-p=1", "-timeout=50m")
 	case "three-node":
 		return checkThreeNode(ctx, root, commands)
 	case "gofail-e2e":

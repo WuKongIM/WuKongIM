@@ -8,15 +8,28 @@ import (
 	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Hold only learner repair at the real replay port. Confirmation may otherwise
+// repair this learner before yielding for a different replica's checkpoint.
+type heldGroupLearnerReplay struct{ *cluster.Node }
+
+func (n heldGroupLearnerReplay) StepChannelMQTTReplayRecovery(ctx context.Context, q ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
+	if q.Target == 3 {
+		return ch.MQTTReplayRecoveryResult{}, ch.ErrNotReady
+	}
+	return n.Node.StepChannelMQTTReplayRecovery(ctx, q)
+}
 
 // verifyMQTTGroupProjection uses real protection, shared copy/recovery and Slot
 // intent commits, with production receive authority from native membership.
@@ -35,7 +48,11 @@ func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*clust
 	cmd := sessioncase.ConnectCommand{Key: contract.Key{Namespace: "main", ClientID: "group-projection"}, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }}
 	first, e := sessions[0].Connect(ctx, cmd)
 	require.NoError(t, e)
-	projection, e := newMQTTGroupProjection(nodes[0], owners[0], authorization, ids)
+	protector, e := clusterinfra.NewMQTTSourceProtector(clusterinfra.MQTTSourceProtectorOptions{Node: nodes[0], MessageIDs: ids})
+	require.NoError(t, e)
+	replay, e := sessioncase.NewReplayCoordinator(sessioncase.ReplayCoordinatorOptions{Metadata: channels.NewSlotMetaSource(nodes[0]), Channels: heldGroupLearnerReplay{Node: nodes[0]}, MessageIDs: ids, ConfirmWorkers: 4})
+	require.NoError(t, e)
+	projection, e := sessioncase.NewGroupProjection(sessioncase.GroupProjectionOptions{Store: nodes[0], Owners: owners[0], Authorization: authorization, Sources: protector, Replay: replay})
 	require.NoError(t, e)
 	subs, e := sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: nodes[0], Owners: owners[0], Authorization: authorization, Projection: projection})
 	require.NoError(t, e)
@@ -74,6 +91,8 @@ func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*clust
 	resumed, e := sessions[2].Connect(ctx, cmd)
 	require.NoError(t, e)
 	require.Equal(t, first.Owner.SessionGeneration, resumed.Owner.SessionGeneration)
+	// The resumed Owner uses unmodified product composition, releasing the
+	// controlled interruption and proving actual all-replica recovery.
 	projection, e = newMQTTGroupProjection(nodes[2], owners[2], authorization, ids)
 	require.NoError(t, e)
 	subs, e = sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: nodes[2], Owners: owners[2], Authorization: authorization, Projection: projection})

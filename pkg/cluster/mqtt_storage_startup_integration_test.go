@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -39,6 +40,13 @@ func TestMQTTStorageFirstAppendAfterThreeNodeReadiness(t *testing.T) {
 	require.NoError(t, nodes[0].defaultSlotProxy.UpsertChannelRuntimeMeta(ctx, meta))
 	_, err := nodes[0].EnsureChannelMQTTSource(ctx, ch.MQTTSourceRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, MessageID: 501, ServerTimestampMS: 1000})
 	require.NoError(t, err)
-	_, err = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: 502, FromUID: "sender", Payload: []byte("first protected message"), ServerTimestampMS: 1001}})
+	first := ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: 502, FromUID: "sender", Payload: []byte("first protected message"), ServerTimestampMS: 1001}}
+	deadline, _ := ctx.Deadline()
+	// Source activation can precede a follower's native repair. Await only
+	// that explicit state; any capacity rejection still fails this regression.
+	require.Eventually(t, func() bool {
+		_, err = nodes[0].AppendChannel(ctx, first)
+		return !errors.Is(err, ch.ErrNotReady) || errors.Is(err, ch.ErrBackpressured)
+	}, time.Until(deadline), time.Millisecond)
 	require.NoError(t, err, "first protected append after cluster write readiness")
 }

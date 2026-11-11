@@ -701,6 +701,14 @@ func readBarrierPendingBatch(t *testing.T, service *Service, allowCancelNotifica
 			t.Fatal("pending read callers did not join")
 		}
 		if busy == 1 && canceled == 64 {
+			// Caller cancellation returns before the owner processes its wake.
+			// Prove physical retirement before allowing current-term commit.
+			require.Eventually(t, func() bool {
+				service.mu.Lock()
+				permits := service.readPermits
+				service.mu.Unlock()
+				return len(permits) == 0
+			}, time.Until(deadline), time.Millisecond)
 			return
 		}
 		if !allowCancelNotificationDrain || time.Now().After(deadline) {

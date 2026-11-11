@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -55,8 +56,17 @@ func TestWillReceiptRoutingThreeNodeTrimFailoverRestartAndIsolation(t *testing.T
 	require.Error(t, err)
 	q.ExpectedLeaderEpoch = 2
 	q.ExpectedRouteGeneration = 2
-	recovered, err := nodes[0].ReadChannelWillReceipt(ctx, q)
-	require.NoError(t, err)
+	readRecovered := func() ch.WillReceiptResult {
+		t.Helper()
+		var result ch.WillReceiptResult
+		require.Eventually(t, func() bool {
+			result, err = nodes[0].ReadChannelWillReceipt(ctx, q)
+			return !errors.Is(err, ch.ErrNotReady)
+		}, 5*time.Second, 10*time.Millisecond)
+		require.NoError(t, err)
+		return result
+	}
+	recovered := readRecovered()
 	require.Equal(t, first.Receipt, recovered.Receipt)
 	lease, err := nodes[2].localChannelStoreFactory().ChannelStore(ch.ChannelKeyForID(id), id)
 	require.NoError(t, err)
@@ -82,8 +92,7 @@ func TestWillReceiptRoutingThreeNodeTrimFailoverRestartAndIsolation(t *testing.T
 	q.ExpectedChannelEpoch = current.ChannelEpoch
 	q.ExpectedLeaderEpoch = current.LeaderEpoch
 	q.ExpectedRouteGeneration = current.RouteGeneration
-	restarted, err := nodes[0].ReadChannelWillReceipt(ctx, q)
-	require.NoError(t, err)
+	restarted := readRecovered()
 	require.Equal(t, first.Receipt, restarted.Receipt)
 	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, current.Leader)

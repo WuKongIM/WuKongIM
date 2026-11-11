@@ -483,6 +483,7 @@ export const ciCheckSelectorCommands = [
   'demo',
   'docs',
   'docs-integration',
+  'integration',
   'three-node',
   'gofail-e2e',
   'e2e-shard-1',

@@ -24,6 +24,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Nightly recovery checks now synchronize with committed Channel authority and completed background work, recognize explicit retryable recovery responses, and allow a second Raft election after split voting while retaining exact durability checks. Integration packages run separately to avoid cross-package contention on fixed latency gates. / Nightly 恢复检查改为等待已提交的 Channel 权威状态和后台工作完成，只重试明确允许恢复重试的响应，并为同票后的第二轮 Raft 选举保留有界时间，同时保持精确的持久化断言。集成测试包分别执行，避免包间资源争用干扰固定延迟检查。
+
 - Nightly MQTT.js quickstart checks now install the pinned example dependencies before running the selected E2E shard. / Nightly 的 MQTT.js 快速入门检查会先安装锁定的示例依赖，再运行对应 E2E 分片。
 
 - A Channel leader change no longer consumes a `message_seq`. Previously each leader change on a non-empty multi-replica Channel wrote a hidden authority barrier, so clients saw gaps such as 3 → 5 after failover. Each replica now stores a durable authority promise outside the message log instead. The cluster switches over automatically, once and permanently, after every node runs a version that supports it (log event `cluster.channel_promise.activated`); until then behavior is unchanged and rollback stays possible. **After activation, rolling back to an earlier version is not supported.** Gaps already in existing history are left as they are. / Channel leader 切换不再占用 `message_seq`：此前非空多副本 channel 每次切换 leader 都会写入一条隐藏的 authority barrier，故障转移后客户端会看到 3 → 5 这样的空洞；现在改为每个副本在消息日志之外保存持久的 authority 承诺。所有节点都升级到支持该功能的版本后，集群会自动、一次性且永久地切换（日志事件 `cluster.channel_promise.activated`）；切换前行为不变，仍可回滚。**激活后不支持回滚到更早版本。** 已有历史中的空洞保持原样。

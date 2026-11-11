@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -333,18 +334,7 @@ func sendManagerRequest(
 
 func connectMCP(t *testing.T, node *suite.StartedNode, token string) *mcp.ClientSession {
 	t.Helper()
-	client := mcp.NewClient(&mcp.Implementation{Name: "wukongim-e2e", Version: "v1"}, nil)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint: "http://" + node.ManagerAddr() + "/mcp",
-		HTTPClient: &http.Client{Transport: bearerRoundTripper{
-			token: token,
-		}},
-		DisableStandaloneSSE: true,
-	}, nil)
-	require.NoError(t, err, node.DumpDiagnostics())
-	return session
+	return connectMCPEventually(t, node, token, 10*time.Second)
 }
 
 func requireMCPConnectFails(t *testing.T, node *suite.StartedNode, token string) {
@@ -440,19 +430,48 @@ type bearerRoundTripper struct {
 	token string
 }
 
+// mcpRecoveryResponse preserves the public recovery code that the SDK otherwise
+// discards when it turns an HTTP 503 into a generic transport rejection.
+type mcpRecoveryResponse struct {
+	Code              string `json:"code"`
+	Retryable         bool   `json:"retryable"`
+	RetryAfterSeconds int    `json:"retry_after_seconds"`
+}
+
+func (r *mcpRecoveryResponse) Error() string { return "MCP HTTP 503: " + r.Code }
+
 func (t bearerRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	clone := request.Clone(request.Context())
 	clone.Header = request.Header.Clone()
 	clone.Header.Set("Authorization", "Bearer "+t.token)
-	return http.DefaultTransport.RoundTrip(clone)
+	response, err := http.DefaultTransport.RoundTrip(clone)
+	if err != nil || response.StatusCode != http.StatusServiceUnavailable {
+		return response, err
+	}
+	// Preserve every unrecognized response for the SDK; only these two exact
+	// retryable owner/revision responses authorize another initialization.
+	payload, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
+	var recovery mcpRecoveryResponse
+	if readErr == nil && json.Unmarshal(payload, &recovery) == nil && recovery.Retryable &&
+		(recovery.Code == "mcp_owner_unavailable" || recovery.Code == "mcp_state_changed") {
+		_ = response.Body.Close()
+		return nil, &recovery
+	}
+	response.Body = &prefixedResponseBody{Reader: io.MultiReader(bytes.NewReader(payload), response.Body), Closer: response.Body}
+	return response, nil
 }
 
-// connectMCPEventually retries 503 owner unavailability within timeout.
+type prefixedResponseBody struct {
+	io.Reader
+	io.Closer
+}
+
+// connectMCPEventually retries only explicit owner/revision recovery responses.
 func connectMCPEventually(t *testing.T, node *suite.StartedNode, token string, timeout time.Duration) *mcp.ClientSession {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithDeadline(context.Background(), deadline)
 		session, err := mcp.NewClient(&mcp.Implementation{Name: "wukongim-e2e", Version: "v1"}, nil).Connect(ctx, &mcp.StreamableClientTransport{
 			Endpoint:             "http://" + node.ManagerAddr() + "/mcp",
 			HTTPClient:           &http.Client{Transport: bearerRoundTripper{token: token}},
@@ -462,9 +481,12 @@ func connectMCPEventually(t *testing.T, node *suite.StartedNode, token string, t
 		if err == nil {
 			return session
 		}
-		if time.Now().After(deadline) {
+		var recovery *mcpRecoveryResponse
+		if !errors.As(err, &recovery) || time.Now().After(deadline) {
 			require.NoError(t, err, node.DumpDiagnostics())
 		}
-		time.Sleep(250 * time.Millisecond)
+		t.Logf("MCP initialization recovery: code=%s", recovery.Code)
+		delay := max(time.Duration(recovery.RetryAfterSeconds)*time.Second, 250*time.Millisecond)
+		time.Sleep(min(delay, max(time.Until(deadline), 0)))
 	}
 }

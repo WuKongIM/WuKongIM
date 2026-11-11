@@ -48,10 +48,13 @@ func TestThreeNodeSlotElectsAfterControllerAndSlotLeaderStops(t *testing.T) {
 	cancelStop()
 
 	// Raft randomizes election waiting to [ElectionTick, 2*ElectionTick).
-	// Include that window and one bounded second for voting, publication and apply.
+	// Two survivors can split the first vote. Include one additional election
+	// window and one bounded second for voting, route publication and apply.
 	started := time.Now()
-	recoveryBudget := 2*nodes[0].cfg.Slots.TickInterval*time.Duration(nodes[0].cfg.Slots.ElectionTick) + time.Second
+	electionWindow := 2 * nodes[0].cfg.Slots.TickInterval * time.Duration(nodes[0].cfg.Slots.ElectionTick)
+	recoveryBudget := 2*electionWindow + time.Second
 	deadline := started.Add(recoveryBudget)
+	recordedFirstWindow := false
 	var survivors []*Node
 	for _, node := range nodes {
 		if node.NodeID() != stoppedNodeID {
@@ -60,6 +63,11 @@ func TestThreeNodeSlotElectsAfterControllerAndSlotLeaderStops(t *testing.T) {
 	}
 	record("leader-stopped", survivors...)
 	for time.Now().Before(deadline) {
+		if !recordedFirstWindow && time.Since(started) > electionWindow+time.Second {
+			recordedFirstWindow = true
+			record("first-election-window-elapsed", survivors...)
+			t.Logf("awaiting another election or route publication: %s", controllerSlotStatusSummary(nodes, stoppedNodeID, 1))
+		}
 		newControllerLeaderID := sharedControllerLeader(nodes, stoppedNodeID)
 		newSlotLeaderID, slotsReady := sharedSlotLeader(nodes, stoppedNodeID, 1)
 		if newControllerLeaderID != 0 && newSlotLeaderID != 0 && slotsReady {
@@ -142,6 +150,13 @@ func sharedSlotLeader(nodes []*Node, excludedNodeID uint64, slotID multiraft.Slo
 		}
 		status, err := node.defaultSlotRuntime.Status(slotID)
 		if err != nil || status.LeaderID == 0 || uint64(status.LeaderID) == excludedNodeID {
+			return 0, false
+		}
+		// A cached leader ID alone can precede the node's routing publication
+		// or survive a role transition. The normal Node proposal needs both.
+		route, routeErr := node.RouteHashSlot(0)
+		if routeErr != nil || route.SlotID != uint32(slotID) || route.Leader != uint64(status.LeaderID) ||
+			(node.NodeID() == uint64(status.LeaderID) && status.Role != multiraft.RoleLeader) {
 			return 0, false
 		}
 		if leaderID == 0 {
