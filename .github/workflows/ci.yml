@@ -6,7 +6,11 @@ permissions:
 jobs:
   diagnostic:
     runs-on: ubuntu-24.04
-    timeout-minutes: 22
+    timeout-minutes: 27
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [warm, prefix]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
@@ -14,4 +18,4 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
           go-version-file: go.mod
-      - run: go run ./cmd/wkcicheck webhook-warm-diagnostic
+      - run: go run ./cmd/wkcicheck webhook-${{ matrix.scenario }}-diagnostic

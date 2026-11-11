@@ -11,6 +11,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -277,6 +278,10 @@ func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
 			for node := uint64(1); node <= 3; node++ {
 				samples, metricErr := suite.FetchMetricSamples(diagnosticCtx, cluster.MustNode(node).APIAddr())
 				t.Logf("[DEBUG-webhook-warm] node=%d metrics_error=%v", node, metricErr)
+				var online any
+				_, onlineErr := suite.PostJSON(diagnosticCtx, "http://"+cluster.MustNode(node).APIAddr()+"/user/onlinestatus", []string{receiver}, &online)
+				t.Logf("[DEBUG-webhook-warm] node=%d receiver_online=%v error=%v queue=%+v", node, online, onlineErr, receiverConn.InboundQueueSnapshot())
+
 				shown := 0
 				for _, sample := range samples {
 					if shown == 100 {
@@ -296,6 +301,9 @@ func TestBeforeSendWebhookAuthenticatedFaults(t *testing.T) {
 		expectedHistory[id] = payload
 	}
 	receive("fault-warm", "warm")
+	if os.Getenv("WK_E2E_WEBHOOK_WARM_ONLY") == "1" {
+		return
+	}
 	baseline := map[uint64][]suite.MetricSample{}
 	for id := uint64(1); id <= 3; id++ {
 		baseline[id], err = suite.FetchMetricSamples(ctx, cluster.MustNode(id).APIAddr())
