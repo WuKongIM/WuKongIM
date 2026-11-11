@@ -192,37 +192,62 @@ func (t *inboxSourcePreparation) writeBinding(row meta.MQTTSourceBinding) (meta.
 	return row, nil
 }
 
+// initializeCursor preserves the durable source boundary across definite CAS
+// rejection by unrelated parent updates. At most three proposals retain the
+// same Owner and full child; uncertain outcomes never authorize another write.
 func (t *inboxSourcePreparation) initializeCursor(key meta.MQTTDeliveryCursorKey, start uint64) (uint64, error) {
-	s, err := t.current()
-	if err != nil {
-		return 0, err
+	var previous meta.MQTTSession
+	for attempt := 0; ; attempt++ {
+		s, err := t.current()
+		if err != nil {
+			return 0, err
+		}
+		if attempt > 0 {
+			if s.Revision <= previous.Revision || sessionOwner(s) != sessionOwner(previous) {
+				return 0, ErrConflict
+			}
+			cursor, found, err := t.cursor(key)
+			if err != nil {
+				return 0, err
+			}
+			if found {
+				if cursor.StartAfter != start || cursor.Revision <= previous.Revision {
+					return 0, ErrEvidence
+				}
+				return cursor.Revision, nil
+			}
+		}
+		now, err := t.p.now()
+		if err != nil {
+			return 0, err
+		}
+		if now < s.UpdatedAtMS || s.Revision == math.MaxUint64 {
+			return 0, ErrClock
+		}
+		m := meta.MQTTDeliveryCursorMutation{Key: key, ExpectedRevision: s.Revision, OwnerGeneration: s.OwnerGeneration, OwnerNodeID: s.OwnerNodeID, OwnerBootID: s.OwnerBootID, ConnectionID: s.ConnectionID, Op: meta.MQTTCursorInit, Topic: t.intent.Topic, Through: start, UpdatedAtMS: now}
+		if meta.ValidateMQTTDeliveryCursorMutation(m) != nil {
+			return 0, ErrEvidence
+		}
+		if err = t.ctx.Err(); err != nil {
+			return 0, err
+		}
+		r, err := t.p.options.Store.MutateMQTTDeliveryCursor(t.ctx, m)
+		if canceled := t.ctx.Err(); canceled != nil {
+			return 0, canceled
+		}
+		if err != nil {
+			return 0, err
+		}
+		if r.Status == meta.MQTTSessionCASConflict {
+			if attempt == 2 {
+				return 0, ErrConflict
+			}
+			previous = s
+			continue
+		}
+		if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != s.Revision+1 || r.SessionState != s.State || r.TerminationReason != 0 {
+			return 0, ErrEvidence
+		}
+		return r.CurrentRevision, nil
 	}
-	now, err := t.p.now()
-	if err != nil {
-		return 0, err
-	}
-	if now < s.UpdatedAtMS || s.Revision == math.MaxUint64 {
-		return 0, ErrClock
-	}
-	m := meta.MQTTDeliveryCursorMutation{Key: key, ExpectedRevision: s.Revision, OwnerGeneration: s.OwnerGeneration, OwnerNodeID: s.OwnerNodeID, OwnerBootID: s.OwnerBootID, ConnectionID: s.ConnectionID, Op: meta.MQTTCursorInit, Topic: t.intent.Topic, Through: start, UpdatedAtMS: now}
-	if meta.ValidateMQTTDeliveryCursorMutation(m) != nil {
-		return 0, ErrEvidence
-	}
-	if err = t.ctx.Err(); err != nil {
-		return 0, err
-	}
-	r, err := t.p.options.Store.MutateMQTTDeliveryCursor(t.ctx, m)
-	if canceled := t.ctx.Err(); canceled != nil {
-		return 0, canceled
-	}
-	if err != nil {
-		return 0, err
-	}
-	if r.Status == meta.MQTTSessionCASConflict {
-		return 0, ErrConflict
-	}
-	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != s.Revision+1 || r.SessionState != s.State || r.TerminationReason != 0 {
-		return 0, ErrEvidence
-	}
-	return r.CurrentRevision, nil
 }

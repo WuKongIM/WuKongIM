@@ -206,7 +206,7 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 	if err := l.stageCatalog(batch); err != nil {
 		return MQTTReplayState{}, err
 	}
-	charges, reserved, err := l.prepareMQTTStorageBooking(ctx, capacityRows, nil)
+	charges, reserved, err := l.prepareMQTTReplayStorageBooking(ctx, capacityRows)
 	if err != nil {
 		return MQTTReplayState{}, err
 	}

@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- MQTT replay recovery now retains sufficient prepaid storage when canonical payload sizes differ from native accounting hints, avoiding a spurious log conflict during subscription. Existing capacity remains charged and underfunded imports still fail. / MQTT 回放恢复在规范化 payload 大小与原始记账提示不同的情况下保留足额预留，避免订阅时误报日志冲突；已有额度不退款，预留不足仍拒绝导入。
+
+- MQTT inbox subscriptions now tolerate unrelated Session updates during cursor initialization, avoiding needless disconnects after quota cleanup. Retries require definite CAS rejection and preserve the original owner, intent and consumption boundary. / MQTT 收件箱订阅初始化游标时可处理无关 Session 更新，避免配额清理后的重新订阅被误断开；重试仅限明确的 CAS 拒绝，并保留原 Owner、订阅意图和消费边界。
+
 - MQTT-protected sends now repair a lagging funded replica instead of reporting full storage when its previous original has not arrived yet. Exact funding and capacity limits remain enforced. / MQTT 受保护消息的副本已预留额度但尚未收到上一条原始日志时，改为触发现有副本修复，避免误报存储背压；保留精确资金凭据和容量限制。
 
 - Nodes now register reconstructed MQTT storage debt before reporting write readiness, preventing startup messages from being rejected while waiting for the periodic health loop. Existing capacity limits and recovery of accepted messages are preserved. / 节点在报告写就绪前登记重建出的 MQTT 存储债务，避免启动后的消息因等待周期健康检查而被拒绝；保留原有容量限制和已接收消息的恢复能力。

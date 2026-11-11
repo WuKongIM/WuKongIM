@@ -3163,6 +3163,17 @@ completion, installation and provider-reference release.
 - Old UID-person Channel SendBan means a UID-wide policy: project it into User state, including policy-only users, and clear that legacy source flag. Old snapshot rows and pre-policy-version TLV command replay must perform the same translation; live decoders remain strict.
 - Metadata global System 7 retains the migration cursor/witness outside Hash-Slot replacement. New Channel delete commands carry policy-version tag 8 to distinguish current semantics. Rollback restores complete per-node and external Controller generations. See `docs/development/DATA_FORMAT_UPGRADE.md`.
 
+- Inbox-source cursor Init, like group-source Init, permits at most three proposals
+  after a definite CAS rejection and fresh evidence of a newer parent with the
+  same Owner and complete subscription child. Keep the first durable consumption
+  boundary; unknown replies and changed intent never grant retry.
+
+- MQTT native `SizeBytes` is a replica-local accounting hint; canonical replay
+  binds actual payload length. After independent native and anchor verification,
+  replay imports retain a sufficient larger prepaid charge without refund or
+  grant growth. Insufficient/corrupt receipts fail closed; ordinary funding
+  continues to require exact charges. This also holds after original trimming.
+
 - Chat-lifecycle phase boundaries and metric captures share a fractional-second
   clock; mixing their precision can make adjacent evidence rows regress. Flooring a
   measurement end to whole seconds can exclude an already observed worker cut

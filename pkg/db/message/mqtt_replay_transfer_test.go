@@ -24,6 +24,11 @@ type replayTransferFixture struct {
 
 func newReplayTransferFixture(t *testing.T) *replayTransferFixture {
 	t.Helper()
+	return newReplayTransferFixtureWithTargetHint(t, 0)
+}
+
+func newReplayTransferFixtureWithTargetHint(t *testing.T, hint int) *replayTransferFixture {
+	t.Helper()
 	f := &replayTransferFixture{sourceEngine: openCompatEngine(t), targetPath: t.TempDir()}
 	var err error
 	f.targetEngine, err = Open(f.targetPath)
@@ -52,7 +57,13 @@ func newReplayTransferFixture(t *testing.T) *replayTransferFixture {
 		PreviousIndex: 1, PreviousTerm: 1, PreviousDigest: f.activation.Digest}, records)
 	for _, s := range []*ChannelStore{f.source, f.target} {
 		appendMQTTActivation(t, s, f.activation, control, 1)
-		appendMQTTActivation(t, s, f.business, records, 4)
+		targetRecords := append([]channel.Record(nil), records...)
+		if s == f.target && hint > 0 {
+			for i := range targetRecords {
+				targetRecords[i].SizeBytes = hint
+			}
+		}
+		appendMQTTActivation(t, s, f.business, targetRecords, 4)
 	}
 	f.generation = quorumlog.MQTTSourceGeneration(f.activation.CommandID)
 	_, err = f.source.log.CopyMQTTReplaySource(context.Background(), f.generation, 1, 4, replayTransferBudget)
