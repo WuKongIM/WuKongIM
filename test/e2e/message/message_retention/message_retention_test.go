@@ -5,6 +5,7 @@ package message_retention
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -17,6 +18,51 @@ import (
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
 )
+
+// A Manager ingress outside the Channel replica set must return the same
+// committed page as its replicas, without requiring a local message store.
+func TestManagerMessageHistoryThroughNonReplicaIngress(t *testing.T) {
+	s := suite.New(t)
+	opts := []suite.Option{suite.WithManagerHTTP()}
+	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+		opts = append(opts, suite.WithNodeConfigOverrides(nodeID, map[string]string{
+			"WK_CLUSTER_SLOT_REPLICA_N":    "2",
+			"WK_CLUSTER_CHANNEL_REPLICA_N": "2",
+		}))
+	}
+	cluster := s.StartThreeNodeCluster(opts...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	require.NoError(t, cluster.WaitHTTPReady(ctx), cluster.DumpDiagnostics())
+	const channelID = "e2e-manager-non-replica"
+	messages := appendGroupMessages(t, cluster.MustNode(1), channelID, frame.ChannelTypeGroup, 3)
+	meta := suite.RequireChannelRuntimeMetaEventually(t, cluster, cluster.MustNode(1), channelID, frame.ChannelTypeGroup, 10*time.Second)
+	require.Len(t, meta.Replicas, 2)
+	want := []uint64{messages[2].Seq, messages[1].Seq, messages[0].Seq}
+	pages := make(map[uint64][]uint64)
+	var nonReplica uint64
+	for _, node := range cluster.Nodes {
+		isReplica := false
+		for _, replica := range meta.Replicas {
+			isReplica = isReplica || replica == node.Spec.ID
+		}
+		if !isReplica {
+			nonReplica = node.Spec.ID
+		}
+		requireManagerMessageSeqsEventually(t, cluster, node, channelID, frame.ChannelTypeGroup, want)
+		seqs, err := managerMessageSeqs(ctx, node, channelID, frame.ChannelTypeGroup)
+		require.NoError(t, err)
+		require.Equal(t, want, seqs)
+		pages[node.Spec.ID] = seqs
+	}
+	require.NotZero(t, nonReplica)
+	evidence, err := json.Marshal(map[string]any{
+		"channel_id": channelID, "leader": meta.Leader, "replicas": meta.Replicas,
+		"non_replica_ingress": nonReplica, "message_sequences_by_ingress": pages,
+	})
+	require.NoError(t, err)
+	t.Logf("manager_non_replica_history=%s", evidence)
+}
 
 func TestThreeNodeManagerRetentionForwardsAndSurvivesLeaderRestart(t *testing.T) {
 	s := suite.New(t)

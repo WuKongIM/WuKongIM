@@ -277,3 +277,48 @@ func sameManagementMessages(left, right []managementusecase.Message) bool {
 	}
 	return true
 }
+
+// Manager message pages must come from the Channel leader through the routed
+// committed read (as client sync does): a node-local read returned errors on
+// non-hosting nodes and stale pages on replicas.
+// Failure case: any local read when a routed reader exists.
+func TestManagementMessageReaderQueriesPagesThroughChannelLeader(t *testing.T) {
+	t.Parallel()
+
+	node := &routedManagementMessageNode{
+		batchResults: []clusterchannels.CommittedReadResult{{
+			Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
+				{MessageID: 5, MessageSeq: 5, ChannelID: "remote-room", ChannelType: 2, FromUID: "u1"},
+				{MessageID: 3, MessageSeq: 3, ChannelID: "remote-room", ChannelType: 2, FromUID: "u1"},
+			}},
+		}},
+	}
+	reader := NewManagementMessageReader(node)
+
+	page, err := reader.QueryMessages(context.Background(), managementusecase.MessageQueryRequest{
+		ChannelID: "remote-room", ChannelType: 2, BeforeSeq: 6, Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("QueryMessages() error = %v", err)
+	}
+	if node.localReads != 0 {
+		t.Fatalf("local committed reads = %d, want none", node.localReads)
+	}
+	if len(node.batchReads) != 1 || node.batchReads[0].ChannelID != (channelruntime.ChannelID{ID: "remote-room", Type: 2}) {
+		t.Fatalf("batch reads = %#v, want one remote-room:2 read", node.batchReads)
+	}
+	if req := node.batchReads[0].Request; req.FromSeq != 5 || req.Limit != 11 || !req.Reverse {
+		t.Fatalf("routed request = %#v, want reverse from 5 with limit+1", req)
+	}
+	if len(page.Items) != 2 || page.Items[0].MessageSeq != 5 || page.Items[1].MessageSeq != 3 || page.HasMore {
+		t.Fatalf("page = %#v, want routed seqs 5,3", page)
+	}
+
+	node.batchResults = []clusterchannels.CommittedReadResult{{Err: channelruntime.ErrNotLeader}}
+	if _, err := reader.QueryMessages(context.Background(), managementusecase.MessageQueryRequest{ChannelID: "remote-room", ChannelType: 2, Limit: 1}); err == nil {
+		t.Fatal("item-scoped routed error was dropped")
+	}
+	if node.localReads != 0 {
+		t.Fatal("a routed failure fell back to a node-local read")
+	}
+}
