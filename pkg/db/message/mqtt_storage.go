@@ -3,9 +3,7 @@ package message
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"math"
-	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -180,12 +178,23 @@ func (e *channelEntry) mqttStorageSource(proposals []durableProposalRecord) (MQT
 }
 
 func (e *channelEntry) prepareMQTTStorageBooking(ctx context.Context, rows []messageRow, proposals []durableProposalRecord) ([]mqttStorageCharge, uint64, error) {
+	return e.prepareMQTTStorageBookingRows(ctx, rows, proposals, false)
+}
+
+// prepareMQTTReplayStorageBooking keeps sufficient existing funding intact.
+// Replay content has independently verified native and full-content proofs but
+// canonicalizes PayloadSize, unlike replica-local append/fetch size hints.
+// A larger durable charge remains occupied; an insufficient one fails closed.
+func (e *channelEntry) prepareMQTTReplayStorageBooking(ctx context.Context, rows []messageRow) ([]mqttStorageCharge, uint64, error) {
+	return e.prepareMQTTStorageBookingRows(ctx, rows, nil, true)
+}
+
+func (e *channelEntry) prepareMQTTStorageBookingRows(ctx context.Context, rows []messageRow, proposals []durableProposalRecord, retainExcess bool) ([]mqttStorageCharge, uint64, error) {
 	if e.db.mqttStorage == nil || len(rows) == 0 {
 		return nil, 0, nil
 	}
 	s, found, err := e.mqttStorageSource(proposals)
 	if err != nil || !found {
-		fmt.Printf("[DEBUG-sub-confirm] storage booking error=%v\n", err)
 		return nil, 0, err
 	}
 	var charges []mqttStorageCharge
@@ -196,7 +205,6 @@ func (e *channelEntry) prepareMQTTStorageBooking(ctx context.Context, rows []mes
 		}
 		n, err := e.mqttStorageRowCharge(row, s.Generation, proposals)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] storage booking error=%v\n", err)
 			return nil, 0, err
 		}
 		if n == 0 {
@@ -205,33 +213,14 @@ func (e *channelEntry) prepareMQTTStorageBooking(ctx context.Context, rows []mes
 		k := mqttStorageChargeKey(e.key, row.MessageSeq)
 		value, exists, err := e.db.engine.Get(k)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] storage booking error=%v\n", err)
 			return nil, 0, err
 		}
 		if exists {
 			old, err := decodeMQTTStorageCharge(k, value)
 			if err != nil {
-				fmt.Printf("[DEBUG-sub-confirm] storage booking error=%v\n", err)
 				return nil, 0, err
 			}
-			if old != n {
-				fmt.Printf("[DEBUG-sub-confirm] storage charge mismatch position=%d old=%d reconstructed=%d\n", row.MessageSeq, old, n)
-				originalKey := encodeMessageRowKey(e.key, row.MessageSeq, 0)
-				raw, present, readErr := e.db.engine.Get(originalKey)
-				original := messageRow{MessageSeq: row.MessageSeq}
-				if readErr == nil && present {
-					readErr = decodeMessageHeader(originalKey, raw, &original)
-				}
-				fmt.Printf("[DEBUG-sub-confirm] original present=%v error=%v charge=%d incoming_payload_size=%d payload_len=%d\n", present, readErr, mqttStorageRowBytes(e.key, s.Generation, original), row.PayloadSize, len(row.Payload))
-				if readErr == nil && present {
-					a, b := reflect.ValueOf(original), reflect.ValueOf(row)
-					for i := 0; i < a.NumField(); i++ {
-						if !reflect.DeepEqual(a.Field(i).Interface(), b.Field(i).Interface()) {
-							fmt.Printf("[DEBUG-sub-confirm] original/incoming differ field=%s\n", a.Type().Field(i).Name)
-						}
-					}
-				}
-
+			if old < n || (!retainExcess && old != n) {
 				return nil, 0, dberrors.ErrCorruptState
 			}
 			continue
@@ -243,7 +232,6 @@ func (e *channelEntry) prepareMQTTStorageBooking(ctx context.Context, rows []mes
 		charges = append(charges, mqttStorageCharge{row.MessageSeq, n})
 	}
 	if err = e.db.mqttStorage.reserve(ctx, total); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] storage booking error=%v\n", err)
 		return nil, 0, err
 	}
 	return charges, total, nil

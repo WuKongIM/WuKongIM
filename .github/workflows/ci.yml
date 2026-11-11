@@ -7,11 +7,11 @@ jobs:
   diagnostic:
     name: MQTT subscription ${{ matrix.scenario }} diagnostic
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        scenario: [quota]
+        scenario: [quota, restore]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
@@ -20,3 +20,9 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go run ./cmd/wkcicheck mqtt-subscription-diagnostic-${{ matrix.scenario }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: mqtt-fixed-${{ matrix.scenario }}
+          path: /tmp/mqtt-fixed-mqtt-subscription-diagnostic-${{ matrix.scenario }}/*.json
+          if-no-files-found: warn

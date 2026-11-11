@@ -3,7 +3,6 @@ package message
 import (
 	"bytes"
 	"context"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
@@ -82,15 +81,12 @@ func exportMQTTReplayFrom(ctx context.Context, view messageBackupReadView, key C
 // The caller must keep page contents immutable for the duration of this call.
 func (l *ChannelLog) ImportMQTTReplay(ctx context.Context, expected MQTTReplayState, page MQTTReplayTransfer) (MQTTReplayState, error) {
 	if err := validateMQTTReplayTransfer(page); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:84 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	if expected != page.After {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:87 ErrConflict\n")
 		return MQTTReplayState{}, dberrors.ErrConflict
 	}
 	if err := l.beginUse(); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:90 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	defer l.endUse()
@@ -99,7 +95,6 @@ func (l *ChannelLog) ImportMQTTReplay(ctx context.Context, expected MQTTReplaySt
 	l.checkpointMu.Lock()
 	defer l.checkpointMu.Unlock()
 	if err := ctxErr(ctx); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:98 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	return l.importMQTTReplayLocked(ctx, expected, page)
@@ -111,21 +106,17 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 	view := l.db.engine
 	evidence, err := mqttReplayTransferEvidence(view, l.key, expected)
 	if err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:109 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	current, present, err := loadMQTTReplayState(view, l.key)
 	if err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:113 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	if present {
 		if current.Generation != expected.Generation || current.StartAfter != expected.StartAfter || current.Through > evidence.checkpoint.HW {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:117 ErrCorruptState\n")
 			return MQTTReplayState{}, dberrors.ErrCorruptState
 		}
 		if err := validateMQTTReplayTail(view, l.key, current); err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:120 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 	} else {
@@ -135,22 +126,16 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 	if retry {
 		before, err := mqttReplayPrefix(view, l.key, current, page.Before.Through)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:129 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		after, err := mqttReplayPrefix(view, l.key, current, page.After.Through)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:133 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		if before != page.Before || after != page.After {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:136 ErrConflict\n")
-			fmt.Printf("[DEBUG-sub-confirm] transfer prefix current=%d before=%d after=%d\n", current.Through, page.Before.Through, page.After.Through)
 			return MQTTReplayState{}, dberrors.ErrConflict
 		}
 	} else if current != page.Before {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:139 ErrConflict\n")
-		fmt.Printf("[DEBUG-sub-confirm] transfer prefix current=%d before=%d after=%d\n", current.Through, page.Before.Through, page.After.Through)
 		return MQTTReplayState{}, dberrors.ErrConflict
 	}
 	batch := view.NewBatch()
@@ -159,86 +144,70 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 	var capacityRows []messageRow
 	for _, r := range page.Records {
 		if err := ctxErr(ctx); err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:147 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		row, err := validateMQTTReplayTransferRecord(l.key, expected.Generation, r)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:151 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		entry, _, err := mqttReplayCommittedEntry(view, l.key, r.Position, evidence.checkpoint.HW)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:155 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		if l.db.mqttStorage != nil {
 			capacityRows = append(capacityRows, row)
 		}
 		if !verifyBackupRowIdentity(entry, row) {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:161 ErrCorruptState\n")
 			return MQTTReplayState{}, dberrors.ErrCorruptState
 		}
 		prefix, err = extendMQTTReplayState(prefix, r)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:165 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		encoded := encodeMQTTReplayRecord(l.key, expected.Generation, r)
 		rowKey := mqttReplayRowKey(l.key, expected.Generation, r.Position)
 		stored, exists, err := view.Get(rowKey)
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:171 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		if retry {
 			meter, err := loadMQTTReplayMeter(view, l.key, current, r.Position)
 			if err != nil {
-				fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:176 error=%v\n", err)
 				return MQTTReplayState{}, err
 			}
 			if !exists || !bytes.Equal(stored, encoded) || meter != prefix {
-				fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:179 ErrCorruptState\n")
 				return MQTTReplayState{}, dberrors.ErrCorruptState
 			}
 			continue
 		}
 		_, meterExists, err := view.Get(mqttReplayMeterKey(l.key, expected.Generation, r.Position))
 		if err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:185 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 		if exists || meterExists {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:188 ErrCorruptState\n")
 			return MQTTReplayState{}, dberrors.ErrCorruptState
 		}
 		if err := stageMQTTReplayRecord(batch, l.key, expected.Generation, r, encoded); err != nil {
-			fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:191 error=%v\n", err)
 			return MQTTReplayState{}, err
 		}
 	}
 	if prefix != expected {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:195 ErrCorruptState\n")
 		return MQTTReplayState{}, dberrors.ErrCorruptState
 	}
 	if err := ctxErr(ctx); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:198 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	if retry {
 		return expected, nil
 	}
 	if err := batch.Set(mqttReplayStateKey(l.key), encodeMQTTReplayState(l.key, expected)); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:204 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	if err := l.stageCatalog(batch); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:207 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
-	charges, reserved, err := l.prepareMQTTStorageBooking(ctx, capacityRows, nil)
+	charges, reserved, err := l.prepareMQTTReplayStorageBooking(ctx, capacityRows)
 	if err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:211 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	submitted := false
@@ -248,12 +217,10 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 		}
 	}()
 	if err = stageMQTTStorageCharges(batch, l.key, charges); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:220 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	submitted = true
 	if err := batch.Commit(true); err != nil {
-		fmt.Printf("[DEBUG-sub-confirm] mqtt_replay_transfer.go:224 error=%v\n", err)
 		return MQTTReplayState{}, err
 	}
 	return expected, nil
