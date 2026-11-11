@@ -51,6 +51,10 @@ profiles run in release windows.
 
 ## Maintenance Rules
 
+Authenticated `webhook` receive failures retain bounded public state and node
+logs after the original assertion fails; see the scenario instructions for
+collection limits. Diagnostic success does not establish a timeout root cause.
+
 The cold CONNECT reduction also accepts the fixed `WK_E2E_COLD_CONNECT_ARRIVAL=one_second_burst` control. Only arrival spacing changes; its300-user result never qualifies the full bootstrap or original-scale workload.
 Its independent `WK_E2E_COLD_CONNECT_TOKEN_TIMING=on_arrival` control overlaps public token preparation with CONNECT, preserving separate original5s budgets and recording preparation outcomes; it does not reproduce native Bench API/full-sync work.
 The fixed `WK_E2E_COLD_CONNECT_POPULATION=10000` control retains10k clients at the same100firstCONNECT/s (use `-timeout=5m` and on-arrival tokens), without full-sync, groups or business SEND; it stays diagnostic and caps the joined JSON at4MiB.

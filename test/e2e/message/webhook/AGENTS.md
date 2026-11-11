@@ -28,7 +28,12 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=
   and HTTP requests observed by the test webhook endpoint.
 - Do not import `internal/app`, `internal/usecase`, or storage internals.
 - Keep webhook waits bounded and include node diagnostics plus captured webhook
-  requests on failure.
+  requests on failure. Authenticated receive failures preserve callback counts,
+  the warm HTTP receipt, client queue state, public receiver online status and
+  at most 100 nonzero delivery/presence/webhook/gateway/channelappend metric
+  samples per node, including omitted-sample counts. Public diagnostic reads
+  share a separate five-second bound after the original receive fails; the
+  five-second receive assertion remains unchanged.
 
 - The notification and admission tests explicitly disable Gateway Token
   authentication to isolate callback semantics. `TestBeforeSendWebhookAuthenticatedFaults`
