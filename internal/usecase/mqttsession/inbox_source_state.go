@@ -2,7 +2,6 @@ package mqttsession
 
 import (
 	"context"
-	"fmt"
 	"math"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
@@ -94,11 +93,9 @@ func (t *inboxSourcePreparation) current() (meta.MQTTSession, error) {
 		return meta.MQTTSession{}, ErrEvidence
 	}
 	if t.request != nil && sub != t.request.Subscription {
-		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:96\n")
 		return meta.MQTTSession{}, ErrConflict
 	}
 	if t.intent != (meta.MQTTSubscription{}) && t.intent != sub {
-		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:99\n")
 		return meta.MQTTSession{}, ErrConflict
 	}
 	t.intent = sub
@@ -135,7 +132,6 @@ func (t *inboxSourcePreparation) binding(key meta.MQTTSourceBindingKey) (meta.MQ
 		return meta.MQTTSourceBinding{}, false, ErrEvidence
 	}
 	if b.Stage >= meta.MQTTBindingRemoving {
-		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:135\n")
 		return meta.MQTTSourceBinding{}, false, ErrConflict
 	}
 	return b, true, nil
@@ -188,7 +184,6 @@ func (t *inboxSourcePreparation) writeBinding(row meta.MQTTSourceBinding) (meta.
 		return meta.MQTTSourceBinding{}, err
 	}
 	if r.Status == meta.MQTTSessionCASConflict {
-		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:187\n")
 		return meta.MQTTSourceBinding{}, ErrConflict
 	}
 	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != row.Revision {
@@ -197,38 +192,62 @@ func (t *inboxSourcePreparation) writeBinding(row meta.MQTTSourceBinding) (meta.
 	return row, nil
 }
 
+// initializeCursor preserves the durable source boundary across definite CAS
+// rejection by unrelated parent updates. At most three proposals retain the
+// same Owner and full child; uncertain outcomes never authorize another write.
 func (t *inboxSourcePreparation) initializeCursor(key meta.MQTTDeliveryCursorKey, start uint64) (uint64, error) {
-	s, err := t.current()
-	if err != nil {
-		return 0, err
+	var previous meta.MQTTSession
+	for attempt := 0; ; attempt++ {
+		s, err := t.current()
+		if err != nil {
+			return 0, err
+		}
+		if attempt > 0 {
+			if s.Revision <= previous.Revision || sessionOwner(s) != sessionOwner(previous) {
+				return 0, ErrConflict
+			}
+			cursor, found, err := t.cursor(key)
+			if err != nil {
+				return 0, err
+			}
+			if found {
+				if cursor.StartAfter != start || cursor.Revision <= previous.Revision {
+					return 0, ErrEvidence
+				}
+				return cursor.Revision, nil
+			}
+		}
+		now, err := t.p.now()
+		if err != nil {
+			return 0, err
+		}
+		if now < s.UpdatedAtMS || s.Revision == math.MaxUint64 {
+			return 0, ErrClock
+		}
+		m := meta.MQTTDeliveryCursorMutation{Key: key, ExpectedRevision: s.Revision, OwnerGeneration: s.OwnerGeneration, OwnerNodeID: s.OwnerNodeID, OwnerBootID: s.OwnerBootID, ConnectionID: s.ConnectionID, Op: meta.MQTTCursorInit, Topic: t.intent.Topic, Through: start, UpdatedAtMS: now}
+		if meta.ValidateMQTTDeliveryCursorMutation(m) != nil {
+			return 0, ErrEvidence
+		}
+		if err = t.ctx.Err(); err != nil {
+			return 0, err
+		}
+		r, err := t.p.options.Store.MutateMQTTDeliveryCursor(t.ctx, m)
+		if canceled := t.ctx.Err(); canceled != nil {
+			return 0, canceled
+		}
+		if err != nil {
+			return 0, err
+		}
+		if r.Status == meta.MQTTSessionCASConflict {
+			if attempt == 2 {
+				return 0, ErrConflict
+			}
+			previous = s
+			continue
+		}
+		if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != s.Revision+1 || r.SessionState != s.State || r.TerminationReason != 0 {
+			return 0, ErrEvidence
+		}
+		return r.CurrentRevision, nil
 	}
-	now, err := t.p.now()
-	if err != nil {
-		return 0, err
-	}
-	if now < s.UpdatedAtMS || s.Revision == math.MaxUint64 {
-		return 0, ErrClock
-	}
-	m := meta.MQTTDeliveryCursorMutation{Key: key, ExpectedRevision: s.Revision, OwnerGeneration: s.OwnerGeneration, OwnerNodeID: s.OwnerNodeID, OwnerBootID: s.OwnerBootID, ConnectionID: s.ConnectionID, Op: meta.MQTTCursorInit, Topic: t.intent.Topic, Through: start, UpdatedAtMS: now}
-	if meta.ValidateMQTTDeliveryCursorMutation(m) != nil {
-		return 0, ErrEvidence
-	}
-	if err = t.ctx.Err(); err != nil {
-		return 0, err
-	}
-	r, err := t.p.options.Store.MutateMQTTDeliveryCursor(t.ctx, m)
-	if canceled := t.ctx.Err(); canceled != nil {
-		return 0, canceled
-	}
-	if err != nil {
-		return 0, err
-	}
-	if r.Status == meta.MQTTSessionCASConflict {
-		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:222\n")
-		return 0, ErrConflict
-	}
-	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != s.Revision+1 || r.SessionState != s.State || r.TerminationReason != 0 {
-		return 0, ErrEvidence
-	}
-	return r.CurrentRevision, nil
 }

@@ -3,6 +3,7 @@ package mqttsession
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -155,6 +156,9 @@ func (c *ReplayCoordinator) copyAndAnchor(ctx context.Context, m ch.Meta, plan c
 		return out, err
 	}
 	copy, err := c.options.Channels.CopyChannelMQTTReplay(ctx, request)
+	if err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] CopyChannelMQTTReplay: %v\n", err)
+	}
 	if stopped := ctx.Err(); stopped != nil {
 		return out, stopped
 	}
@@ -187,6 +191,9 @@ func (c *ReplayCoordinator) copyAndAnchor(ctx context.Context, m ch.Meta, plan c
 		return out, err
 	}
 	proof, err := c.options.Channels.CommitChannelMQTTReplayAnchor(ctx, ch.MQTTReplayAnchorRequest{Meta: m, Copy: copy, MessageID: messageID, ServerTimestampMS: stamp.UnixMilli()})
+	if err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] CommitChannelMQTTReplayAnchor: %v\n", err)
+	}
 	if err != nil {
 		return out, err
 	}

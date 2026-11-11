@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
@@ -78,6 +79,9 @@ func (p *MQTTSourceProtector) ProtectMQTTSource(ctx context.Context, id sessionc
 		return sessioncase.ProtectedSource{}, sessioncase.ErrEvidence
 	}
 	source, err := p.options.Node.EnsureChannelMQTTSource(ctx, req)
+	if err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] EnsureChannelMQTTSource: %v\n", err)
+	}
 	if err != nil {
 		return sessioncase.ProtectedSource{}, err
 	}

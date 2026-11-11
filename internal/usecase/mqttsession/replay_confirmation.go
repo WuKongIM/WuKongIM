@@ -3,6 +3,7 @@ package mqttsession
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -113,6 +114,9 @@ func (c *ReplayCoordinator) confirmationPlan(ctx context.Context, q ch.MQTTRepla
 	}
 	q.ExpectedChannelEpoch, q.ExpectedLeaderEpoch, q.ExpectedRouteGeneration = m.Epoch, m.LeaderEpoch, m.RouteGeneration
 	plan, err := c.options.Channels.PlanChannelMQTTReplay(ctx, q)
+	if err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] PlanChannelMQTTReplay: %v\n", err)
+	}
 	if stopped := ctx.Err(); stopped != nil {
 		return m, plan, stopped
 	}
@@ -210,6 +214,9 @@ func (c *ReplayCoordinator) confirmReplica(ctx context.Context, replicas []ch.No
 	//  if target == 2 { return false, errors.Join(ErrReplayPending, ch.ErrNotReady) }
 	// }
 	result, err := c.options.Channels.StepChannelMQTTReplayRecovery(ctx, request)
+	if err != nil {
+		fmt.Printf("[DEBUG-sub-confirm] StepChannelMQTTReplayRecovery: %v\n", err)
+	}
 	if stopped := ctx.Err(); stopped != nil {
 		return false, stopped
 	}
