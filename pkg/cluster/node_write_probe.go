@@ -18,6 +18,8 @@ const maxWriteProbePhysicalSlots = 4
 // ProbeWriteReady verifies that Slot metadata writes and new Channel placement can proceed.
 // It checks live Slot status on every call and may reuse successful noop write
 // proof for at most two seconds while route authority remains unchanged.
+// Configured MQTT storage also publishes this node's reconstructed debt before
+// success; free capacity and the other nodes' registrations remain growth gates.
 func (n *Node) ProbeWriteReady(ctx context.Context) (err error) {
 	if n == nil {
 		return ErrNotStarted
@@ -37,6 +39,9 @@ func (n *Node) ProbeWriteReady(ctx context.Context) (err error) {
 		generation := n.writeProbe.generation
 		n.writeProbe.mu.Unlock()
 		err = n.probeWriteReady(ctx, generation)
+		if err == nil {
+			err = n.registerMQTTStorageForReadiness(ctx)
+		}
 		if !errors.Is(err, errWriteProbeRecheck) {
 			return err
 		}

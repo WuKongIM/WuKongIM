@@ -2,9 +2,32 @@ package cluster
 
 import (
 	"context"
+	"fmt"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+// registerMQTTStorageForReadiness makes startup debt publication independent of
+// the health timer. It preserves restore/apply ownership and does not require
+// free capacity or completion by another node before publishing this node.
+func (n *Node) registerMQTTStorageForReadiness(ctx context.Context) error {
+	if n.cfg.Storage.MQTTNodeBytes == 0 || n.cfg.Storage.MQTTClusterBytes == 0 {
+		return nil
+	}
+	if !n.controlApplyMu.TryLock() {
+		return fmt.Errorf("%w: MQTT storage registration busy", ErrRouteNotReady)
+	}
+	defer n.controlApplyMu.Unlock()
+	if err := n.ensureForeground(); err != nil {
+		return err
+	}
+	if n.defaultChannelStore != nil {
+		if err := n.defaultChannelStore.RegisterMQTTStorage(ctx); err != nil {
+			return fmt.Errorf("%w: MQTT storage registration: %w", ErrRouteNotReady, err)
+		}
+	}
+	return nil
+}
 
 // adjustMQTTStorage converts one physical node's exact escrow request to the
 // existing foreground-gated authoritative Slot proposal path.

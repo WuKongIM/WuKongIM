@@ -1614,6 +1614,14 @@ func (a *messageDBChannelStoreAdapter) MQTTStorageProtection(ctx context.Context
 	return found, a.mapError(err)
 }
 
+// RegisterMQTTStorage publishes reconstructed debt before node write readiness.
+func (f *MessageDBFactory) RegisterMQTTStorage(ctx context.Context) error {
+	if f == nil || f.engine == nil {
+		return nil
+	}
+	return f.engine.RegisterMQTTStorage(ctx)
+}
+
 // MaintainMQTTStorage is driven by the existing cluster periodic owner.
 func (f *MessageDBFactory) MaintainMQTTStorage(ctx context.Context) error {
 	if f == nil || f.engine == nil {

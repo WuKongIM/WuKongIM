@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Nodes now register reconstructed MQTT storage debt before reporting write readiness, preventing startup messages from being rejected while waiting for the periodic health loop. Existing capacity limits and recovery of accepted messages are preserved. / 节点在报告写就绪前登记重建出的 MQTT 存储债务，避免启动后的消息因等待周期健康检查而被拒绝；保留原有容量限制和已接收消息的恢复能力。
+
 - MQTT preview startup avoids reclamation-index writes for authoritatively empty Session tables and already certified indexes, reducing interference with the first messages while preserving historical backfill and cleanup checks. / MQTT 预览功能启动时跳过已由权威快照证明为空或已有完整覆盖证明的会话回收索引写入，减少对首批消息的干扰，同时保留历史索引回填和回收校验。
 
 - MQTT preview cleanup now gives replicated reclamation-index backfill the remaining scan-turn budget, preventing the shorter read timeout from repeatedly interrupting valid commits on slower disks. / MQTT 预览功能的会话回收索引构建改用本轮扫描的剩余时间，避免在磁盘较慢时被更短的读取超时反复中断。
