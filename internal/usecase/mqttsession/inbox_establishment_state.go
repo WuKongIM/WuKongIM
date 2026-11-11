@@ -2,6 +2,7 @@ package mqttsession
 
 import (
 	"context"
+	"fmt"
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -60,6 +61,7 @@ func (t *inboxEstablishmentTurn) qualification() (meta.MQTTSourceBinding, bool, 
 		return meta.MQTTSourceBinding{}, false, ErrEvidence
 	}
 	if b.Stage >= meta.MQTTBindingRemoving {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_establishment_state.go:63\n")
 		return meta.MQTTSourceBinding{}, false, ErrConflict
 	}
 	now, err := t.p.guard.now()
@@ -101,6 +103,7 @@ func (t *inboxEstablishmentTurn) write(row meta.MQTTSourceBinding) (meta.MQTTSou
 		return meta.MQTTSourceBinding{}, err
 	}
 	if r.Status == meta.MQTTSessionCASConflict {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_establishment_state.go:104\n")
 		return meta.MQTTSourceBinding{}, ErrConflict
 	}
 	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != row.Revision {

@@ -3,6 +3,7 @@ package mqtt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
@@ -84,6 +85,9 @@ func (h *Handler) subscriptionPacket(g gt.Context, s *connectionState, packet an
 		}
 		if subscribe {
 			row, e := h.options.Subscriptions.Subscribe(callCtx, s.connection.Owner, input.request)
+			if e != nil {
+				fmt.Printf("[DEBUG-sub-confirm] subscribe error type=%T cause=%v\n", e, e)
+			}
 			if err := check(); err != nil {
 				return closeWith(subscriptionCloseReason(err), 0)
 			}

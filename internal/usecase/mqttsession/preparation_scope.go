@@ -2,6 +2,7 @@ package mqttsession
 
 import (
 	"context"
+	"fmt"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -79,6 +80,7 @@ func (s *preparationScope) current(ctx context.Context, guard *Subscriptions, st
 		return meta.MQTTSession{}, err
 	}
 	if len(r.Subscriptions) != 1 || r.Subscriptions[0] != sub || !validSubscriptionEvidence(sub, *r.Session) {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at preparation_scope.go:82\n")
 		return meta.MQTTSession{}, ErrConflict
 	}
 	return *r.Session, nil
@@ -110,6 +112,7 @@ func beginOfflinePreparation(parent context.Context, guard *Subscriptions, r Sub
 	}
 	sub := r.Subscription
 	if sub.Stage != meta.MQTTSubscriptionPreparing {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at preparation_scope.go:113\n")
 		return nil, nil, nil, ErrConflict
 	}
 	if sub.Namespace != r.Owner.Key.Namespace || sub.ClientID != r.Owner.Key.ClientID || sub.SessionGeneration != r.Owner.SessionGeneration {

@@ -2,6 +2,7 @@ package mqttsession
 
 import (
 	"context"
+	"fmt"
 	"math"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
@@ -93,9 +94,11 @@ func (t *inboxSourcePreparation) current() (meta.MQTTSession, error) {
 		return meta.MQTTSession{}, ErrEvidence
 	}
 	if t.request != nil && sub != t.request.Subscription {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:96\n")
 		return meta.MQTTSession{}, ErrConflict
 	}
 	if t.intent != (meta.MQTTSubscription{}) && t.intent != sub {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:99\n")
 		return meta.MQTTSession{}, ErrConflict
 	}
 	t.intent = sub
@@ -132,6 +135,7 @@ func (t *inboxSourcePreparation) binding(key meta.MQTTSourceBindingKey) (meta.MQ
 		return meta.MQTTSourceBinding{}, false, ErrEvidence
 	}
 	if b.Stage >= meta.MQTTBindingRemoving {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:135\n")
 		return meta.MQTTSourceBinding{}, false, ErrConflict
 	}
 	return b, true, nil
@@ -184,6 +188,7 @@ func (t *inboxSourcePreparation) writeBinding(row meta.MQTTSourceBinding) (meta.
 		return meta.MQTTSourceBinding{}, err
 	}
 	if r.Status == meta.MQTTSessionCASConflict {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:187\n")
 		return meta.MQTTSourceBinding{}, ErrConflict
 	}
 	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != row.Revision {
@@ -219,6 +224,7 @@ func (t *inboxSourcePreparation) initializeCursor(key meta.MQTTDeliveryCursorKey
 		return 0, err
 	}
 	if r.Status == meta.MQTTSessionCASConflict {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_source_state.go:222\n")
 		return 0, ErrConflict
 	}
 	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != s.Revision+1 || r.SessionState != s.State || r.TerminationReason != 0 {

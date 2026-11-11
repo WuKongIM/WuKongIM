@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -54,6 +55,7 @@ func (s *Subscriptions) subscribe(parent context.Context, o contract.Owner, r Su
 	}
 	if found && old.Stage != meta.MQTTSubscriptionRemoved {
 		if old.TargetKind != r.TargetKind || old.TargetID != r.TargetID {
+			fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:57\n")
 			return out, ErrConflict
 		}
 		if old.AuthorizationVersion != version {
@@ -62,6 +64,7 @@ func (s *Subscriptions) subscribe(parent context.Context, o contract.Owner, r Su
 		switch old.Stage {
 		case meta.MQTTSubscriptionPreparing:
 			if !subscriptionOptionsEqual(old, r) {
+				fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:65\n")
 				return out, ErrConflict
 			}
 			return s.completePrepared(ctx, op, o, old, preparation)
@@ -74,6 +77,7 @@ func (s *Subscriptions) subscribe(parent context.Context, o contract.Owner, r Su
 			unconfirmed = true
 			return s.mutate(ctx, op, o, session, next)
 		default:
+			fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:77\n")
 			return out, ErrConflict
 		}
 	}
@@ -118,6 +122,7 @@ func (s *Subscriptions) startPreparation(ctx context.Context, op *subscriptionOp
 			return meta.MQTTSubscription{}, err
 		}
 		if exists != found || (found && child != before) || parent.Revision <= session.Revision {
+			fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:121\n")
 			return meta.MQTTSubscription{}, ErrConflict
 		}
 		currentVersion, err := s.authorize(ctx, op, r)
@@ -186,6 +191,7 @@ func (s *Subscriptions) startRemoval(ctx context.Context, op *subscriptionOperat
 			return meta.MQTTSubscription{}, err
 		}
 		if !found || current != before || currentParent.Revision <= session.Revision {
+			fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:189\n")
 			return meta.MQTTSubscription{}, ErrConflict
 		}
 		session = currentParent
@@ -216,6 +222,7 @@ func (s *Subscriptions) Reconcile(parent context.Context, o contract.Owner, topi
 		return out, err
 	}
 	if !found {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:219\n")
 		return out, ErrConflict
 	}
 	if row.Stage == meta.MQTTSubscriptionRemoved {
@@ -282,6 +289,7 @@ func (s *Subscriptions) completePrepared(ctx context.Context, op *subscriptionOp
 		return current, nil
 	}
 	if !found || current != row {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:285\n")
 		return meta.MQTTSubscription{}, ErrConflict
 	}
 	// The projection receipt stays pinned to row. Only a definite rejection
@@ -316,6 +324,7 @@ func (s *Subscriptions) completePrepared(ctx context.Context, op *subscriptionOp
 			return current, nil
 		}
 		if !found || current != row || currentParent.Revision <= session.Revision {
+			fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:319\n")
 			return meta.MQTTSubscription{}, ErrConflict
 		}
 		if attempt == 2 {
@@ -488,6 +497,7 @@ func (s *Subscriptions) mutate(ctx context.Context, op *subscriptionOperation, o
 		return meta.MQTTSubscription{}, err
 	}
 	if receipt.Status == meta.MQTTSessionCASConflict {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:491\n")
 		return meta.MQTTSubscription{}, errors.Join(ErrConflict, errSubscriptionCASRejected)
 	}
 	if (receipt.Status != meta.MQTTSessionCASApplied && receipt.Status != meta.MQTTSessionCASUnchanged) || receipt.CurrentRevision != row.Revision {
@@ -513,8 +523,10 @@ func (s *Subscriptions) checkCapacity(ctx context.Context, op *subscriptionOpera
 		}
 		if result.Session.Revision != session.Revision {
 			if result.Session.Revision > session.Revision {
+				fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:516\n")
 				return errors.Join(ErrConflict, errSubscriptionCapacityChanged)
 			}
+			fmt.Printf("[DEBUG-sub-confirm] conflict at subscriptions.go:518\n")
 			return ErrConflict
 		}
 		if len(result.Subscriptions) > 64 || !result.Done && len(result.Subscriptions) == 0 {

@@ -2,6 +2,7 @@ package mqttsession
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
@@ -70,6 +71,7 @@ func (p *InboxEstablishment) Establish(parent context.Context, r SubscriptionPro
 		return out, ErrInvalid
 	}
 	if r.Subscription.Stage != meta.MQTTSubscriptionPreparing {
+		fmt.Printf("[DEBUG-sub-confirm] conflict at inbox_establishment.go:73\n")
 		return out, ErrConflict
 	}
 	op, ctx, cancel, err := p.guard.begin(parent, r.Owner)

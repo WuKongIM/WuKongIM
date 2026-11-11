@@ -39,6 +39,7 @@ func run(args []string) error {
 
 // Selectors lists every named check accepted by wkcicheck.
 var Selectors = []string{
+	"mqtt-subscription-diagnostic-group", "mqtt-subscription-diagnostic-quota",
 	"go-format", "go-vet", "go-mod-tidy",
 	"flow-doc-contracts", "agent-artifact-contracts", "skill-focused-contracts",
 	"web", "demo", "docs", "docs-integration", "integration", "three-node", "gofail-e2e",
@@ -55,6 +56,17 @@ func runCICheck(
 		return fmt.Errorf("CI check canceled: %w", err)
 	}
 	switch selector {
+	case "mqtt-subscription-diagnostic-group", "mqtt-subscription-diagnostic-quota":
+		binary := filepath.Join(os.TempDir(), "wukongim-subscription-diagnostic")
+		if err := runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"}, "go", "build", "-buildvcs=false", "-o", binary, "./cmd/wukongim"); err != nil {
+			return err
+		}
+		pkg, pattern := "./test/e2e/mqtt/restore", "^TestRestoreReactivatesPersistentMQTTWithoutProcessRestart$/^3-node-cluster$"
+		if selector == "mqtt-subscription-diagnostic-quota" {
+			pkg, pattern = "./test/e2e/mqtt/quota", "^TestConsumerMaintenanceQuotasAndCompletion$/^3-node-cluster$/^offline-messages$"
+		}
+		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off", "WK_E2E_BINARY=" + binary, "WK_E2E_SUBSCRIBE_DIAGNOSTIC_ONLY=1"}, "go", "test", "-tags=e2e", pkg, "-run", pattern, "-count=30", "-failfast", "-timeout=15m", "-p=1", "-v")
+
 	case "go-vet":
 		return runCommandWithEnvironment(ctx, commands, root, []string{"GOWORK=off"},
 			"go", "vet", "./cmd/...", "./internal/...", "./pkg/...", "./scripts/...", "./docker/...")

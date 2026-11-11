@@ -93,6 +93,9 @@ func testRestoreReactivation(t *testing.T, count int, unavailableCleanup bool) {
 		reportDir = n.Spec.RootDir
 	}
 	defer func() {
+		if os.Getenv("WK_E2E_SUBSCRIBE_DIAGNOSTIC_ONLY") == "1" {
+			return
+		}
 		report := map[string]any{"scenario": "mqtt-restore-reactivation", "nodes": count, "hash_slots": 256, "passed": !t.Failed(), "last_phase": phase, "restore_cycles": cycles, "maintenance_refusals": refusals, "process_restarts": 0}
 		if unavailableCleanup {
 			report["scenario"] = "restore-admission-with-unavailable-archive-cleanup"
@@ -155,6 +158,10 @@ func testRestoreReactivation(t *testing.T, count int, unavailableCleanup bool) {
 	}
 	require.NoError(t, err, diagnostics())
 	require.Equal(t, []byte{1}, sub.Reasons)
+	if os.Getenv("WK_E2E_SUBSCRIBE_DIAGNOSTIC_ONLY") == "1" {
+		t.Log("diagnostic only: initial subscription confirmed; no restore acceptance claimed")
+		return
+	}
 	send := func(no string) suite.MessageSendResponse {
 		r, err := suite.PostMessageSendEventually(ctx, n.APIAddr(), map[string]any{"from_uid": "alice", "channel_id": group, "channel_type": frame.ChannelTypeGroup, "client_msg_no": no, "payload": base64.StdEncoding.EncodeToString([]byte(no))})
 		require.NoError(t, err, diagnostics())
