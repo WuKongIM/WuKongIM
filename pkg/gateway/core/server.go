@@ -678,7 +678,7 @@ func (s *Server) dispatchSendFrameAsync(state *sessionState, replyToken string, 
 	}
 
 	runtime := s.asyncRuntime()
-	var queue asyncSendStats
+	var queue *sendExecutor
 	if runtime != nil {
 		queue = runtime.send
 	}
@@ -1712,11 +1712,17 @@ func (s *Server) recordAsyncDispatchWait(task asyncDispatchTask) {
 	})
 }
 
-func (s *Server) observeAsyncSendQueue(queue asyncSendStats) {
+func (s *Server) observeAsyncSendQueue(queue *sendExecutor) {
 	observer := s.asyncSendObserver()
 	if observer == nil || queue == nil {
 		return
 	}
+	// Optional instrumentation must not interrupt admission or its release.
+	defer func() {
+		if v := recover(); v != nil {
+			queue.recordPanic(v, asyncDispatchTask{})
+		}
+	}()
 	observer.OnAsyncSendQueue(queue.queueSnapshot())
 }
 

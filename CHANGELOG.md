@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### Gateway SEND / 网关发送
 
+- In single-record WKProto SEND mode, unrelated Channels can prepare concurrently even when they hash to the same gateway shard. / 单条分批发送时，不同频道即使落到同一网关分片也可并行准备，减少 SENDACK 排队。
+
 - On one WKProto connection, admitted SENDs to different Channels can prepare, commit and acknowledge independently. Admitted SENDs retain per-Channel order. Match each ACK by client sequence, including immediate overload rejections. / 同一 WKProto 连接中，不同频道已受理的 SEND 可以独立准备、提交和确认。同频道已受理的 SEND 保持顺序。请用客户端序列号匹配回执，包括立即返回的过载拒绝。
 
 ### Channel metadata / 频道元数据

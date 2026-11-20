@@ -44,10 +44,10 @@ Message, presence, Channel, and Controller business policy stays outside gateway
    The terminal sealer shares that write lock, closes ordinary outbound admission,
    and enqueues its unique marker ACK before later inbound frames reach the handler.
    Independent packet adapters reuse the auth pool and ordered SEND mailbox,
-   including control packets, with a shared queued/executing byte budget. When WK
-   deferred SEND is enabled, the same shard worker separates packets from WK
-   preparation and joins packet callbacks before releasing bytes/admission. Their
-   accepted activation transfers cleanup to open/close callbacks only after the
+   including control packets, with a shared queued/executing byte budget. Packet
+   callbacks keep their shard FIFO and release their byte credits after return.
+   Single-record WK preparation uses independent Channel lanes in the shared worker group.
+   An accepted packet activation transfers cleanup to open/close callbacks only after the
    reply is enqueued; earlier failure invokes the returned rollback once.
    Optional CheckReply revalidates accepted activation immediately before enqueue;
    rejection or panic skips the reply and rolls back without opening the session.
@@ -84,7 +84,7 @@ Message, presence, Channel, and Controller business policy stays outside gateway
   It does not prove append, delivery, transport flush, or client receipt.
 - Async SEND owns retained payload bytes unless the protocol explicitly proves
   decoded-frame ownership. Deferred handlers can supply a Channel key to order
-  preparation and results by Channel within a session. An empty key retains session order.
+  preparation and results by Channel within a session. In single-record mode, independent keys on the same admission shard run on a shared fixed worker group. Empty keys and independent protocol packets retain shard FIFO.
 - Optional deferred batch handlers join preparation, then core retains the
   original global/shard reservations through handler completion and ordered
   publication across batches. Completion errors join before drain can finish.

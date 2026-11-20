@@ -72,7 +72,7 @@ type sendExecutor struct {
 	// deferred retains optional cross-batch publication state within original budgets.
 	deferred []deferredSendShard
 	// mailbox owns shard-local scheduling and worker execution.
-	mailbox *workqueue.ShardedMailbox[asyncDispatchTask]
+	mailbox sendMailbox
 	// releaseTimeout bounds graceful mailbox pool release.
 	releaseTimeout time.Duration
 	// panicC records worker panics for package tests and diagnostics.
@@ -100,6 +100,15 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 
 	if s != nil && s.dispatcher.deferredHandler != nil {
 		e.deferred = make([]deferredSendShard, shards)
+	}
+
+	if limits.maxRecords == 1 && shards > 1 && e.deferred != nil && s.dispatcher.sendOrderKeyer != nil {
+		mailbox, err := newSingleSendMailbox(e)
+		if err != nil {
+			return nil, err
+		}
+		e.mailbox = mailbox
+		return e, nil
 	}
 
 	mailbox, err := workqueue.NewShardedMailbox[asyncDispatchTask](workqueue.ShardedMailboxConfig{

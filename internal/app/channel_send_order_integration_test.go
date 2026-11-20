@@ -19,7 +19,9 @@ import (
 // A blocked cold directory must hold only its own Channel's SENDs. A second
 // spelling of the same person Channel must keep the first Channel's order.
 func TestGatewaySendOrdersByChannelOnOneConnection(t *testing.T) {
-	const sender, firstPeer, secondPeer = "order-sender", "order-peer-a", "order-peer-b"
+	// These peer order keys collide under both the 16-shard fixture and the
+	// 4,000-shard production-scale replay. Both use the same connection.
+	const sender, firstPeer, secondPeer = "order-sender", "order-peer-a", "order-peer-3334"
 	firstChannel := channelid.EncodePersonChannel(sender, firstPeer)
 	secondChannel := channelid.EncodePersonChannel(sender, secondPeer)
 	cfg := singleNodeClusterAppConfig(t)

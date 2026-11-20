@@ -2599,6 +2599,9 @@ specification, runbook, report, or module documentation; link to them when neede
 - Default WKProto SEND composition orders admitted preparation and ACKs by
   connection and canonical Channel. Person aliases use the same peer UID within
   the authenticated connection, without allocating before shard admission.
+  With a single-record SEND batch, a hash shard owns admission credits and
+  a fixed worker group runs independent Channel keys concurrently. Keyless
+  records and independent packets keep their per-shard FIFO.
   Clients match SENDACK by client sequence, including immediate overload rejections.
   The node-owned Channel submitter preserves overlapping Channel order.
   Stop/restore must join both
