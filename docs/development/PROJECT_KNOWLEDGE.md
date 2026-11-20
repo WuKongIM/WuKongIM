@@ -1,5 +1,40 @@
 # Project Knowledge
 
+- Recovery probe batching must survive the storage adapter: 64 admitted fresh
+  authority promises previously caused 64 synchronous WAL commits. The public
+  real-storage regression now requires at most four, including engine overhead,
+  and observes one after coalescing, with reopen and stale-authority checks.
+  Promise rows remain outside the log, with the same append locks and durable
+  publication. A lower duplicate rejected only by a staged higher promise shares
+  that commit's failure; only an already durable higher promise independently
+  justifies stale authority. Real cancellation coverage checks this against the
+  public durable state. This removes measured write amplification; it does not by itself
+  establish original-scale timeout recovery or isolate all storage latency.
+
+- Channel metadata application holds ownership by exact Channel identity through
+  runtime application and authoritative cache publication. The 256 management
+  shards protect only active ownership, never recovery or runtime I/O. Same-key
+  request waiters retain their deadlines; migration still yields on contention.
+  Completed ownership removes its key and empty map, leaving no idle registry.
+  The public controlled-return regression proves cross-Channel isolation, not
+  original-scale latency acceptance or the cause of every observed timeout.
+
+- Person-directory source admission retains a 32-item low-load target, 1 ms
+  collection, eight physical calls and 4096 mutation/waiter credits. An owner
+  that actually waited may coalesce only already-ready batches into the existing
+  128-item physical bound. Work transfers under queue ownership; the executor
+  joins actual durable work even after original waiting owners retire. Controlled
+  public evidence verifies 128 queued results in one available turn versus 32,
+  with 137 actual fresh fences, not an original-scale performance pass.
+
+- Slot async apply can share one BatchStateMachine call across at most four
+  already-queued ordinary Ready records of the same generation and term. This
+  adds no collection delay or admission capacity. Each original prepaid lease,
+  response and Future remains owned until durable apply or terminal cleanup;
+  snapshots, configuration changes, gaps and unsupported FSMs remain separate.
+  The public disk-backed regression confirms `[1, 1, 1]` durable calls become
+  `[1, 2]` for a frozen three-command case; this is not an original-scale pass.
+
 - Breaking changes and upgrades require the user's explicit prior approval for
   their disclosed compatibility impact and migration/backup/rollback plan; see
   [AGENTS.md](../../AGENTS.md), “Breaking Changes and Upgrades”. General task
@@ -25,7 +60,7 @@ Lifecycle metrics preserve optional block-cache and memtable-reservation byte
 gauges in fixed channel_log/meta/raft order. Missing, duplicate or invalid optional
 values stay unknown and never weaken original required metrics. Only successful,
 complete existing GC observation rounds may emit storage-memory diagnostics:
-16 lines, each at most4KiB, independently of the64 failure-line budget. No extra
+16 lines, each at most4KiB, independently of the 64 failure-line budget. No extra
 HTTP/GC requests, timers, profiles or gate changes are introduced. Gauge producer
 age, evicted reader pins, flushable-batch backing and total heap attribution remain
 unknown; configured cache capacity and these gauges are not RSS or process limits.
@@ -2556,15 +2591,17 @@ specification, runbook, report, or module documentation; link to them when neede
   Default Gateway composition now wires this port through the bounded submitter.
 
 - Optional Gateway deferred handlers retain configured global/shard reservations
-  through preparation return, completion/error handling and actual session-ordered
-  publication across batches. Results waiting for an earlier ACK remain counted.
-  Per-session chains never hold the shard mutex while writing, clear completed
+  through preparation return, completion/error handling and ordered publication
+  across batches. Results waiting for an earlier ACK in their group remain counted.
+  Publication chains never hold the shard mutex while writing, clear completed
   links and retire empty lanes. Default product composition activates this port.
 
-- Default Gateway SEND composition separates ordered permission preparation from
-  durable completion. The node-owned Channel submitter serializes overlapping
-  canonical Channels; Gateway retains its original record/byte reservations
-  until ordered physical-session ACK publication. Stop/restore must join both
+- Default WKProto SEND composition orders admitted preparation and ACKs by
+  connection and canonical Channel. Person aliases use the same peer UID within
+  the authenticated connection, without allocating before shard admission.
+  Clients match SENDACK by client sequence, including immediate overload rejections.
+  The node-owned Channel submitter preserves overlapping Channel order.
+  Stop/restore must join both
   owners before closing or restarting append dependencies. This mechanism alone
   is not evidence that the 5,000-channel/4,500-SEND/s qualification passes.
 
@@ -3171,7 +3208,7 @@ completion, installation and provider-reference release.
 
 - Optional invocation summaries retain eight fixed phases: the original five, shared permission-batch/pre-append intervals, and the longest remote service91 origin RPC wrapper per original token. The last slot borrows the existing RPC metric clock (marshal/call/decode), preserves the first equal-duration fact and is independent of the retained RPC identities. Local/no-metric clocks stay unknown. It is not a sum, server time, network time, exclusive CPU or append completion. No new event-ring publication, clock, RPC, command field or UID history is added. The opt-in row ceiling is368bytes (23MiB/65536rows), with the original two fixed indexes separate; default-off construction remains absent. Private same-source capture accepts exact oldfive/seven or neweight typed phases within its unchanged output/request caps.
 - Both legacy and Full Presence RPC registration/commit preserve bounded local activation-phase/provider evidence before encoding route-not-ready or deadline status. Deadline uses a distinct fixed event; canceled and unknown errors add no activation event. Full wire status still drops source details; receiver logs use the same fixed formatter and original register-route digest, never raw identities/cause text. Token-only commit cannot invent a route digest; reads and other mutations add no activation event.
-- Chat-lifecycle attempt-link diagnostics preserve first16 confirmed-late keys and an independent16-record sample of original hot successes strictly above the configured P99 or explicit local P95 duration and before the first deadline. The explicit p999_reserve8/v1 policy reserves8 recent strictly-above-P999 successes against primary-only churn; remaining slots retain recency. Its ordinal gaps and tail limit are validated separately from legacy latest16 evidence, and exporter binding records the policy. This is selected diagnostic evidence, not a population percentile or physical-latency repair. Both borrow SDK clocks and opaque attempt keys; no UID history or native counter is added. Worker protocol19 isolates peers; P99 reportv8 and16hist remain unchanged, and the64KiB v2 optional sidecar omits malformed new children independently. Anchors alone do not prove a product substage or archive server traces. The optional local postload exporter verifies native final fences and exited coordinator before at most18 loopback-only exact queries within8s/4MiB, joining at most16 SID21 references; it never retries or overwrites output. Its owner retains original verdict/cleanup and must invoke it before product teardown. Diagnostic overhead is not ordinary acceptance evidence.
+- Chat-lifecycle attempt-link diagnostics preserve first16 confirmed-late keys and an independent16-record sample of original hot successes strictly above the configured P99 or explicit local P95 duration and before the first deadline. The explicit p999_reserve8/v1 policy reserves8 recent strictly-above-P999 successes against primary-only churn; remaining slots retain recency. Its ordinal gaps and tail limit are validated separately from legacy latest16 evidence, and exporter binding records the policy. This is selected diagnostic evidence, not a population percentile or physical-latency repair. Both borrow SDK clocks and opaque attempt keys; no UID history or native counter is added. Worker protocol19 isolates peers; P99 reportv8 and16hist remain unchanged, and the 64KiB v2 optional sidecar omits malformed new children independently. Anchors alone do not prove a product substage or archive server traces. The optional local postload exporter verifies native final fences and exited coordinator before at most18 loopback-only exact queries within8s/4MiB, joining at most16 SID21 references; it never retries or overwrites output. Its owner retains original verdict/cleanup and must invoke it before product teardown. Diagnostic overhead is not ordinary acceptance evidence.
 
 - Shared permission-read diagnostics copy at most64 original value tokens onto the existing execution context, retaining its own cancellation and no caller Trace parent. Only remote service91 envelopes get passive terminal captures: native sampling/recorder state is unchanged and unsampled references stay unknown. Summary rows retain two permission references independently of the two append references, with separate overflow and epoch/wrap fences; the eighth fixed clock slot raises raw opt-in arrays from33 to34MiB/node (oneMiB), while allocator/context overhead and RSS remain separate. The same-source postload reader shares its existing16 identity budget fairly between append21 and permission91 within the unchanged18request/8s/4MiB caps; local calls invent no RPC.
 
@@ -3202,3 +3239,53 @@ completion, installation and provider-reference release.
   clock; mixing their precision can make adjacent evidence rows regress. Flooring a
   measurement end to whole seconds can exclude an already observed worker cut
   and falsely invalidate its profile trigger against the frozen timeline.
+
+- Person-directory recovery reads must not occupy the completion scheduler. The scanner reserves one page within the same 512-task budget; the scheduler publishes completed Prepare results and handles Stop independently, joining scanner and workers before shutdown.
+
+Queued person-directory worker batches may share one existing 64-task projection
+when already available. Queue ownership is serialized only while taking a
+bounded FIFO prefix; an unfitting head remains charged to the same 512 inflight
+limit for the next worker. There is no fill timer or added worker. Public real
+cluster coverage proves 73 durable Ready fences and 146 UID generations after
+eight held successful writes and four queued 16-item requests. A trailing
+admission witnesses that the 64-task prefix was dispatched before release.
+The baseline uses four 16 waves; the candidate one 64 wave, with one trailing
+task. An 80-task prefix preserves page limits and all ownership; its trailing
+task may legally join the second 40 page. This local resource contract does not
+prove recovery of the 5000-online workload.
+
+- Shared SEND permission cohorts may publish each caller once all of its own
+  original inputs (including duplicates) have terminal, fully validated facts.
+  An unrelated node envelope must not delay that publication. The unchanged
+  stale-route retry precedes terminal publication; late callers always start
+  fresh reads. Per-input reverse links keep publication linear in original
+  inputs. Early return retains prepaid data credits until all actual workers
+  join; last cancellation and Close remain physical joins. The real three-node
+  public RPC adapter test proves independent completion, mixed-result integrity,
+  cancellation/Close and new reads. This alone does not prove the original
+  5000-online/1000-SEND/s workload passes.
+
+### Independent source admission publication
+
+Person-directory preparation consumes actual admission callbacks while independent source-node groups run. A group waits for its own admissions and retains the original 64-item RPC chunks/four origin workers. Its final fresh Ready/runtime proof remains mandatory. Cancellation does not abandon the admission owner or RPC workers. A real three-node public regression holds one successful Slot admission return for at most two seconds and checks an unrelated source can publish Ready first; this proves scheduling behavior, not original-scale recovery.
+
+## Local first-attempt policy (2026-11-12)
+
+- An explicit `thresholds.latency.first_attempt_timeout: 5s` is permitted only for local paired-P95 shakeout/soak. All original SENDs use the same5s clock, regardless of phase or class; hot/cold retry waits remain2s/5s with original retry delays and counts. Omission preserves all previous defaults/digests. This is a user-approved policy change, not evidence that a product performance defect was fixed.
+- Reportv11/thresholdv5 carries that explicit budget and retains paired gatev3, sample/freshness and percentile contracts. v7-v10 cannot acquire the5s override; formal/rehearsal/capacity policies and old evidence are unchanged. The real worker-factory regression observed original retries at2s (RED), then correct5s first attempts and unchanged retries (GREEN). Original-scale performance remains separately unverified.
+
+- Person-directory projection consumes completed physical UID membership
+  groups while other groups are in flight. Both memberships must succeed
+  before committing the exact source generation Ready. An early Ready result
+  does not refund task or worker ownership until the shared batch joins.
+  Membership and Ready calls share ten in-flight Slot proposal credits
+  through the projection callback context.
+
+  Retain original queued preparation groups when combining membership writes.
+  Ready commits batch all eligible tasks within a completed group so a request
+  that still has pending work does not force partial Ready writes.
+
+- Person-directory workers keep the original Prepare groups after merging queued
+  work. Mixed cohorts join at most two Ready workers with the membership wave's
+  existing ten Slot proposal credits. A slow Ready return cannot stall membership
+  publication for another group. Release task capacity only after both paths join.

@@ -38,6 +38,8 @@ It does not perform permission checks, durable append, routing, or delivery.
 - A trusted process-local item callback grants append submission only at the origin
   router, including retries. It is stripped before local handoff and never encoded
   in node RPC or stored as publication metadata. Cloning preserves the same callback.
+- The optional origin order key controls Gateway message preparation and result
+  publication. Append authority still resolves the Channel from the command.
 - Authority target carries complete route generation and observed write-fence
   state. Route generation orders cache projection and the durable quorum authority.
 - Append requests carry expected authority/leader epochs and an optional exact durable route.

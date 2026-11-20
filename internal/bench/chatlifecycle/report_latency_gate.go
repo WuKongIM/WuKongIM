@@ -212,12 +212,12 @@ func validReportLatencyGate(report Report) bool {
 	if report.SchemaVersion == legacyReportSchemaVersion {
 		return gate == nil
 	}
-	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion && report.SchemaVersion != localPairedP95ReportSchemaVersion {
+	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion && !pairedReportSchema(report.SchemaVersion) {
 		return false
 	}
 	p95 := report.Thresholds.Latency.HotSendACK.P95 != 0
 	paired := report.Thresholds.Latency.pairedP95Policy()
-	if paired != (report.SchemaVersion == localPairedP95ReportSchemaVersion) || p95 != (report.SchemaVersion == localP95ReportSchemaVersion || report.SchemaVersion == localPairedP95ReportSchemaVersion) {
+	if paired != (pairedReportSchema(report.SchemaVersion)) || p95 != (report.SchemaVersion == localP95ReportSchemaVersion || pairedReportSchema(report.SchemaVersion)) {
 		return false
 	}
 	if gate == nil {

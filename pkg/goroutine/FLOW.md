@@ -67,6 +67,11 @@ closure, dependency order, and restart policy.
   and repair dispatch share a separate Message burst identity for at most four
   joined lanes per worker, preserving singleton health accounting.
 
+- Person-directory scanning and completion scheduling use distinct singleton
+  identities; eight execution workers retain their existing fixed cohort.
+  A mixed cohort joins at most two Ready workers under the existing directory
+  batch identity, sharing the membership writer's original Slot credits.
+
 ## Read First
 
 - [Registry](registry.go)

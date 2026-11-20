@@ -83,12 +83,12 @@ func TestApplyCommittedEntriesPassesCommandDataWithoutExtraCopy(t *testing.T) {
 	}
 	lastApplied := uint64(0)
 
-	resolutions, _ := g.applyCommittedEntries(context.Background(), []raftpb.Entry{{
+	resolutions, _ := g.applyCommittedEntries(context.Background(), [][]raftpb.Entry{{{
 		Index: 1,
 		Term:  1,
 		Type:  raftpb.EntryNormal,
 		Data:  payload,
-	}}, &lastApplied, nil, sm, true)
+	}}}, &lastApplied, nil, sm, true)
 
 	if len(resolutions) != 1 {
 		t.Fatalf("len(resolutions) = %d, want 1", len(resolutions))

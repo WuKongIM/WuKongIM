@@ -17,10 +17,11 @@ type BatchAdmission interface {
 }
 
 // SubmitBatchEach joins permission, directory and hooks before returning, while
-// accepted append work completes asynchronously. Callers must serialize preparation
-// for a session, retain input payloads/capacity until complete returns, and order
-// publication across batches. Within this batch emit is serialized and session-
-// ordered. Its first error suppresses further emits but never skips completion.
+// accepted append work completes asynchronously. Callers serialize preparation
+// and order publication across batches by OrderChannel, or by session when
+// absent. They retain payloads and capacity until complete returns. Within this
+// batch emit follows the same grouping and is serialized. Its first error
+// suppresses further emits but never skips completion.
 // Nil error transfers exactly one complete call, which may run before return.
 // Item rejections are results; a returned error transfers no ownership.
 func (a *App) SubmitBatchEach(items []SendBatchItem, emit func(int, SendBatchItemResult) error, complete func(error)) error {
@@ -41,8 +42,8 @@ type sendBatchPublication struct {
 	results  []SendBatchItemResult
 	terminal []bool
 	next     []int
-	keys     []sendBatchSessionKey
-	heads    map[sendBatchSessionKey]int
+	keys     []sendBatchOrderKey
+	heads    map[sendBatchOrderKey]int
 	pending  int
 	prepared bool
 	finished bool
@@ -62,17 +63,17 @@ type sendBatchPublicationTrace struct {
 }
 
 func newSendBatchPublication(items []SendBatchItem, emit func(int, SendBatchItemResult) error, cancel func(), complete func(error)) *sendBatchPublication {
-	p := &sendBatchPublication{results: make([]SendBatchItemResult, len(items)), terminal: make([]bool, len(items)), next: make([]int, len(items)), keys: make([]sendBatchSessionKey, len(items)), heads: make(map[sendBatchSessionKey]int), pending: len(items), emit: emit, cancel: cancel, complete: complete}
+	p := &sendBatchPublication{results: make([]SendBatchItemResult, len(items)), terminal: make([]bool, len(items)), next: make([]int, len(items)), keys: make([]sendBatchOrderKey, len(items)), heads: make(map[sendBatchOrderKey]int), pending: len(items), emit: emit, cancel: cancel, complete: complete}
 	if sendtrace.Enabled() {
 		p.traces = make([]sendBatchPublicationTrace, len(items))
 	}
-	tails := make(map[sendBatchSessionKey]int)
+	tails := make(map[sendBatchOrderKey]int)
 	for i, item := range items {
 		if p.traces != nil {
 			p.traces[i] = sendBatchPublicationTrace{traceID: item.Command.TraceID, clientMsgNo: item.Command.ClientMsgNo, nodeID: item.Command.SenderNodeID}
 		}
 		p.next[i] = -1
-		key := sendBatchSessionKeyFor(i, item.Command)
+		key := sendBatchOrderKeyFor(i, item)
 		p.keys[i] = key
 		if tail, ok := tails[key]; ok {
 			p.next[tail] = i

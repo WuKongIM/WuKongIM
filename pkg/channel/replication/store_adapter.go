@@ -60,9 +60,14 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 		bytes += itemBytes
 	}
 	result := LoadBatchResult{Items: make([]LoadResult, len(batch.Items))}
+	promiseErrors := a.promiseLoadBatch(ctx, batch)
 	for index, item := range batch.Items {
 		if item.ChannelKey == "" || item.ChannelID.ID == "" {
 			result.Items[index].Err = ch.ErrInvalidConfig
+			continue
+		}
+		if promiseErrors != nil && promiseErrors[index] != nil {
+			result.Items[index].Err = promiseErrors[index]
 			continue
 		}
 		store, err := a.cfg.Factory.ChannelStore(item.ChannelKey, item.ChannelID)
@@ -70,7 +75,7 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 			result.Items[index].Err = err
 			continue
 		}
-		if item.Promise != (AuthorityID{}) {
+		if item.Promise != (AuthorityID{}) && promiseErrors == nil {
 			promiser, ok := store.(channelstore.AuthorityPromiser)
 			if !ok {
 				_ = store.Close()
@@ -104,6 +109,38 @@ func (a *storeAdapter) Load(ctx context.Context, batch LoadBatch) (LoadBatchResu
 		result.Items[index].Entries = entries
 	}
 	return result, nil
+}
+
+// promiseLoadBatch preserves the bounded probe cohort through physical
+// persistence. Factories without this capability keep the per-item path.
+func (a *storeAdapter) promiseLoadBatch(ctx context.Context, batch LoadBatch) []error {
+	batcher, ok := a.cfg.Factory.(channelstore.AuthorityPromiseBatcher)
+	if !ok || len(batch.Items) < 2 {
+		return nil
+	}
+	items := make([]channelstore.AuthorityPromiseBatchItem, 0, len(batch.Items))
+	indexes := make([]int, 0, len(batch.Items))
+	for i, item := range batch.Items {
+		if item.ChannelKey != "" && item.ChannelID.ID != "" && item.Promise != (AuthorityID{}) {
+			items = append(items, channelstore.AuthorityPromiseBatchItem{
+				ChannelKey: item.ChannelKey, ChannelID: item.ChannelID, Promise: authorityFence(item.Promise),
+			})
+			indexes = append(indexes, i)
+		}
+	}
+	if len(items) < 2 {
+		return nil
+	}
+	errors := make([]error, len(batch.Items))
+	results := batcher.PromiseAuthorityBatch(ctx, items)
+	for i, index := range indexes {
+		if len(results) != len(items) {
+			errors[index] = ch.ErrInvalidConfig
+		} else {
+			errors[index] = results[i]
+		}
+	}
+	return errors
 }
 
 func (a *storeAdapter) LookupCommands(ctx context.Context, lookups []CommandLookup) []CommandLookupResult {

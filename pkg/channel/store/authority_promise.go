@@ -53,6 +53,20 @@ type AuthorityPromiser interface {
 	AuthorityPromise(ctx context.Context) (AuthorityFence, bool, error)
 }
 
+// AuthorityPromiseBatchItem selects one replica promise in an admitted batch.
+type AuthorityPromiseBatchItem struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Promise    AuthorityFence
+}
+
+// AuthorityPromiseBatcher optionally coalesces already-admitted promises on a
+// shared physical store. Results align with input positions; duplicate Channels
+// retain input-order fencing. Success has the same durability as AuthorityPromiser.
+type AuthorityPromiseBatcher interface {
+	PromiseAuthorityBatch(context.Context, []AuthorityPromiseBatchItem) []error
+}
+
 // fenceExactAppend applies the promise contract shared by every exact append:
 // an explicit writer, or else the proposal's own authority, must not be lower
 // than the current promise. It returns the promise to raise with a successful

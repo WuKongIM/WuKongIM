@@ -73,7 +73,7 @@ func (p *Projector) Prepare(ctx context.Context, items []metadb.PersonDirectoryT
 	return results
 }
 
-func (p *Projector) admitPreparation(run *projectorRun, request preparationRequest, inflight, known map[ownedTaskKey]struct{}, waiters map[ownedTaskKey][]preparationWaiter, count *int) {
+func (p *Projector) admitPreparation(request preparationRequest, inflight, known map[ownedTaskKey]struct{}, waiters map[ownedTaskKey][]preparationWaiter, count *int, scanReserved int) ownedTaskBatch {
 	reject := func(err error) {
 		for i := range request.items {
 			request.results <- preparationResult{index: i, err: err}
@@ -81,11 +81,11 @@ func (p *Projector) admitPreparation(run *projectorRun, request preparationReque
 	}
 	if err := request.ctx.Err(); err != nil {
 		reject(err)
-		return
+		return ownedTaskBatch{}
 	}
-	if *count+len(request.items) > projectorQueueSize || len(inflight)+len(request.items) > projectorQueueSize {
+	if *count+len(request.items) > projectorQueueSize || len(inflight)+scanReserved+len(request.items) > projectorQueueSize {
 		reject(ErrPreparationBusy)
-		return
+		return ownedTaskBatch{}
 	}
 	batch := ownedTaskBatch{tasks: make([]ownedTask, 0, len(request.items))}
 	for i, item := range request.items {
@@ -99,11 +99,5 @@ func (p *Projector) admitPreparation(run *projectorRun, request preparationReque
 		rememberKnownTask(known, inflight, key)
 		batch.tasks = append(batch.tasks, ownedTask{hashSlot: item.HashSlot, task: item.Task})
 	}
-	if len(batch.tasks) == 0 {
-		return
-	}
-	select {
-	case run.tasks <- batch:
-	case <-run.ctx.Done():
-	}
+	return batch
 }

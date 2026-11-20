@@ -113,17 +113,17 @@ passing 72-hour formal generation -> same aged dataset and process proof
   needs a rolling ten-minute interval, 1,000 samples in each hot/cold/full-sync
   class, and a cut at most five seconds old. Counter deltas belong to their end
   cut; a gap over ten minutes resets positive qualification, not negative breaches.
-  Five-minute persistence/correctness stay fixed; explicit local P95 uses5% instead of1%; active P999 stays0.1%, hot attempts2s and cold wait5s.
+  Five-minute persistence/correctness stay fixed; explicit local P95 uses5% instead of1%; active P999 stays0.1%, default hot attempts2s and cold wait5s.
 - P99 reportv8/thresholdv2 retains original semantics; local hotP95 with its independent P999 emits reportv9/thresholdv3.
   Paired local shakeout/soak hotP95-only and syncP95/P999 emits reportv10/thresholdv4/gatev3: the stricter hot600ms P95 covers1s P95, sync1s uses5% while sync3s P999/cold/first2s stay fixed. Half-configurations are invalid. All use closed numeric limit keys, never formal/capacity.
+  Explicit local paired-P95 first_attempt_timeout=5s emits reportv11/thresholdv5 with the same gatev3. It applies to every original SEND across warmup, measurement and drain; hot/cold retries retain2s/5s and original delays. Zero omits the key and preserves legacy config digests. Report readers reject relabeling or noncanonical v11 policy fields; formal/rehearsal/capacity remain unchanged.
   Formal scope still needs external Linux hardware/topology; elapsed rehearsal and missing/stale positive latency evidence cannot pass.
   Baseline/start/end elapsed positions share one monotonic clock; serialized duration/order/freshness use them. Wall times are audit fields.
-  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 has no hot-budget override and stays original/unknown. Current local P95 results accept their exact v9 or v10 contracts; capacity/formal stay v8 with2s; no historical report is reinterpreted.
+  Diagnostic readers never reconstruct offsets or upgrade old reports; legacy v7 has no hot-budget override and stays original/unknown. Current local P95 results accept their exact v9, v10 or v11 contracts; capacity/formal stay v8 with2s; no historical report is reinterpreted.
   The fixed three-class native latency_gate copies actual five-minute sums, continuous breach state and declared fractions; local gatev2 names hotP95 with denominator20; paired gatev3 also names syncP95 and omits inactive hotP999 fields. Cold remainsP99/100.
   Its first terminal cut freezes only the child; captured latency_age/status do not claim publication freshness (report elapsed minus evaluated elapsed).
   Absent/null proof stays unknown; present proof is strict and bounded, independently of positive ten-minute qualification; no new clock or numerical gate.
-- Reports and control responses use closed reason vocabularies, fixed arrays,
-  checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
+- Reports and control responses use closed reason vocabularies, fixed arrays, checked arithmetic, and bounded redacted samples. Raw UIDs, Channel IDs,
   payloads, credentials, endpoint bodies, and arbitrary errors are forbidden.
   The running diagnostic file contains only three-worker connection gauges,
   teardown reasons, message aggregates, and at most 64 recent changes. Worker-cut logs also retain configured hot SENDACK primary threshold/sample/above-threshold counts and explicit P95 metadata for interval diagnosis without altering verdicts.

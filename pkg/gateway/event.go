@@ -4,6 +4,8 @@ import gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 
 type Handler = gatewaytypes.Handler
 type SendBatchItem = gatewaytypes.SendBatchItem
+type SendOrderKey = gatewaytypes.SendOrderKey
+type SendOrderKeyer = gatewaytypes.SendOrderKeyer
 type SendBatchHandler = gatewaytypes.SendBatchHandler
 type SessionActivator = gatewaytypes.SessionActivator
 type SessionActivationRollbacker = gatewaytypes.SessionActivationRollbacker

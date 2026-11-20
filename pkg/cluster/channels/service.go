@@ -321,12 +321,19 @@ type Service struct {
 	forward              ForwardClient
 	store                channelstore.Factory
 	metaCache            channelMetaCache
-	// metaApplyLocks serialize complete metadata application per channel shard.
-	// They prevent a delayed cached apply from following a newer explicit apply.
-	metaApplyLocks [channelMetaApplyLockCount]sync.Mutex
+	// metaApplyLocks serialize complete application only for the same Channel.
+	// Shard guards never remain held across runtime activation or recovery.
+	metaApplyLocks [channelMetaApplyLockCount]channelMetaApplyShard
 	observer       any
 	migration      *MigrationStore
 	goroutines     *goruntimeregistry.Registry
+}
+
+// channelMetaApplyShard retains only active Channel applications. Each closed
+// notification releases same-Channel waiters; idle identities are not retained.
+type channelMetaApplyShard struct {
+	sync.Mutex
+	active map[ch.ChannelID]chan struct{}
 }
 
 // NewService creates a Service from cfg.
@@ -1814,13 +1821,16 @@ func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, aut
 // applyRequestMetaContext applies fresh authoritative metadata for one
 // request-owned call (MQTT source/replay/anchor/retirement, Will receipts and
 // prepared appends). Concurrent requests on one Channel contend for the same
-// shard lock, so it waits within the caller's deadline instead of failing as
-// not ready. Without a deadline it yields like the migration apply.
+// application ownership, so it waits within the caller's deadline instead of
+// failing as not ready. Without a deadline it yields like the migration apply.
 func (s *Service) applyRequestMetaContext(ctx context.Context, meta ch.Meta) error {
 	return s.applyRuntimeMetaWith(ctx, meta, true, true, true)
 }
 
 func (s *Service) applyRuntimeMetaWith(ctx context.Context, meta ch.Meta, authoritative, bounded, wait bool) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -1841,18 +1851,14 @@ func (s *Service) applyRuntimeMetaWith(ctx context.Context, meta ch.Meta, author
 	if !validAppendMetaIdentity(meta.ID, meta) {
 		return apply(meta)
 	}
-	lock := &s.metaApplyLocks[channelMetaApplyLockIndex(meta.ID)]
-	if bounded {
-		if !lockWithinDeadline(ctx, lock, wait) {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			return ch.ErrNotReady
+	shard := &s.metaApplyLocks[channelMetaApplyLockIndex(meta.ID)]
+	if !shard.acquire(ctx, meta.ID, bounded, wait) {
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-	} else {
-		lock.Lock()
+		return ch.ErrNotReady
 	}
-	defer lock.Unlock()
+	defer shard.release(meta.ID)
 
 	candidate := cloneMeta(meta)
 	selected, _ := s.metaCache.preferCurrent(meta.ID, candidate)
@@ -1866,6 +1872,55 @@ func (s *Service) applyRuntimeMetaWith(ctx context.Context, meta ch.Meta, author
 		s.metaCache.installIfNewer(candidate.ID, candidate)
 	}
 	return nil
+}
+
+// acquire keeps shard ownership short and waits only for the requested Channel.
+// Migration calls still yield immediately; request-owned waits keep their deadline.
+func (s *channelMetaApplyShard) acquire(ctx context.Context, id ch.ChannelID, bounded, wait bool) bool {
+	for {
+		if bounded {
+			if ctx.Err() != nil || !lockWithinDeadline(ctx, &s.Mutex, wait) {
+				return false
+			}
+		} else {
+			s.Lock()
+		}
+		done := s.active[id]
+		if done == nil {
+			if s.active == nil {
+				s.active = make(map[ch.ChannelID]chan struct{})
+			}
+			s.active[id] = make(chan struct{})
+			s.Unlock()
+			return true
+		}
+		s.Unlock()
+		if !bounded {
+			<-done
+			continue
+		}
+		if _, ok := ctx.Deadline(); !wait || !ok {
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-done:
+		}
+	}
+}
+
+// release publishes completion after runtime application and cache provenance
+// are settled. Clearing an empty map also releases its high-water allocation.
+func (s *channelMetaApplyShard) release(id ch.ChannelID) {
+	s.Lock()
+	done := s.active[id]
+	delete(s.active, id)
+	if len(s.active) == 0 {
+		s.active = nil
+	}
+	close(done)
+	s.Unlock()
 }
 
 // lockWithinDeadline acquires lock without blocking past ctx. It polls with a

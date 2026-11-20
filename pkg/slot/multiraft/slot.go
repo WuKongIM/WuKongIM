@@ -1147,7 +1147,7 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready, 
 
 	batchSM, canBatch := g.stateMachine.(BatchStateMachine)
 	var configChanged bool
-	resolutions, configChanged = g.applyCommittedEntries(ctx, ready.CommittedEntries, &lastApplied, resolutions, batchSM, canBatch)
+	resolutions, configChanged = g.applyCommittedEntries(ctx, [][]raftpb.Entry{ready.CommittedEntries}, &lastApplied, resolutions, batchSM, canBatch)
 	if g.hasFatalErr() {
 		return true, false
 	}
@@ -1212,7 +1212,7 @@ func (g *slot) logCompactionWarning(err error, applied uint64) {
 
 func (g *slot) applyCommittedEntries(
 	ctx context.Context,
-	entries []raftpb.Entry,
+	entryGroups [][]raftpb.Entry,
 	lastApplied *uint64,
 	resolutions []futureResolution,
 	batchSM BatchStateMachine,
@@ -1354,84 +1354,86 @@ func (g *slot) applyCommittedEntries(
 		return true
 	}
 
-	for _, entry := range entries {
-		*lastApplied = entry.Index
-		switch entry.Type {
-		case raftpb.EntryNormal:
-			proof, err := g.advanceCheckpoint(entry)
-			if err != nil {
+	for _, entries := range entryGroups {
+		for _, entry := range entries {
+			*lastApplied = entry.Index
+			switch entry.Type {
+			case raftpb.EntryNormal:
+				proof, err := g.advanceCheckpoint(entry)
+				if err != nil {
+					g.fail(err)
+					return resolutions, configChanged
+				}
+				if len(entry.Data) == 0 {
+					continue
+				}
+				batchEntries = append(batchEntries, entry)
+				batchProofs = append(batchProofs, proof)
+				continue
+			case raftpb.EntryConfChange:
+				// Flush pending normal entries before processing conf change.
+				if !flushBatch() {
+					return resolutions, configChanged
+				}
+				var cc raftpb.ConfChange
+				if err := cc.Unmarshal(entry.Data); err != nil {
+					resolutions = append(resolutions, futureResolution{
+						kind:  controlConfigChange,
+						index: entry.Index,
+						term:  entry.Term,
+						err:   err,
+					})
+					continue
+				}
+				latest := g.rawNode.ApplyConfChange(cc)
+				g.storageView.memory.confState = cloneConfState(*latest)
+				configChanged = true
+				g.recordConfigChangeApplied(entry.Index)
+				resolutions = append(resolutions, futureResolution{
+					kind:  controlConfigChange,
+					index: entry.Index,
+					term:  entry.Term,
+					result: Result{
+						Index: entry.Index,
+						Term:  entry.Term,
+					},
+				})
+			case raftpb.EntryConfChangeV2:
+				// Flush pending normal entries before processing conf change.
+				if !flushBatch() {
+					return resolutions, configChanged
+				}
+				var cc raftpb.ConfChangeV2
+				if err := cc.Unmarshal(entry.Data); err != nil {
+					resolutions = append(resolutions, futureResolution{
+						kind:  controlConfigChange,
+						index: entry.Index,
+						term:  entry.Term,
+						err:   err,
+					})
+					continue
+				}
+				latest := g.rawNode.ApplyConfChange(cc)
+				g.storageView.memory.confState = cloneConfState(*latest)
+				configChanged = true
+				g.recordConfigChangeApplied(entry.Index)
+				resolutions = append(resolutions, futureResolution{
+					kind:  controlConfigChange,
+					index: entry.Index,
+					term:  entry.Term,
+					result: Result{
+						Index: entry.Index,
+						Term:  entry.Term,
+					},
+				})
+			}
+			if _, err := g.advanceCheckpoint(entry); err != nil {
 				g.fail(err)
 				return resolutions, configChanged
 			}
-			if len(entry.Data) == 0 {
-				continue
-			}
-			batchEntries = append(batchEntries, entry)
-			batchProofs = append(batchProofs, proof)
-			continue
-		case raftpb.EntryConfChange:
-			// Flush pending normal entries before processing conf change.
-			if !flushBatch() {
-				return resolutions, configChanged
-			}
-			var cc raftpb.ConfChange
-			if err := cc.Unmarshal(entry.Data); err != nil {
-				resolutions = append(resolutions, futureResolution{
-					kind:  controlConfigChange,
-					index: entry.Index,
-					term:  entry.Term,
-					err:   err,
-				})
-				continue
-			}
-			latest := g.rawNode.ApplyConfChange(cc)
-			g.storageView.memory.confState = cloneConfState(*latest)
-			configChanged = true
-			g.recordConfigChangeApplied(entry.Index)
-			resolutions = append(resolutions, futureResolution{
-				kind:  controlConfigChange,
-				index: entry.Index,
-				term:  entry.Term,
-				result: Result{
-					Index: entry.Index,
-					Term:  entry.Term,
-				},
-			})
-		case raftpb.EntryConfChangeV2:
-			// Flush pending normal entries before processing conf change.
-			if !flushBatch() {
-				return resolutions, configChanged
-			}
-			var cc raftpb.ConfChangeV2
-			if err := cc.Unmarshal(entry.Data); err != nil {
-				resolutions = append(resolutions, futureResolution{
-					kind:  controlConfigChange,
-					index: entry.Index,
-					term:  entry.Term,
-					err:   err,
-				})
-				continue
-			}
-			latest := g.rawNode.ApplyConfChange(cc)
-			g.storageView.memory.confState = cloneConfState(*latest)
-			configChanged = true
-			g.recordConfigChangeApplied(entry.Index)
-			resolutions = append(resolutions, futureResolution{
-				kind:  controlConfigChange,
-				index: entry.Index,
-				term:  entry.Term,
-				result: Result{
-					Index: entry.Index,
-					Term:  entry.Term,
-				},
-			})
 		}
-		if _, err := g.advanceCheckpoint(entry); err != nil {
-			g.fail(err)
-			return resolutions, configChanged
-		}
-	}
 
+	}
 	// Flush any remaining normal entries, then certify a config/noop-only tail.
 	if flushBatch() && g.checkpoint != nil && g.checkpoint.AppliedIndex > lastCertified {
 		if err := g.stateMachine.(CheckpointStateMachine).PersistRecoveryCheckpoint(ctx, *g.checkpoint); err != nil {

@@ -31,7 +31,10 @@ It does not own reusable message, presence, delivery, or storage policy.
 2. Single or batched SEND maps immutable packet/session fields, calls one
    aligned message batch, records optional trace stages, and writes one SENDACK
    for every input item. Deferred batches use the same mapping and prechecks,
-   but core alone runs ACK closures in physical-session order across batches.
+   and core runs ACK closures for admitted sends in order within each key.
+   On WKProto, the adapter derives that key without allocation from the authenticated
+   sender, target and existing person/CMD rules. The key grants no permission.
+   Other protocols and unkeyed handlers use session order.
 3. Control frames map PING and RECVACK to best-effort presence/delivery work.
    The reserved terminal EVENT is strictly parsed into redacting proof values,
    validated, and sealed with its ACK under the exact session write lock;

@@ -46,8 +46,10 @@ type sendPermissionCohortMember struct {
 	prev, next *sendPermissionCohortMember
 	ctx        context.Context
 	reads      []PermissionMetadataRead
-	indexes    []int
 	results    []PermissionMetadataReadResult
+	// pending counts this caller's original inputs, including duplicates.
+	pending   int
+	published bool
 	// Credits cover copied inputs, aligned results, indexes/dedup and strings.
 	// Pending cancellation drops them immediately; selected callers keep them
 	// until their already-started worker joins. Fixed cohort/context overhead,
@@ -384,50 +386,80 @@ func (s *Store) runSendPermissionCohort(c *sendPermissionCohort) {
 	var attempts sendtrace.PermissionAttempts
 	unique := make([]PermissionMetadataRead, 0, c.inputs)
 	indexes := make(map[PermissionMetadataRead]int, c.inputs)
-	for _, m := range members {
+	// Reverse links cost one entry per original input (at most 4096), so
+	// publication visits only the members consuming that fact, not all calls.
+	type destination struct {
+		member *sendPermissionCohortMember
+		index  int
+	}
+	var destinations [][]destination
+	results := make([][]PermissionMetadataReadResult, len(members))
+	for memberIndex, m := range members {
 		if m.ctx.Err() != nil {
 			continue
 		}
 		attempts.AddContext(m.ctx)
-		m.indexes = make([]int, len(m.reads))
+		results[memberIndex] = make([]PermissionMetadataReadResult, len(m.reads))
 		for i, r := range m.reads {
 			index, ok := indexes[r]
 			if !ok {
 				index = len(unique)
 				indexes[r] = index
 				unique = append(unique, r)
+				destinations = append(destinations, nil)
 			}
-			m.indexes[i] = index
+			destinations[index] = append(destinations[index], destination{m, i})
 		}
 	}
+	// Selected members keep their input/context ownership until the reader
+	// joins. Assemble outside the shared admission lock; install only references
+	// and counters under it before any result callbacks can run.
+	s.permissionCohortMu.Lock()
+	for i, m := range members {
+		m.results = results[i]
+		m.pending = len(results[i])
+	}
+	results = nil
+	s.permissionCohortMu.Unlock()
 	s.permissionCount("cohorts", 1)
 	s.permissionCount("cohort_requests", len(members))
 	s.permissionCount("cohort_facts", len(unique))
 	// This existing reader retains per-Slot routing, independent failures and
 	// the one stale-group retry. No cache or additional RPC retry is introduced.
 	execution = attempts.WithContext(execution)
-	facts := s.readSendPermissionMetadataBatch(execution, unique)
-	s.permissionCohortMu.Lock()
-	for _, m := range members {
-		if m.ctx.Err() == nil && len(m.indexes) > 0 {
-			m.results = make([]PermissionMetadataReadResult, len(m.indexes))
-			for i, index := range m.indexes {
-				m.results[i] = facts[index]
+	s.readSendPermissionMetadataProgress(execution, unique, func(index int, fact PermissionMetadataReadResult) {
+		s.permissionCohortMu.Lock()
+		defer s.permissionCohortMu.Unlock()
+		for _, target := range destinations[index] {
+			m := target.member
+			if m.returned || m.ctx.Err() != nil {
+				continue
+			}
+			m.results[target.index] = fact
+			m.pending--
+			if m.pending == 0 {
+				m.published = true
+				close(m.done)
 			}
 		}
+	})
+	s.permissionCohortMu.Lock()
+	for _, m := range members {
 		m.reads = nil
-		m.indexes = nil
 	}
-	// The reader is joined. Clear shared DTO aliases before any returned
-	// member gives its owned-data reservation back.
-	facts, unique, indexes = nil, nil, nil
+	// Early publication does not refund shared physical ownership. Drop all
+	// borrowed DTO/consumer references after the reader joins, before refunds.
+	unique, indexes, destinations = nil, nil, nil
 	for _, m := range members {
 		m.ctx = nil
 		if m.returned {
 			m.results = nil
 			s.releaseSendPermissionCohortMemberLocked(m)
 		}
-		close(m.done)
+		if !m.published {
+			m.published = true
+			close(m.done)
+		}
 	}
 	c.finished = true
 	c.members = nil

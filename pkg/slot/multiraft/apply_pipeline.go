@@ -20,6 +20,10 @@ type applyTask struct {
 	queueDepth int
 	// storageWork returns the original upstream apply responses to the owner.
 	storageWork *storageWork
+	// batchTerm and batchLastIndex cache immutable eligibility before the shared
+	// pipeline lock; a zero term keeps the original one-task behavior.
+	batchTerm      uint64
+	batchLastIndex uint64
 }
 
 type applyQueue struct {
@@ -115,6 +119,9 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 		return ErrSlotClosed
 	}
 	slotID := task.slot.id
+	if _, ok := task.slot.stateMachine.(BatchStateMachine); ok {
+		task.batchLastIndex, task.batchTerm, _ = ordinaryApplyBoundary(task)
+	}
 
 	p.mu.Lock()
 	if p.closed {
@@ -192,8 +199,9 @@ func (p *applyPipeline) runWorker() {
 
 func (p *applyPipeline) runQueue(q *applyQueue) {
 	for {
-		task, ok := p.popTask(q)
-		if !ok {
+		var tasks [storageSlotOwners]applyTask
+		n := p.popApplyBatch(q, &tasks)
+		if n == 0 {
 			p.mu.Lock()
 			if q.taskLenLocked() == 0 {
 				q.running = false
@@ -208,10 +216,14 @@ func (p *applyPipeline) runQueue(q *applyQueue) {
 			continue
 		}
 		started := time.Now()
-		observed := applyTask{slot: task.slot, queueDepth: task.queueDepth}
-		task.slot.runApplyTask(context.Background(), task)
-		task = applyTask{}
-		p.observeApplyTask(observed, time.Since(started))
+		var observed [storageSlotOwners]applyTask
+		for i := 0; i < n; i++ {
+			observed[i] = applyTask{slot: tasks[i].slot, queueDepth: tasks[i].queueDepth}
+		}
+		tasks[0].slot.runApplyBatch(context.Background(), tasks[:n])
+		for i := 0; i < n; i++ {
+			p.observeApplyTask(observed[i], time.Since(started))
+		}
 	}
 }
 
@@ -300,10 +312,56 @@ func (p *applyPipeline) observeApplyTask(task applyTask, d time.Duration) {
 	p.observer.ObserveSlotApplyTask(task.slot.id, d)
 }
 
-func (p *applyPipeline) popTask(q *applyQueue) (applyTask, bool) {
+// popApplyBatch freezes only an already-queued ordinary prefix. The original
+// Ready leases still own its memory and completion records; no collection wait,
+// new capacity or concurrent same-Slot apply is introduced.
+func (p *applyPipeline) popApplyBatch(q *applyQueue, tasks *[storageSlotOwners]applyTask) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return q.popTaskLocked()
+	first, ok := q.popTaskLocked()
+	if !ok {
+		return 0
+	}
+	tasks[0] = first
+	if first.batchTerm == 0 {
+		return 1
+	}
+	last, term := first.batchLastIndex, first.batchTerm
+	n := 1
+	for n < len(tasks) && q.taskLenLocked() > 0 {
+		next := q.tasks[q.taskHead]
+		if next.batchTerm == 0 || next.slot != first.slot || next.batchTerm != term ||
+			next.storageWork.acceptedTerm != first.storageWork.acceptedTerm ||
+			last == ^uint64(0) || next.entries[0].Index != last+1 {
+			break
+		}
+		tasks[n], _ = q.popTaskLocked()
+		n++
+		last = next.batchLastIndex
+	}
+	return n
+}
+
+// ordinaryApplyBoundary excludes configuration, snapshots, gaps and mixed terms.
+// Synchronous/unowned embeddings retain their original one-task behavior.
+func ordinaryApplyBoundary(task applyTask) (uint64, uint64, bool) {
+	w := task.storageWork
+	if task.slot == nil || w == nil || w.slot != task.slot || w.lease == nil || w.lease.slot != task.slot || w.acceptedTerm == 0 ||
+		!w.hasApply || w.append.Snapshot != nil || len(task.entries) == 0 {
+		return 0, 0, false
+	}
+	first := task.entries[0]
+	if first.Index == 0 || first.Term == 0 || first.Term > w.acceptedTerm || task.appliedBefore >= first.Index {
+		return 0, 0, false
+	}
+	previous := first.Index
+	for i, e := range task.entries {
+		if e.Type != raftpb.EntryNormal || e.Term != first.Term || (i > 0 && (previous == ^uint64(0) || e.Index != previous+1)) {
+			return 0, 0, false
+		}
+		previous = e.Index
+	}
+	return previous, first.Term, true
 }
 
 func (p *applyPipeline) close() {
@@ -346,12 +404,24 @@ func (p *applyPipeline) waitQueueRetired(slotID SlotID, q *applyQueue) {
 	}
 }
 
-func (g *slot) runApplyTask(ctx context.Context, task applyTask) {
+// runApplyBatch applies one frozen prefix and publishes each original Ready
+// completion only after its shared durable boundary or terminal failure.
+func (g *slot) runApplyBatch(ctx context.Context, tasks []applyTask) {
+	appliedBefore := tasks[0].appliedBefore
+	var groups [storageSlotOwners][]raftpb.Entry
+	for i := range tasks {
+		groups[i] = tasks[i].entries
+	}
 	defer func() {
-		if task.storageWork != nil {
-			g.publishStorageCompletion(storageCompletion{work: task.storageWork, part: storageApplyPart, err: g.currentErr()})
-		} else {
-			g.finishApply()
+		clear(groups[:])
+		for i := range tasks {
+			work := tasks[i].storageWork
+			tasks[i] = applyTask{}
+			if work != nil {
+				g.publishStorageCompletion(storageCompletion{work: work, part: storageApplyPart, err: g.currentErr()})
+			} else {
+				g.finishApply()
+			}
 		}
 	}()
 	if ctx == nil {
@@ -361,19 +431,19 @@ func (g *slot) runApplyTask(ctx context.Context, task applyTask) {
 		return
 	}
 
-	lastApplied := task.appliedBefore
+	lastApplied := appliedBefore
 	resolutions := g.takeResolutionBuffer()
 	defer func() {
 		g.releaseResolutionBuffer(resolutions)
 	}()
 
 	batchSM, canBatch := g.stateMachine.(BatchStateMachine)
-	resolutions, _ = g.applyCommittedEntries(ctx, task.entries, &lastApplied, resolutions, batchSM, canBatch)
+	resolutions, _ = g.applyCommittedEntries(ctx, groups[:len(tasks)], &lastApplied, resolutions, batchSM, canBatch)
 	if g.hasFatalErr() {
 		return
 	}
 
-	if lastApplied > task.appliedBefore {
+	if lastApplied > appliedBefore {
 		started := time.Now()
 		err := g.markApplied(ctx, lastApplied)
 		g.observeResolutionFutures(resolutions, "meta_create_slot_mark_applied", err, time.Since(started))

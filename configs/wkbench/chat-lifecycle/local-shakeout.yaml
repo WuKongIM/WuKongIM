@@ -83,6 +83,8 @@ thresholds:
     # Keep p999: 1s and hot_attempt_timeout: 2s; cold/sync and formal gates stay P99.
     hot_sendack: {p99: 400ms, p999: 1s}
     # Per-hot-attempt wait (including retries), independent of percentile SLOs.
+    # Optional only with the local paired hot/sync P95 policy: first_attempt_timeout: 5s.
+    # It changes original SEND waits in every phase; hot/cold retry waits stay unchanged.
     hot_attempt_timeout: 2s
     cold: {p99: 2s, p999: 5s}
     sync: {p99: 1s, p999: 3s}

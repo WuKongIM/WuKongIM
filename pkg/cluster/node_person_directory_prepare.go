@@ -71,9 +71,9 @@ func (n *Node) SetPersonDirectoryPreparation(prepare func(context.Context, []met
 	}))
 }
 
-// PreparePersonDirectoryTaskWaves admits missing source tasks, then directly
-// dispatches to their current leaders. Pending tasks retain their original
-// tail and generation. Only a fresh Ready proof releases a SEND for append.
+// PreparePersonDirectoryTaskWaves admits missing source tasks and dispatches
+// each source-node group when its own admissions finish. Pending tasks retain
+// their original tail and generation. Only a fresh Ready proof releases SEND.
 func (n *Node) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []metadb.PersonDirectoryTask, emit func(int, metadb.PersonDirectoryAppendFence, error)) {
 	if len(tasks) == 0 {
 		return
@@ -83,18 +83,6 @@ func (n *Node) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []meta
 			emit(i, metadb.PersonDirectoryAppendFence{}, metadb.ErrInvalidArgument)
 		}
 		return
-	}
-	results := make([]error, len(tasks))
-	missing := make([]metadb.PersonDirectoryTask, 0, len(tasks))
-	indices := make([]int, 0, len(tasks))
-	for i, task := range tasks {
-		if task.Generation == 0 {
-			missing = append(missing, task)
-			indices = append(indices, i)
-		}
-	}
-	if len(missing) > 0 {
-		n.AdmitPersonDirectoryTaskWaves(ctx, missing, func(i int, err error) { results[indices[i]] = err })
 	}
 	keys := make([]string, len(tasks))
 	for i, task := range tasks {
@@ -111,15 +99,24 @@ func (n *Node) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []meta
 		nodeID  uint64
 		indices []int
 		tasks   []metadb.PersonDirectoryTaskLocation
+		// waiting counts only this source-node group's unfinished admissions.
+		waiting int
+	}
+	type outcome struct {
+		fence metadb.PersonDirectoryAppendFence
+		index int
+		err   error
 	}
 	groups := make(map[uint64]*group)
+	byIndex := make([]*group, len(tasks))
+	results := make([]error, len(tasks))
+	missing := make([]metadb.PersonDirectoryTask, 0, len(tasks))
+	indices := make([]int, 0, len(tasks))
+	completed := 0
 	for i, route := range routes {
-		if results[i] != nil {
-			emit(i, metadb.PersonDirectoryAppendFence{}, results[i])
-			continue
-		}
 		if route.Err != nil || route.Route.Leader == 0 {
 			emit(i, metadb.PersonDirectoryAppendFence{}, ErrRouteNotReady)
+			completed++
 			continue
 		}
 		nodeID := route.Route.Leader
@@ -128,27 +125,25 @@ func (n *Node) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []meta
 			g = &group{nodeID: nodeID}
 			groups[nodeID] = g
 		}
+		byIndex[i] = g
 		g.indices = append(g.indices, i)
 		g.tasks = append(g.tasks, metadb.PersonDirectoryTaskLocation{HashSlot: metadb.HashSlot(route.Route.HashSlot), ChannelID: tasks[i].ChannelID, ChannelType: tasks[i].ChannelType, Generation: tasks[i].Generation})
-	}
-	remaining := 0
-	jobs := make(chan group, len(tasks))
-	for _, g := range groups {
-		remaining += len(g.tasks)
-		for start := 0; start < len(g.tasks); start += personPrepareMaxItems {
-			end := min(start+personPrepareMaxItems, len(g.tasks))
-			jobs <- group{nodeID: g.nodeID, indices: g.indices[start:end], tasks: g.tasks[start:end]}
+		if tasks[i].Generation == 0 {
+			g.waiting++
+			missing = append(missing, tasks[i])
+			indices = append(indices, i)
 		}
 	}
-	close(jobs)
-	type outcome struct {
-		fence metadb.PersonDirectoryAppendFence
-		index int
-		err   error
-	}
+	// At most one job per original source-node chunk is retained, with the same
+	// four RPC workers. A slow source never holds another source's ready job.
+	jobs := make(chan group, len(tasks))
 	done := make(chan outcome, len(tasks))
 	var workers sync.WaitGroup
-	for range min(4, len(jobs)) {
+	jobCount := 0
+	for _, g := range groups {
+		jobCount += (len(g.tasks) + personPrepareMaxItems - 1) / personPrepareMaxItems
+	}
+	for range min(4, jobCount) {
 		workers.Add(1)
 		goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskMessageDirectoryBatch, func() {
 			defer workers.Done()
@@ -168,12 +163,58 @@ func (n *Node) PreparePersonDirectoryTaskWaves(ctx context.Context, tasks []meta
 			}
 		})
 	}
-	// Publish independent source-node results as they finish; callbacks remain
-	// serialized and every accepted worker is joined before returning.
-	for range remaining {
-		result := <-done
-		emit(result.index, result.fence, result.err)
+	dispatch := func(g *group) {
+		job := group{nodeID: g.nodeID}
+		for j, index := range g.indices {
+			if results[index] != nil {
+				continue
+			}
+			job.indices = append(job.indices, index)
+			job.tasks = append(job.tasks, g.tasks[j])
+			if len(job.tasks) == personPrepareMaxItems {
+				jobs <- job
+				job = group{nodeID: g.nodeID}
+			}
+		}
+		if len(job.tasks) > 0 {
+			jobs <- job
+		}
 	}
+	for _, g := range groups {
+		if g.waiting == 0 {
+			dispatch(g)
+		}
+	}
+	// Admission already publishes independent Slot results. Consume them while
+	// projection runs, but retain its owner until every submitted call has joined.
+	admitted := make(chan outcome, len(missing))
+	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskMessageDirectoryBatch, func() {
+		defer close(admitted)
+		n.AdmitPersonDirectoryTaskWaves(ctx, missing, func(i int, err error) { admitted <- outcome{index: indices[i], err: err} })
+	})
+	for completed < len(tasks) || admitted != nil {
+		select {
+		case result, open := <-admitted:
+			if !open {
+				admitted = nil
+				continue
+			}
+			results[result.index] = result.err
+			if result.err != nil {
+				emit(result.index, metadb.PersonDirectoryAppendFence{}, result.err)
+				completed++
+			}
+			g := byIndex[result.index]
+			g.waiting--
+			if g.waiting == 0 {
+				dispatch(g)
+			}
+		case result := <-done:
+			emit(result.index, result.fence, result.err)
+			completed++
+		}
+	}
+	close(jobs)
 	workers.Wait()
 }
 

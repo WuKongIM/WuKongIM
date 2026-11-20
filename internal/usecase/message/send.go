@@ -83,19 +83,20 @@ type sendBatchDirectoryOutcome struct {
 	err        error
 }
 
-// sendBatchSessionKey keeps admission and result publication ordered for one
-// real gateway session. Non-session callers receive an isolated lane per item.
-type sendBatchSessionKey struct {
+// sendBatchOrderKey groups only items that share an ordered submission lane.
+type sendBatchOrderKey struct {
+	channel   ChannelID
 	nodeID    uint64
 	sessionID uint64
 	isolated  int
 }
 
-func sendBatchSessionKeyFor(index int, cmd SendCommand) sendBatchSessionKey {
+func sendBatchOrderKeyFor(index int, item SendBatchItem) sendBatchOrderKey {
+	cmd := item.Command
 	if cmd.SenderNodeID != 0 && cmd.SenderSessionID != 0 {
-		return sendBatchSessionKey{nodeID: cmd.SenderNodeID, sessionID: cmd.SenderSessionID}
+		return sendBatchOrderKey{channel: item.OrderChannel, nodeID: cmd.SenderNodeID, sessionID: cmd.SenderSessionID}
 	}
-	return sendBatchSessionKey{isolated: index + 1}
+	return sendBatchOrderKey{isolated: index + 1}
 }
 
 // sendBatchEachSubmitter optionally publishes terminal channel-group results
@@ -173,8 +174,8 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	publication := newSendBatchPublication(items, emit, cancelItemDeadlines, complete)
 	permissionStartedAt := time.Now()
 	results := make([]SendBatchItemResult, len(items))
-	nextInSession := publication.next
-	submissionHeads := make(map[sendBatchSessionKey]int, len(publication.heads))
+	nextInOrder := publication.next
+	submissionHeads := make(map[sendBatchOrderKey]int, len(publication.heads))
 	for key, head := range publication.heads {
 		submissionHeads[key] = head
 	}
@@ -266,14 +267,14 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 			indexes := make([]int, 0, len(submissionHeads))
 			for key, head := range submissionHeads {
 				for head >= 0 && (submitted[head] || !allowedItems[head]) {
-					head = nextInSession[head]
+					head = nextInOrder[head]
 					submissionHeads[key] = head
 				}
 				// Admit the contiguous ready prefix in input order. Waiting for
 				// each item's durable result here would destroy gateway batching.
-				// A cold directory still fences later items in this session;
-				// finalize separately keeps terminal publication in session order.
-				for index := head; index >= 0; index = nextInSession[index] {
+				// A cold directory still fences later items in its order group.
+				// Finalization independently keeps terminal publication in order.
+				for index := head; index >= 0; index = nextInOrder[index] {
 					if submitted[index] || !allowedItems[index] {
 						continue
 					}

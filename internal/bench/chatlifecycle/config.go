@@ -31,6 +31,9 @@ func (c Config) Validate() error {
 	if c.Thresholds.Latency.HotSendACK.P95 != 0 && (c.Profile != ProfileLocal || c.Stage != StageShakeout || c.Mode != ModeSoak) {
 		return fieldError("thresholds.latency.hot_sendack.p95", "is allowed only for local shakeout soak")
 	}
+	if !validFirstAttemptOverride(c.Profile, c.Stage, c.Mode, c.Thresholds.Latency) {
+		return fieldError("thresholds.latency.first_attempt_timeout", "must be zero or5s for local paired-P95 shakeout soak")
+	}
 	if c.Profile == ProfileFormal {
 		if err := validateFormalDefaults(c); err != nil {
 			return err

@@ -9,7 +9,7 @@ import (
 // validPairedReportSync binds persisted cumulative P95 counts to their actual
 // successful-sync histogram; historical report contracts remain unchanged.
 func validPairedReportSync(r Report) bool {
-	if r.SchemaVersion != localPairedP95ReportSchemaVersion {
+	if !pairedReportSchema(r.SchemaVersion) {
 		return true
 	}
 	c, limits := r.Sync.Thresholds, r.Thresholds.Latency.Sync
@@ -20,7 +20,7 @@ func validPairedReportSync(r Report) bool {
 // validPairedReportWire checks canonical new counter keys before JSON decoding
 // can normalize nulls, duplicates or aliases. An omitted AboveP95 still means0.
 func validPairedReportWire(encoded []byte, r Report) bool {
-	if r.SchemaVersion != localPairedP95ReportSchemaVersion {
+	if !pairedReportSchema(r.SchemaVersion) {
 		return true
 	}
 	sync, err := pairedReportChild(encoded, "sync")

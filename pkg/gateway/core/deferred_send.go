@@ -12,14 +12,18 @@ import (
 
 var errDeferredSendCompletion = errors.New("gateway: invalid deferred SEND completion")
 
-// deferredSendShard owns active session chains only. The shard mutex protects
+// deferredSendShard owns active publication chains only. The shard mutex protects
 // links and ownership flags, never handler preparation or a publication callback.
 type deferredSendShard struct {
 	mu    sync.Mutex
-	lanes map[*sessionState]*deferredSendLane
+	lanes map[deferredSendLaneKey]*deferredSendLane
+}
+type deferredSendLaneKey struct {
+	state *sessionState
+	order gatewaytypes.SendOrderKey
 }
 type deferredSendLane struct {
-	state      *sessionState
+	key        deferredSendLaneKey
 	head, tail *deferredSendRecord
 	publishing bool
 }
@@ -88,13 +92,14 @@ func (e *sendExecutor) dispatchDeferredBatch(shard int, tasks []asyncDispatchTas
 	owner := job.owner
 	owner.mu.Lock()
 	if owner.lanes == nil {
-		owner.lanes = make(map[*sessionState]*deferredSendLane)
+		owner.lanes = make(map[deferredSendLaneKey]*deferredSendLane)
 	}
 	for i, task := range tasks {
-		lane := owner.lanes[task.state]
+		key := deferredSendLaneKey{state: task.state, order: task.orderKey}
+		lane := owner.lanes[key]
 		if lane == nil {
-			lane = &deferredSendLane{state: task.state}
-			owner.lanes[task.state] = lane
+			lane = &deferredSendLane{key: key}
+			owner.lanes[key] = lane
 		}
 		record := &job.records[i]
 		*record = deferredSendRecord{job: job, lane: lane, task: task}
@@ -191,7 +196,7 @@ func (b *deferredSendBatch) finish(err error) {
 	if err != nil {
 		seen := make(map[*sessionState]struct{}, len(b.records))
 		for i := range b.records {
-			state := b.records[i].lane.state
+			state := b.records[i].lane.key.state
 			if _, ok := seen[state]; ok {
 				continue
 			}
@@ -247,8 +252,8 @@ func (b *deferredSendBatch) releaseCount(count int) {
 }
 
 // runLane is claimed under the shard mutex but executes every callback outside
-// it. Concurrent result arrivals may start other sessions, never a second writer
-// for this exact session. Empty session chains leave no historical map state.
+// it. Other lanes may publish concurrently; each Session serializes wire writes.
+// Empty lanes leave no historical map state.
 func (b *deferredSendBatch) runLane(lane *deferredSendLane) {
 	for {
 		b.owner.mu.Lock()
@@ -280,7 +285,7 @@ func (b *deferredSendBatch) runLane(lane *deferredSendLane) {
 		record.next = nil
 		if lane.head == nil {
 			lane.tail = nil
-			delete(b.owner.lanes, lane.state)
+			delete(b.owner.lanes, lane.key)
 		}
 		b.owner.mu.Unlock()
 		record.job.releaseRecord(record)

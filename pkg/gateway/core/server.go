@@ -1220,6 +1220,7 @@ func (s *Server) sendBatchItems(batch []asyncDispatchTask) []gatewaytypes.SendBa
 			Index:      i,
 			EnqueuedAt: task.enqueuedAt,
 			ByteCount:  asyncDispatchTaskByteCount(task),
+			OrderKey:   task.orderKey,
 		})
 	}
 	return items
@@ -1231,6 +1232,7 @@ type asyncDispatchTask struct {
 	frame      frame.Frame
 	packet     *protocol.InboundPacket
 	enqueuedAt time.Time
+	orderKey   gatewaytypes.SendOrderKey
 	// attemptToken belongs to this actual admitted frame only.
 	attemptToken sendtrace.AttemptToken
 }

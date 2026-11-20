@@ -9,6 +9,23 @@ import (
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
+// GatewaySendOrderKey identifies the source Channel within one WK connection.
+// Person targets reduce to their peer UID. Authorization still runs in Send.
+func (a *App) GatewaySendOrderKey(fromUID, id string, kind uint8) ChannelID {
+	source, _ := a.commandChannels.FromCommandChannel(id)
+	if source == "" || kind == 0 {
+		return ChannelID{}
+	}
+	if kind == channelTypePerson {
+		peer, err := runtimechannelid.PersonChannelPeer(fromUID, source)
+		if err != nil {
+			return ChannelID{}
+		}
+		source = peer
+	}
+	return ChannelID{ID: source, Type: kind}
+}
+
 func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {
 	if a != nil && a.permissionBatch != nil {
 		out := a.checkSendPermissionsBatch(ctx, []SendBatchItem{{Command: cmd, Context: ctx}}, []sendBatchPermissionGroup{{representative: 0}}, []int{0})[0]

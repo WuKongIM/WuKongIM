@@ -6,7 +6,37 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### Gateway SEND / 网关发送
+
+- On one WKProto connection, admitted SENDs to different Channels can prepare, commit and acknowledge independently. Admitted SENDs retain per-Channel order. Match each ACK by client sequence, including immediate overload rejections. / 同一 WKProto 连接中，不同频道已受理的 SEND 可以独立准备、提交和确认。同频道已受理的 SEND 保持顺序。请用客户端序列号匹配回执，包括立即返回的过载拒绝。
+
+### Channel metadata / 频道元数据
+
+- Persist already-batched replica authority promises together, reducing cold Channel activation writes while preserving synchronous durability and stale-writer fencing. / 合并持久化同一批副本权威承诺，减少冷频道激活写入；保留同步持久化与旧权威写入拒绝语义。
+
+- Isolate metadata application by Channel so a slow activation cannot hold unrelated Channels behind the same shard lock. Same-Channel ordering, authority fences and request deadlines are preserved. / 按频道隔离元数据应用，避免慢激活通过共享分片锁阻塞其他频道；保留同频道顺序、权威栅栏和请求时限。
+
+### Directory preparation / 目录准备
+
+- Keep membership results moving while another request in the same directory worker cohort is waiting for a Ready reply. The original per-request durability and Slot proposal budget still apply. / 同一目录工作批次中，某请求等待 Ready 返回时，其他请求仍可处理已持久化的成员结果。保留每个请求的持久化校验与原 Slot 提案额度。
+
+- Let independent person-directory requests finish preparation as their membership and Ready records commit, while keeping Ready writes batched within each queued request. / 按原入队请求组批量提交私聊目录 Ready，已完成的独立准备请求可先返回。
+
+- Share an available directory execution slot across already-queued cold preparation batches, within the existing 128-item bound; retain the 32-item low-load target and original eight execution slots. / 冷目录准备积压时合并已排队批次，沿用单次128项上限；保留低负载32项目标和原有8个执行额度。
+
+- Dispatch independent person-channel source preparation as its own admission finishes; preserve fresh Ready proofs and existing concurrency limits. / 独立个人频道来源的准入完成后即可继续目录准备，不等待无关来源；保留新鲜 Ready 证明与原并发上限。
+
+- Return completed SEND permission callers without waiting for unrelated node replies in their shared batch; preserve fresh authority checks, data budgets and physical cleanup. / 共享资格读取中，已完整验证的请求可先返回，不再等待无关节点回复；保留新鲜权威校验、数据额度和实际任务收尾。
+
+- Combine already-queued directory tasks within the existing 64-task page to avoid repeated membership and completion writes, without waiting for more work. / 合并已排队目录任务，减少重复成员关系与完成标记写入；沿用64项上限，不增加收集等待。
+
+- Coalesce already-queued, contiguous Slot metadata applies to avoid repeated synchronous writes under backlog; preserve durable results, queue bounds and existing timeouts. / 积压时合并同一 Slot 已排队且连续的元数据应用，减少重复同步写；保留持久化结果、队列容量和原超时。
+
+- Keep completed person-directory preparation responsive while recovery scans wait for storage; preserve task bounds, durability and existing timeouts. / 恢复扫描等待存储时，已完成的个人目录准备仍可及时返回；保留任务容量、持久化要求和原超时。
+
 ### 🐛 Bug Fixes / 问题修复
+
+- Local paired-P95 diagnostics can explicitly use a five-second first SEND attempt in every phase, with separate report versions and unchanged retry waits and latency gates. / 本地配对 P95 诊断支持显式设置所有阶段首发 5 秒，以独立报告版本记录，重试等待与延迟门禁保持不变。
 
 - Personal whitelist additions prepare both users' Memberships and refresh only the whitelist owner's conversation activation, preserving existing read and hidden-history boundaries. / 添加个人白名单时确保双方 Membership，并刷新白名单所属用户的会话激活时间，保留已有已读位置和历史隐藏边界。
 

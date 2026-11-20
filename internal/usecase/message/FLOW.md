@@ -38,9 +38,9 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
    same legacy policy, wait for each ordinary persistent person directory's
    generation-fenced Ready proof plus its coherent runtime authority, run hooks
    in original order, and copy aligned `channelappend` results to original
-   indexes. Each session submits its contiguous directory-ready prefix in input
-   order; a cold head fences later items. Independent Channel completions may
-   arrive out of order, while final publication follows the session chain.
+   indexes. Each group submits its contiguous directory-ready prefix and publishes results in order. A cold head fences its group.
+   Product Gateway SEND groups by session and canonical Channel. Callers without
+   a Channel order key use session grouping.
    Scalar/batched hot sends reuse the current permission Ready fact without a cross-request cache or extra directory RPC.
    NoPersist, SyncOnce and request-scoped sends keep their existing paths.
    Optional `SubmitBatchEach` joins the same preparation, then transfers append
@@ -89,7 +89,7 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
   of rejected reservation reasons and occupancy; wrappers preserve original
   error text and identities, and missing observations remain absent.
   Optional SEND tracing retains an original result-ready clock until its
-  session-ordered emit attempt. This wait includes publication-mutex contention,
+  ordered emit attempt. This wait includes publication-mutex contention,
   excludes the emit callback, and changes no result, context or deadline.
   Independently enabled invocation summaries borrow existing permission and
   pre-append clocks through original context tokens. These are shared batch/lane

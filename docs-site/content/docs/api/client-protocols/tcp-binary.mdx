@@ -47,6 +47,8 @@ PING/PONG = fixed_header:u8
 
 `seq(v)` 在 v5 及以下是 `u32be`，v6 是 `u64be`。当前 SENDACK 解码器还接受兼容顺序：`message_id, client_seq, client_msg_no, message_seq, reason_code`；新编码器始终使用表中主顺序。
 
+同一连接上，同一频道已受理的 SEND 按序处理并返回 SENDACK。不同频道的 SENDACK 可以先于较早发送的请求返回。队列已满时，服务器可能在已受理请求的回执之前立即返回 `SystemBusy`。客户端通过回显的 `client_seq` 匹配原请求，使用可用的 `client_msg_no` 核对身份。
+
 ## 版本与 Setting
 
 - 服务端当前版本为 v6。CONNECT 的 `version=0` 或大于 6 会协商为 6；1–6 保持原值。

@@ -109,8 +109,8 @@ management, plugins, diagnostics, and bounded operations observations.
   metadata to routed Channel admission, using the app's message-ID allocator.
   Confirmed runtime absence uses the existing bounded Channel initializer, then
   rereads fresh Slot fences. No business metadata creation, policy retry or authority fallback is allowed.
-- Person-directory preparation shares Channel/generation results and detaches canceled waiters without canceling accepted work.
-  Eight active batches and 4096 mutations/waiters bound cold preparation. A 1 ms timer ends initial collection unless the 32-item target seals the batch first; partial batches keep collecting while execution is busy, avoiding a backlog of sealed tiny batches. Retryable failures precede append.
+- Person-directory preparation shares Channel/generation results and detaches canceled waiters without canceling accepted work. The writer forwards aligned membership results as physical Slot groups complete.
+  Eight active batches and 4096 mutations/waiters bound cold preparation. A 1 ms timer ends initial collection unless the 32-item target seals the batch first; partial batches keep collecting while execution is busy, avoiding a backlog of sealed tiny batches. An owner that waited for an execution credit takes an already-ready admission-order prefix within the existing 128-item physical call bound; an unfitting ready head is not bypassed. Collection adds no new timer, and the executing owner retains every transferred mutation and physical call through Stop. Retryable failures precede append.
   MQTT future-source protection/registration retains its additional barrier; ordinary Ready does not replace it.
 - Mutable request and response payloads crossing runtime ownership boundaries
   are cloned unless the contract explicitly transfers ownership.

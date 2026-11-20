@@ -45,3 +45,21 @@ func (w *PersonDirectoryMembershipWriter) EnsureUserChannelMembershipBatch(ctx c
 	}
 	return results
 }
+
+type personDirectoryMembershipWaveNode interface {
+	EnsureUserChannelMembershipWaves(context.Context, []metadb.UserChannelMembership, func(context.Context, []int, error))
+}
+
+// EnsureUserChannelMembershipWaves forwards the Node's Slot groups and the
+// context that shares their proposal credits with Ready calls.
+func (w *PersonDirectoryMembershipWriter) EnsureUserChannelMembershipWaves(ctx context.Context, memberships []metadb.UserChannelMembership, emit func(context.Context, []int, error)) {
+	if w != nil {
+		if node, ok := w.node.(personDirectoryMembershipWaveNode); ok {
+			node.EnsureUserChannelMembershipWaves(ctx, memberships, emit)
+			return
+		}
+	}
+	for i, result := range w.EnsureUserChannelMembershipBatch(ctx, memberships) {
+		emit(ctx, []int{i}, result.Err)
+	}
+}

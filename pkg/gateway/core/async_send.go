@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
-	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"hash/fnv"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/protocol"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
@@ -39,8 +40,7 @@ type sendExecutor struct {
 	// workers is the normalized maximum concurrent send worker count.
 	workers int
 	// shards is the bounded logical ordering partition count. It is deliberately
-	// larger than workers so unrelated sessions do not share a worker-local
-	// head-of-line queue while each session still remains strictly ordered.
+	// larger than workers to reduce collisions between independent send keys.
 	shards int
 	// capacity is the normalized maximum admitted send backlog.
 	capacity int
@@ -172,19 +172,19 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 	if send == nil {
 		return false
 	}
-	shard, ok := e.admit(state)
+	shard, key, ok := e.admit(state, send)
 	if !ok {
 		return false
 	}
 	// Preserve allocation-free WK rejection: no interface or retained frame is
 	// created until both global and shard admission succeed.
-	return e.enqueue(shard, asyncDispatchTask{state: state, replyToken: replyToken, frame: cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state))})
+	return e.enqueue(shard, asyncDispatchTask{state: state, replyToken: replyToken, frame: cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)), orderKey: key})
 }
 func (e *sendExecutor) submitPacket(state *sessionState, packet protocol.InboundPacket) bool {
 	if e == nil || e.server == nil || !e.server.reservePacketBytes(packet.Bytes) {
 		return false
 	}
-	shard, ok := e.admit(state)
+	shard, _, ok := e.admit(state, nil)
 	if !ok {
 		e.server.releasePacketBytes(packet.Bytes)
 		return false
@@ -195,28 +195,39 @@ func (e *sendExecutor) submitPacket(state *sessionState, packet protocol.Inbound
 	}
 	return true
 }
-func (e *sendExecutor) admit(state *sessionState) (int, bool) {
+func (e *sendExecutor) admit(state *sessionState, send *frame.SendPacket) (int, gatewaytypes.SendOrderKey, bool) {
+	var key gatewaytypes.SendOrderKey
 	if e == nil || e.mailbox == nil || state == nil || e.shards <= 0 {
-		return 0, false
+		return 0, key, false
 	}
 	e.admissionMu.Lock()
 	if e.closed.Load() {
 		e.admissionMu.Unlock()
-		return 0, false
+		return 0, key, false
 	}
 	e.admitted.Add(1)
 	e.admissionMu.Unlock()
-	shard := asyncSendShardIndex(state, nil, e.shards)
 	if !e.reserve() {
 		e.completeAdmission()
-		return 0, false
+		return 0, key, false
+	}
+	if send != nil && e.server != nil && e.server.dispatcher.sendOrderKeyer != nil {
+		key = e.server.dispatcher.sendOrderKeyer.SendOrderKey(state.session, send.ChannelID, send.ChannelType)
+	}
+	shard := asyncSendShardIndex(state, nil, e.shards)
+	if key.ID != "" {
+		hash := fnv.New64a()
+		_, _ = hash.Write([]byte(key.ID))
+		// Independent sessions can still prepare sends to a busy Channel in
+		// parallel. Channel append owns the common committed sequence.
+		shard = int((hash.Sum64() + uint64(key.Type) + uint64(shard)) % uint64(e.shards))
 	}
 	if !e.reserveShard(shard) {
 		e.consume(1)
 		e.completeAdmission()
-		return 0, false
+		return 0, key, false
 	}
-	return shard, true
+	return shard, key, true
 }
 func (e *sendExecutor) enqueue(shard int, task asyncDispatchTask) bool {
 	task.enqueuedAt = time.Now()

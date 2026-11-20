@@ -827,34 +827,59 @@ func (n *Node) AdmitPersonDirectoryTaskWaves(ctx context.Context, tasks []metadb
 // is retained when another independent Slot group fails.
 func (n *Node) EnsureUserChannelMembershipBatch(ctx context.Context, memberships []metadb.UserChannelMembership) []error {
 	results := make([]error, len(memberships))
-	if err := ctxErr(ctx); err != nil {
-		for i := range results {
-			results[i] = err
+	n.EnsureUserChannelMembershipWaves(ctx, memberships, func(_ context.Context, indices []int, err error) {
+		for _, index := range indices {
+			results[index] = err
 		}
-		return results
+	})
+	return results
+}
+
+// EnsureUserChannelMembershipWaves reports one aligned result per membership
+// as its physical Slot proposal completes. Callbacks are serialized and receive
+// the existing proposal's indices. Ready calls made with the callback context
+// share this wave's proposal credits. All proposals join before return.
+func (n *Node) EnsureUserChannelMembershipWaves(ctx context.Context, memberships []metadb.UserChannelMembership, emit func(context.Context, []int, error)) {
+	if emit == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := ctx.Value(personDirectoryProposalBudgetKey{}).(chan struct{}); !ok {
+		ctx = context.WithValue(ctx, personDirectoryProposalBudgetKey{}, make(chan struct{}, maxPersonDirectoryProposalConcurrency))
+	}
+	rejectAll := func(err error) {
+		indices := make([]int, len(memberships))
+		for i := range indices {
+			indices[i] = i
+		}
+		emit(ctx, indices, err)
+	}
+	if err := ctxErr(ctx); err != nil {
+		rejectAll(err)
+		return
 	}
 	if n == nil {
-		for i := range results {
-			results[i] = ErrNotStarted
-		}
-		return results
+		rejectAll(ErrNotStarted)
+		return
 	}
 	keys := make([]string, len(memberships))
 	for i, membership := range memberships {
 		if membership.UID == "" || membership.ChannelID == "" || membership.ChannelType != 1 {
-			results[i] = metadb.ErrInvalidArgument
+			emit(ctx, []int{i}, metadb.ErrInvalidArgument)
 			continue
 		}
 		keys[i] = membership.UID
 	}
 	routes, err := n.RouteKeysPartial(keys)
 	if err != nil {
-		for i := range results {
-			if results[i] == nil {
-				results[i] = err
+		for i, key := range keys {
+			if key != "" {
+				emit(ctx, []int{i}, err)
 			}
 		}
-		return results
+		return
 	}
 	type groupItem struct {
 		item  metafsm.UserChannelMembershipBatchItem
@@ -862,11 +887,11 @@ func (n *Node) EnsureUserChannelMembershipBatch(ctx context.Context, memberships
 	}
 	groups := make(map[uint32][]groupItem)
 	for i, result := range routes {
-		if results[i] != nil {
+		if keys[i] == "" {
 			continue
 		}
 		if result.Err != nil {
-			results[i] = result.Err
+			emit(ctx, []int{i}, result.Err)
 			continue
 		}
 		groups[result.Route.SlotID] = append(groups[result.Route.SlotID], groupItem{
@@ -891,9 +916,7 @@ func (n *Node) EnsureUserChannelMembershipBatch(ctx context.Context, memberships
 			}
 			command, err := metafsm.EncodeEnsureUserChannelMembershipBatchCommandChecked(items)
 			if err != nil {
-				for _, index := range indices {
-					results[index] = err
-				}
+				emit(ctx, indices, err)
 				continue
 			}
 			proposals = append(proposals, personDirectoryProposal{
@@ -901,14 +924,17 @@ func (n *Node) EnsureUserChannelMembershipBatch(ctx context.Context, memberships
 			})
 		}
 	}
-	n.submitPersonDirectoryProposalWaves(ctx, proposals, func(index int, err error) {
-		results[index] = err
+	n.submitPersonDirectoryProposalGroups(ctx, proposals, func(indices []int, err error) {
 		if err == nil {
-			n.observeMembershipMutation("ordinary", "ensure", 1)
+			n.observeMembershipMutation("ordinary", "ensure", len(indices))
 		}
+		emit(ctx, indices, err)
 	})
-	return results
 }
+
+// personDirectoryProposalBudgetKey scopes one pool of Slot-call credits to a
+// membership wave and the Ready calls it starts.
+type personDirectoryProposalBudgetKey struct{}
 
 type personDirectoryProposal struct {
 	slotID   uint32
@@ -918,6 +944,14 @@ type personDirectoryProposal struct {
 }
 
 func (n *Node) submitPersonDirectoryProposalWaves(ctx context.Context, proposals []personDirectoryProposal, emit func(int, error)) {
+	n.submitPersonDirectoryProposalGroups(ctx, proposals, func(indices []int, err error) {
+		for _, index := range indices {
+			emit(index, err)
+		}
+	})
+}
+
+func (n *Node) submitPersonDirectoryProposalGroups(ctx context.Context, proposals []personDirectoryProposal, emit func([]int, error)) {
 	if len(proposals) == 0 {
 		return
 	}
@@ -936,9 +970,7 @@ func (n *Node) submitPersonDirectoryProposalWaves(ctx context.Context, proposals
 	worker := func() {
 		for index := range jobs {
 			proposal := proposals[index]
-			err := n.Propose(ctx, ProposeRequest{Command: proposal.command, Target: ProposeTarget{
-				HashSlot: proposal.hashSlot, HasHashSlot: true, SlotID: proposal.slotID, HasSlotID: true,
-			}})
+			err := n.runPersonDirectoryProposal(ctx, proposal)
 			completed <- proposalResult{proposal: proposal, err: err}
 		}
 	}
@@ -955,10 +987,26 @@ func (n *Node) submitPersonDirectoryProposalWaves(ctx context.Context, proposals
 		close(completed)
 	})
 	for result := range completed {
-		for _, index := range result.proposal.indices {
-			emit(index, result.err)
+		emit(result.proposal.indices, result.err)
+	}
+}
+
+// runPersonDirectoryProposal returns the credit before publishing its result.
+// Ready can then acquire a credit without waiting for the member owner to join.
+func (n *Node) runPersonDirectoryProposal(ctx context.Context, proposal personDirectoryProposal) error {
+	if ctx != nil {
+		if budget, ok := ctx.Value(personDirectoryProposalBudgetKey{}).(chan struct{}); ok {
+			select {
+			case budget <- struct{}{}:
+				defer func() { <-budget }()
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	}
+	return n.Propose(ctx, ProposeRequest{Command: proposal.command, Target: ProposeTarget{
+		HashSlot: proposal.hashSlot, HasHashSlot: true, SlotID: proposal.slotID, HasSlotID: true,
+	}})
 }
 
 type userMembershipProposal struct {

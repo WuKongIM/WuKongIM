@@ -38,7 +38,7 @@ Message, presence, Channel, and Controller business policy stays outside gateway
    source addresses are immutable before callbacks; `gateway.peer_addr` retains physical peers.
 2. WKProto and JSON-RPC CONNECT authenticate and activate off the transport
    loop, write a protocol-correlated CONNACK, then open the callback gate;
-   authenticated SEND uses bounded session-sharded batching; other frames dispatch
+   authenticated SEND uses bounded sharded batching; other frames dispatch
    synchronously. Protocol-aware Session writes serialize output. WSMux delegates
    CONNECT requirements to its selected nested protocol.
    The terminal sealer shares that write lock, closes ordinary outbound admission,
@@ -83,11 +83,12 @@ Message, presence, Channel, and Controller business policy stays outside gateway
   mailbox work without canceling or resetting it when a caller times out.
   It does not prove append, delivery, transport flush, or client receipt.
 - Async SEND owns retained payload bytes unless the protocol explicitly proves
-  decoded-frame ownership. Result order within a session is preserved.
+  decoded-frame ownership. Deferred handlers can supply a Channel key to order
+  preparation and results by Channel within a session. An empty key retains session order.
 - Optional deferred batch handlers join preparation, then core retains the
   original global/shard reservations through handler completion and ordered
   publication across batches. Completion errors join before drain can finish.
-  Session chains keep only admitted records and never hold a shard mutex while
+  Publication chains keep only admitted records and never hold a shard mutex while
   writing. Existing joined handlers retain their dispatch behavior.
 - Only inbound activity refreshes idle deadlines. Drain preserves existing sessions.
   MQTT refreshes only on complete packets, negotiates 1.5 times Keep Alive, and

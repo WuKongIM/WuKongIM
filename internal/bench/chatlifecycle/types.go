@@ -301,7 +301,12 @@ type LatencyThresholds struct {
 	// Formal profiles require two seconds. Zero preserves historical reports
 	// and custom local profiles by inheriting HotSendACK.P999; it is omitted
 	// from JSON so legacy configuration digests are never rewritten.
-	HotAttemptTimeout     time.Duration `json:"hot_attempt_timeout,omitempty" yaml:"hot_attempt_timeout,omitempty"`
+	HotAttemptTimeout time.Duration `json:"hot_attempt_timeout,omitempty" yaml:"hot_attempt_timeout,omitempty"`
+	// FirstAttemptTimeout optionally sets only the original SEND wait to five
+	// seconds in every local paired-P95 phase and traffic class. Zero preserves
+	// historical hot/cold attempt policies and their configuration digests.
+	// Retries retain HotAttemptTimeout or Cold.P999; percentile gates are separate.
+	FirstAttemptTimeout   time.Duration `json:"first_attempt_timeout,omitempty" yaml:"first_attempt_timeout,omitempty"`
 	Cold                  LatencyLimit  `json:"cold" yaml:"cold"`
 	Sync                  LatencyLimit  `json:"sync" yaml:"sync"`
 	SingleAnomaly         time.Duration `json:"single_anomaly" yaml:"single_anomaly"`

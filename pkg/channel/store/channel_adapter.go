@@ -462,6 +462,42 @@ func (f *MessageDBFactory) StoreCheckpointBatch(ctx context.Context, items []Sto
 	return results
 }
 
+// PromiseAuthorityBatch combines admitted promises without adding a collection
+// window or changing their durability, cancellation, or per-item error contract.
+func (f *MessageDBFactory) PromiseAuthorityBatch(ctx context.Context, items []AuthorityPromiseBatchItem) []error {
+	results := make([]error, len(items))
+	if err := f.availabilityError(); err != nil {
+		for i := range results {
+			results[i] = err
+		}
+		return results
+	}
+	dbItems := make([]messagedb.AuthorityPromiseBatchItem, 0, len(items))
+	acquired := make([]batchAcquiredStore, 0, len(items))
+	defer func() {
+		for _, item := range acquired {
+			if err := f.mapError(item.store.Close()); err != nil && results[item.index] == nil {
+				results[item.index] = err
+			}
+		}
+	}()
+	for i, item := range items {
+		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		if err != nil {
+			results[i] = f.mapError(err)
+			continue
+		}
+		dbItems = append(dbItems, messagedb.AuthorityPromiseBatchItem{Store: dbStore, Promise: messagedb.AuthorityPromise{
+			ChannelEpoch: item.Promise.ChannelEpoch, LeaderTerm: item.Promise.LeaderTerm, FenceVersion: item.Promise.FenceVersion,
+		}})
+		acquired = append(acquired, batchAcquiredStore{index: i, store: dbStore})
+	}
+	for i, err := range messagedb.PromiseAuthorityBatch(ctx, dbItems) {
+		results[acquired[i].index] = f.mapError(err)
+	}
+	return results
+}
+
 // Close closes the wrapped message DB engine.
 func (f *MessageDBFactory) Close() error {
 	if f == nil || f.engine == nil {

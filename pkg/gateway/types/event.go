@@ -30,6 +30,23 @@ type SendBatchItem struct {
 	EnqueuedAt time.Time
 	// ByteCount is the payload byte count used for gateway batch limits.
 	ByteCount int
+	// OrderKey is the immutable Channel order supplied by the deferred handler.
+	OrderKey SendOrderKey
+}
+
+// SendOrderKey identifies a Channel within one deferred SEND Session.
+// An empty ID selects the existing session order.
+type SendOrderKey struct {
+	ID   string
+	Type uint8
+}
+
+// SendOrderKeyer optionally assigns stable ordering to deferred SENDs.
+// Implementations must be safe on the read loop and return the same key for
+// every spelling of a Channel, without allocation before shard admission.
+// The key confers no routing or send permission.
+type SendOrderKeyer interface {
+	SendOrderKey(session.Session, string, uint8) SendOrderKey
 }
 
 // SendBatchHandler is optionally implemented by handlers that can process SEND frames in batches.
@@ -39,7 +56,8 @@ type SendBatchHandler interface {
 
 // DeferredSendBatchHandler optionally joins preparation while transferring result
 // completion. publish admits one nonnil publication per index; core invokes it
-// in session order across batches. Publication must use normal Session writes so
+// in session order across batches, or per Channel within the session for a nonempty key.
+// Publication must use normal Session writes so
 // terminal seals remain authoritative. publish reports callback-admission errors;
 // core handles write failures against the owning session. complete runs once on successful
 // admission, after all publish calls; it may run inline. A returned error transfers

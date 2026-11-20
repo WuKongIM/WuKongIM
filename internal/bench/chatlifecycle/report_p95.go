@@ -9,6 +9,9 @@ const (
 )
 
 func (c Config) reportVersions() (string, string) {
+	if c.Thresholds.Latency.FirstAttemptTimeout != 0 {
+		return localFirstAttemptReportSchemaVersion, localFirstAttemptReportThresholdVersion
+	}
 	if c.Thresholds.Latency.pairedP95Policy() {
 		return localPairedP95ReportSchemaVersion, localPairedP95ReportThresholdVersion
 	}
@@ -21,6 +24,9 @@ func (c Config) reportVersions() (string, string) {
 // validReportVersions prevents a new local quantile from acquiring old formal,
 // capacity or historical evidence authority by changing only a report header.
 func validReportVersions(r Report) bool {
+	if r.Thresholds.Latency.FirstAttemptTimeout != 0 {
+		return r.SchemaVersion == localFirstAttemptReportSchemaVersion && r.ThresholdVersion == localFirstAttemptReportThresholdVersion && validFirstAttemptOverride(r.Profile, r.Stage, r.Mode, r.Thresholds.Latency)
+	}
 	if r.Thresholds.Latency.pairedP95Policy() {
 		return r.SchemaVersion == localPairedP95ReportSchemaVersion && r.ThresholdVersion == localPairedP95ReportThresholdVersion && r.Profile == ProfileLocal && r.Stage == StageShakeout && r.Mode == ModeSoak
 	}

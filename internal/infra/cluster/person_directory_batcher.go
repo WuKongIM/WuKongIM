@@ -66,6 +66,9 @@ type personDirectoryBatcher struct {
 
 	mu      sync.Mutex
 	current *personDirectoryBatch
+	// pending keeps admission order across collecting and waiting batches.
+	// Only ready entries may share an already available execution credit.
+	pending []*personDirectoryBatch
 	// inflight owns every admitted Channel until its sealed durable batch
 	// reaches a terminal result. It prevents later callers from starting a
 	// duplicate cross-Slot transaction after current advances to a new batch.
@@ -93,6 +96,9 @@ type personDirectoryBatch struct {
 	trigger chan struct{}
 	once    sync.Once
 	sealed  bool
+	// ready ends initial collection; claimed transfers all work to one owner.
+	ready   bool
+	claimed chan struct{}
 }
 
 type personDirectoryEntry struct {
@@ -283,8 +289,9 @@ func (b *personDirectoryBatcher) admit(ctx context.Context, mutation personDirec
 					b.mu.Unlock()
 					return nil, ErrPersonDirectoryBusy
 				}
-				batch = &personDirectoryBatch{entries: make(map[personDirectoryKey]*personDirectoryEntry), trigger: make(chan struct{})}
+				batch = &personDirectoryBatch{entries: make(map[personDirectoryKey]*personDirectoryEntry), trigger: make(chan struct{}), claimed: make(chan struct{})}
 				b.current = batch
+				b.pending = append(b.pending, batch)
 				b.owners++
 				goruntimeregistry.SafeGo(b.goroutines, goruntimeregistry.TaskMessageDirectoryBatch, func() {
 					defer b.ownerDone()
@@ -303,6 +310,7 @@ func (b *personDirectoryBatcher) admit(ctx context.Context, mutation personDirec
 				// vector caller append the rest of its wave before the owner is
 				// scheduled, silently turning the latency target into maxItems.
 				batch.sealed = true
+				batch.ready = true
 				if b.current == batch {
 					b.current = nil
 				}
@@ -369,30 +377,82 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 		}
 	}
 
-	// Keep a partial batch open while all execution slots are occupied. Sealing
-	// on the timer before admission creates an unmergeable backlog of tiny
-	// batches at sustained cold-SEND rates. The target-size admission fence
-	// still seals full batches, and the same bounded owner joins on Stop.
-	acquired := false
-	select {
-	case b.active <- struct{}{}:
-		acquired = true
-		defer func() { <-b.active }()
-	case <-b.ctx.Done():
-	}
-
+	// Partial collection may continue while execution is busy. A ready full
+	// batch retains its latency target; only an owner that had to wait may
+	// coalesce an already-queued prefix within the existing physical bound.
 	b.mu.Lock()
-	batch.sealed = true
-	if b.current == batch {
-		b.current = nil
-	}
-	entries := make([]*personDirectoryEntry, 0, len(batch.order))
-	for _, entry := range batch.order {
-		if !entry.canceled {
-			entries = append(entries, entry)
-		}
-	}
+	batch.ready = true
 	b.mu.Unlock()
+	for {
+		select {
+		case <-batch.claimed:
+			return
+		default:
+		}
+		acquired, waited := false, false
+		select {
+		case b.active <- struct{}{}:
+			acquired = true
+		default:
+			waited = true
+			select {
+			case b.active <- struct{}{}:
+				acquired = true
+			case <-batch.claimed:
+				return
+			case <-b.ctx.Done():
+			}
+		}
+		b.mu.Lock()
+		entries := b.takeReadyLocked(waited)
+		b.mu.Unlock()
+		b.execute(entries, acquired)
+		if acquired {
+			<-b.active
+		}
+		// Another owner may have claimed this caller's batch. If this owner
+		// instead serviced an older prefix, it keeps responsibility for its
+		// original waiting batch until a real owner takes it or Stop drains it.
+	}
+}
+
+// takeReadyLocked transfers a bounded ready prefix without waiting for more
+// work. Unready collectors retain their original timer and current ownership.
+func (b *personDirectoryBatcher) takeReadyLocked(coalesce bool) []*personDirectoryEntry {
+	var entries []*personDirectoryEntry
+	owned := 0
+	selected := false
+	remaining := b.pending[:0]
+	for _, batch := range b.pending {
+		if !batch.ready || (selected && (!coalesce || owned+len(batch.order) > personDirectoryBatchMaxItems)) {
+			remaining = append(remaining, batch)
+			// A ready head that cannot fit must not be bypassed by smaller work.
+			if batch.ready {
+				coalesce = false
+			}
+			continue
+		}
+		selected = true
+		owned += len(batch.order)
+		batch.sealed = true
+		if b.current == batch {
+			b.current = nil
+		}
+		for _, entry := range batch.order {
+			if !entry.canceled {
+				entries = append(entries, entry)
+			}
+		}
+		close(batch.claimed)
+	}
+	clear(b.pending[len(remaining):])
+	b.pending = remaining
+	return entries
+}
+
+// execute owns every selected mutation through the actual durable call and
+// publishes each terminal result once, even when original waiting owners exit.
+func (b *personDirectoryBatcher) execute(entries []*personDirectoryEntry, acquired bool) {
 	if len(entries) == 0 {
 		return
 	}
@@ -424,7 +484,7 @@ func (b *personDirectoryBatcher) run(batch *personDirectoryBatch) {
 			b.signalCapacityLocked()
 		}
 	}
-	if acquired {
+	if acquired && b.ctx.Err() == nil {
 		ctx, cancel := context.WithTimeout(b.ctx, b.timeout)
 		b.submit(ctx, entries, complete)
 		cancel()

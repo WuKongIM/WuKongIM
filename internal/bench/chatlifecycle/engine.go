@@ -87,6 +87,9 @@ type EngineConfig struct {
 	// AttemptTimeout is the wait budget for each hot SENDACK attempt and retry,
 	// independently of the percentile latency limits.
 	AttemptTimeout time.Duration
+	// FirstAttemptTimeout overrides only attempt zero across all traffic classes.
+	// Zero retains the existing hot/cold policy; retries never inherit it.
+	FirstAttemptTimeout time.Duration
 	// ColdAttemptTimeout is the retry deadline for the deterministic first
 	// person-channel create and an all-node-proven cold reheat.
 	ColdAttemptTimeout time.Duration
@@ -813,6 +816,8 @@ type Engine struct {
 	inflightCapacity int
 	maxWork          int
 	attemptTimeout   time.Duration
+	// firstAttemptTimeout overrides only attempt zero; zero keeps hot/cold policy.
+	firstAttemptTimeout time.Duration
 	// coldAttemptTimeout prevents valid cold activation from entering the hot
 	// retry path before the configured cold p99.9 observation bound.
 	coldAttemptTimeout        time.Duration
@@ -951,7 +956,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		config.Graph.identity == nil || config.Traffic.identity == nil || config.Generator == nil ||
 		config.Retry.identity == nil || config.Verifier == nil || config.Evidence == nil ||
 		config.CommandCapacity <= 0 || config.WorkCapacity <= 0 || config.RetryCapacity <= 0 ||
-		config.InflightCapacity <= 0 || config.MaxWorkPerAdvance <= 0 || config.AttemptTimeout <= 0 ||
+		config.InflightCapacity <= 0 || config.MaxWorkPerAdvance <= 0 || config.AttemptTimeout <= 0 || config.FirstAttemptTimeout < 0 ||
 		config.ColdAttemptTimeout < config.AttemptTimeout || config.ActivityEligibilityWindow <= 0 ||
 		config.CommandCapacity > maxVerifierCapacity || config.WorkCapacity > maxVerifierCapacity ||
 		config.RetryCapacity > maxVerifierCapacity || config.InflightCapacity > maxVerifierCapacity ||
@@ -983,6 +988,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		commandCapacity: config.CommandCapacity, workCapacity: config.WorkCapacity,
 		retryCapacity: config.RetryCapacity, inflightCapacity: config.InflightCapacity,
 		maxWork: config.MaxWorkPerAdvance, attemptTimeout: config.AttemptTimeout,
+		firstAttemptTimeout:       config.FirstAttemptTimeout,
 		coldAttemptTimeout:        config.ColdAttemptTimeout,
 		activityEligibilityWindow: config.ActivityEligibilityWindow,
 		lifecycleCandidateSlots:   lifecycleCandidateSlots,
@@ -3630,7 +3636,11 @@ func (e *Engine) startSDKAttempt(intent TrafficIntent, attempt uint8, now, dispa
 	}
 	e.nextClientSeq++
 	clientSeq := e.nextClientSeq
-	deadline := attemptAt.Add(e.attemptTimeoutFor(intent))
+	budget := e.attemptTimeoutFor(intent)
+	if attempt == 0 && e.firstAttemptTimeout != 0 {
+		budget = e.firstAttemptTimeout
+	}
+	deadline := attemptAt.Add(budget)
 	registration := AttemptLinkRegistration{}
 	if attempt == 0 && e.verifier.attemptLinkEnabled() {
 		registration.ConnectFingerprint = e.sessions.sendConnectionFingerprint(logical.Sender)

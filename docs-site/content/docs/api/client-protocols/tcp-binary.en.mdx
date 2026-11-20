@@ -47,6 +47,8 @@ PING/PONG = fixed_header:u8
 
 `seq(v)` is `u32be` through v5 and `u64be` in v6. The current SENDACK decoder also accepts the compatibility order `message_id, client_seq, client_msg_no, message_seq, reason_code`; new encoders use the primary order above.
 
+On one connection, admitted SENDs are processed and acknowledged in order within each channel. An acknowledgment for another channel can arrive before the acknowledgment for an earlier SEND. A full queue may return `SystemBusy` immediately, before an earlier admitted SEND receives its acknowledgment. Match the original SEND by its echoed `client_seq` and verify `client_msg_no` when present.
+
 ## Version and Setting
 
 - The current server version is v6. CONNECT `version=0` or a value above 6 selects v6; values 1–6 remain unchanged.

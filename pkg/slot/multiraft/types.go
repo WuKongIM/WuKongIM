@@ -309,8 +309,9 @@ type CapturedHashSlotSnapshot struct {
 }
 
 // BatchStateMachine extends StateMachine with batched apply support.
-// When implemented, processReady will collect contiguous normal entries
-// and apply them in a single call, amortizing fsync cost.
+// When implemented, contiguous normal entries can share one durable call.
+// The async pipeline may combine up to four already-queued Ready records of
+// one generation and term; later arrivals never extend the running batch.
 type BatchStateMachine interface {
 	StateMachine
 	ApplyBatch(ctx context.Context, cmds []Command) ([][]byte, error)

@@ -11,6 +11,7 @@ type dispatcher struct {
 	handler         gatewaytypes.Handler
 	batchHandler    gatewaytypes.SendBatchHandler
 	deferredHandler gatewaytypes.DeferredSendBatchHandler
+	sendOrderKeyer  gatewaytypes.SendOrderKeyer
 }
 
 func newDispatcher(handler gatewaytypes.Handler) dispatcher {
@@ -19,6 +20,7 @@ func newDispatcher(handler gatewaytypes.Handler) dispatcher {
 		dispatcher.batchHandler = batchHandler
 	}
 	dispatcher.deferredHandler, _ = handler.(gatewaytypes.DeferredSendBatchHandler)
+	dispatcher.sendOrderKeyer, _ = dispatcher.deferredHandler.(gatewaytypes.SendOrderKeyer)
 	return dispatcher
 }
 

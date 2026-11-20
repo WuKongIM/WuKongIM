@@ -139,7 +139,32 @@ func (s *Store) ApplySendBan(ctx context.Context, q metadb.SendBanMutation) (met
 // into node-scoped envelopes. Successful facts are request-scoped only; each
 // serving Slot establishes a fresh quorum/apply barrier and snapshot.
 func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []PermissionMetadataRead) []PermissionMetadataReadResult {
+	return s.readSendPermissionMetadataProgress(ctx, reads, nil)
+}
+
+// readSendPermissionMetadataProgress publishes terminal facts after full envelope
+// validation and the existing stale-route retry. Callbacks may run concurrently;
+// return still joins every worker, including work unrelated to an early member.
+func (s *Store) readSendPermissionMetadataProgress(ctx context.Context, reads []PermissionMetadataRead, completed func(int, PermissionMetadataReadResult)) []PermissionMetadataReadResult {
 	out := make([]PermissionMetadataReadResult, len(reads))
+	var published []bool
+	if completed != nil {
+		published = make([]bool, len(reads))
+	}
+	publish := func(index int, retry bool) {
+		if completed == nil || published[index] || retry && errors.Is(out[index].Err, ErrReadStaleRoute) {
+			return
+		}
+		// Each index belongs to one worker per attempt; attempts join before
+		// retry. The final fallback below runs only after those workers join.
+		published[index] = true
+		completed(index, out[index])
+	}
+	defer func() {
+		for i := range out {
+			publish(i, false)
+		}
+	}()
 	if len(reads) == 0 {
 		return out
 	}
@@ -157,6 +182,7 @@ func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		keys[i] = key
 		if err != nil {
 			out[i].Err = err
+			publish(i, false)
 		} else {
 			pending = append(pending, i)
 		}
@@ -185,10 +211,12 @@ func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []Per
 			r := routes[j]
 			if r.Err != nil {
 				out[i].Err = r.Err
+				publish(i, attempt == 0)
 				continue
 			}
 			if r.Fence.SlotID == 0 || r.Fence.LeaderNodeID == 0 {
 				out[i].Err = ErrReadStaleRoute
+				publish(i, attempt == 0)
 				continue
 			}
 			groups[r.Fence] = append(groups[r.Fence], sendPermissionRead{Index: i, HashSlot: r.HashSlot, Read: reads[i]})
@@ -226,6 +254,7 @@ func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []Per
 				cost := 2*len(raw) + 1024
 				if err != nil || cost > sendPermissionMaxBytes/2 {
 					out[read.Index].Err = metadb.ErrInvalidArgument
+					publish(read.Index, false)
 					continue
 				}
 				if estimated+cost > sendPermissionMaxBytes/2 {
@@ -252,6 +281,7 @@ func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []Per
 				for _, g := range q.Groups {
 					for _, r := range g.Reads {
 						out[r.Index].Err = err
+						publish(r.Index, attempt == 0)
 					}
 				}
 				return
@@ -270,10 +300,12 @@ func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []Per
 				for k, r := range q.Groups[j].Reads {
 					if groupErr != nil {
 						out[r.Index].Err = groupErr
+						publish(r.Index, attempt == 0)
 						continue
 					}
 					fact := g.Results[k].Fact
 					out[r.Index] = PermissionMetadataReadResult{PersonDirectoryFence: fact.PersonDirectoryFence, Channel: fact.Channel, Found: fact.Found, Value: fact.Value, UserPolicy: fact.UserPolicy}
+					publish(r.Index, false)
 				}
 			}
 		})

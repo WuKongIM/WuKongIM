@@ -70,6 +70,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   bounded repair workers without contributing votes; page progress survives
   retry deadlines. Recovery can complete under a transfer write fence for new-leader
   verification; business Commit stays blocked until the fence is cleared.
+  Already-batched promises may share synchronous persistence; duplicate order, aligned failures, fallback and durability-before-read remain intact, with no new wait or workers.
   Incomplete or unavailable quorum proofs retain public `ErrNotReady` identity
   at Install, including across read RPCs. Local probe storage errors retain their
   original cause; invalid proofs and configurations do not become pending recovery.
@@ -136,7 +137,6 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
 - Message version and update time are transient read overlays only. Immutable stored/replicated message encodings do not include edit state; raw log/backup reads remain original records.
 
 Protected original proposals first fund all voters and learners through the existing bounded peer owner. Exact manifest/nonce storage prepare/cancel receipts never vote for durability. Only successful complete funding enters original dispatch; failure cancels exact funding under a separate bounded context and grants a fresh non-submission capability. Explicit recovery barriers use native format 7; business SyncOnce flags alone grant no maintenance exemption.
-
 ## Read First
 - [Public contracts](channel.go)
 - [Core types](types.go)

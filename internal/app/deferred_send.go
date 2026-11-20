@@ -44,7 +44,7 @@ func (a *App) gatewayHandler() gateway.Handler {
 	if a.handler == nil {
 		return nil
 	}
-	return a.handler.WithDeferredSends(a.deferredGatewayMessages)
+	return a.handler.WithChannelOrderedDeferredSends(a.deferredGatewayMessages)
 }
 
 // drainGatewaySubmissions preserves the gateway's one-way fence on timeout;

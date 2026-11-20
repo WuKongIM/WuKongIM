@@ -66,7 +66,7 @@ func ReadReport(path string) (Report, error) {
 		}
 		return Report{}, fmt.Errorf("parse chat-lifecycle checkpoint: %w", err)
 	}
-	if !validPairedReportWire(encoded, report) {
+	if !validPairedReportWire(encoded, report) || !validFirstAttemptReportWire(encoded, report) {
 		return Report{}, fmt.Errorf("validate paired chat-lifecycle checkpoint: %w", ErrReportInvalid)
 	}
 	if err := validateReport(report); err != nil {
@@ -83,7 +83,7 @@ func ReadCurrentReport(path string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion && report.SchemaVersion != localPairedP95ReportSchemaVersion {
+	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion && !pairedReportSchema(report.SchemaVersion) {
 		return Report{}, fmt.Errorf("validate current chat-lifecycle checkpoint: %w", ErrReportInvalid)
 	}
 	return report, nil

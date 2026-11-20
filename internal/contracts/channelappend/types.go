@@ -182,6 +182,9 @@ type SendBatchItem struct {
 	Deadline time.Time
 	// Command is the SEND command.
 	Command SendCommand
+	// OrderChannel is the optional origin-only key for SEND preparation and
+	// result order. It does not participate in authority or append routing.
+	OrderChannel ChannelID
 	// AppendAdmission is trusted origin-only permission, never wire metadata.
 	// Router invokes it before every local/remote submission, including retries,
 	// then strips it before handing off accepted work. Failure forbids submission.

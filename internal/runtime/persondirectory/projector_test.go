@@ -282,7 +282,7 @@ func TestProjectorDoesNotProjectAfterSourceLeadershipIsLost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(): %v", err)
 	}
-	_, err = projector.projectBatch(context.Background(), ownedTaskBatch{tasks: []ownedTask{{hashSlot: 7, task: task}}})
+	_, err = projector.projectBatch(context.Background(), ownedTaskBatch{tasks: []ownedTask{{hashSlot: 7, task: task}}}, nil)
 	if !errors.Is(err, errSourceLeadershipLost) {
 		t.Fatalf("project() error = %v, want source leadership loss", err)
 	}
@@ -305,7 +305,7 @@ func TestProjectorDoesNotWriteMembershipsAfterSourceTaskGenerationChanges(t *tes
 		t.Fatalf("New(): %v", err)
 	}
 
-	_, err = projector.projectBatch(context.Background(), ownedTaskBatch{tasks: []ownedTask{{hashSlot: 7, task: task}}})
+	_, err = projector.projectBatch(context.Background(), ownedTaskBatch{tasks: []ownedTask{{hashSlot: 7, task: task}}}, nil)
 	if !errors.Is(err, metadb.ErrStaleMeta) {
 		t.Fatalf("projectBatch() error = %v, want stale source generation", err)
 	}
@@ -327,7 +327,7 @@ func TestProjectorCombinesTasksFromDifferentSourceHashSlots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(): %v", err)
 	}
-	if _, err := projector.projectBatch(context.Background(), ownedTaskBatch{tasks: tasks}); err != nil {
+	if _, err := projector.projectBatch(context.Background(), ownedTaskBatch{tasks: tasks}, nil); err != nil {
 		t.Fatalf("projectBatch(): %v", err)
 	}
 	if got := <-writer.calls; len(got) != 4 {

@@ -24,27 +24,40 @@ func EncodePersonChannel(leftUID, rightUID string) string {
 
 // DecodePersonChannel splits a person channel ID into its two UID parts.
 func DecodePersonChannel(channelID string) (string, string, error) {
-	parts := strings.Split(channelID, "@")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	left, right, pair := strings.Cut(channelID, "@")
+	if !pair || left == "" || right == "" || strings.Contains(right, "@") {
 		return "", "", ErrInvalidPersonChannel
 	}
-	return parts[0], parts[1], nil
+	return left, right, nil
 }
 
 // NormalizePersonChannel returns the canonical person channel ID for sender input.
 func NormalizePersonChannel(senderUID, channelID string) (string, error) {
+	peer, err := PersonChannelPeer(senderUID, channelID)
+	if err != nil {
+		return "", err
+	}
+	return EncodePersonChannel(senderUID, peer), nil
+}
+
+// PersonChannelPeer resolves the other UID without constructing a Channel ID.
+// A peer alone identifies a Person Channel only within one sender's scope.
+func PersonChannelPeer(senderUID, channelID string) (string, error) {
 	if senderUID == "" || channelID == "" {
 		return "", ErrInvalidPersonChannel
 	}
 	if !strings.Contains(channelID, "@") {
-		return EncodePersonChannel(senderUID, channelID), nil
+		return channelID, nil
 	}
 	left, right, err := DecodePersonChannel(channelID)
 	if err != nil {
 		return "", err
 	}
-	if left != senderUID && right != senderUID {
-		return "", ErrInvalidPersonChannel
+	if left == senderUID {
+		return right, nil
 	}
-	return EncodePersonChannel(left, right), nil
+	if right == senderUID {
+		return left, nil
+	}
+	return "", ErrInvalidPersonChannel
 }

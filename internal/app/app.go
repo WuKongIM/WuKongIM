@@ -106,7 +106,7 @@ type App struct {
 	// channelSubmissions owns bounded gateway routing until ordered completion.
 	channelSubmissions *channelappend.OrderedSubmitter
 	// deferredGatewayMessages is set only for the default, fully wired usecase.
-	deferredGatewayMessages accessgateway.DeferredMessageUsecase
+	deferredGatewayMessages *message.App
 	channelAppendMetadata   *clusterinfra.ChannelAppendMetadataCache
 	// mqtt owns the optional entry and its joined runtime lifecycle.
 	mqtt *mqttProduct

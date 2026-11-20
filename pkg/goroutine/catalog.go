@@ -163,6 +163,7 @@ const (
 	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
 	TaskMessageDirectoryBatch            TaskID = "message/directory_batch"
 	TaskMessageDirectoryProjector        TaskID = "message/directory_projector"
+	TaskMessageDirectoryScanner          TaskID = "message/directory_scanner"
 	TaskMessageDirectoryWorker           TaskID = "message/directory_worker"
 	TaskMessageUpdateWorker              TaskID = "message/update_worker"
 	TaskMessageUpdateDispatch            TaskID = "message/update_dispatch"
@@ -287,6 +288,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryBatch, Module: ModuleMessage, Name: "directory_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryProjector, Module: ModuleMessage, Name: "directory_projector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMessageDirectoryScanner, Module: ModuleMessage, Name: "directory_scanner", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMessageUpdateWorker, Module: ModuleMessage, Name: "update_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMessageUpdateDispatch, Module: ModuleMessage, Name: "update_dispatch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryWorker, Module: ModuleMessage, Name: "directory_worker", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRepanic, Expected: 8},

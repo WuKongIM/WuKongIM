@@ -6,6 +6,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
@@ -26,7 +28,29 @@ func (h *Handler) WithDeferredSends(messages DeferredMessageUsecase) coregateway
 
 type deferredHandler struct {
 	*Handler
-	messages DeferredMessageUsecase
+	messages     DeferredMessageUsecase
+	orderChannel func(uid, id string, kind uint8) message.ChannelID
+}
+
+// WithChannelOrderedDeferredSends binds canonical Channel ordering for the
+// product gateway. Its Send hook must preserve the target.
+func (h *Handler) WithChannelOrderedDeferredSends(messages *message.App) coregateway.Handler {
+	if messages == nil {
+		return h
+	}
+	return &deferredHandler{
+		Handler: h, messages: messages, orderChannel: messages.GatewaySendOrderKey,
+	}
+}
+
+// SendOrderKey enables per-Channel ordering only for negotiated WKProto.
+func (h *deferredHandler) SendOrderKey(s session.Session, channelID string, channelType uint8) coregateway.SendOrderKey {
+	if h.orderChannel == nil || s == nil || s.Value(gatewaytypes.SessionValueProtocolName) != "wkproto" {
+		return coregateway.SendOrderKey{}
+	}
+	uid, _ := s.Value(coregateway.SessionValueUID).(string)
+	key := h.orderChannel(uid, channelID, channelType)
+	return coregateway.SendOrderKey{ID: key.ID, Type: key.Type}
 }
 
 type preparedGatewayBatch struct {
@@ -161,7 +185,10 @@ func (h *Handler) prepareSendBatch(items []coregateway.SendBatchItem) (*prepared
 			continue
 		}
 		validIndexes = append(validIndexes, i)
-		validItems = append(validItems, message.SendBatchItem{Context: ctx.RequestContext, Deadline: deadline, Command: cmd})
+		validItems = append(validItems, message.SendBatchItem{
+			Context: ctx.RequestContext, Deadline: deadline, Command: cmd,
+			OrderChannel: message.ChannelID{ID: item.OrderKey.ID, Type: item.OrderKey.Type},
+		})
 	}
 	return &preparedGatewayBatch{contexts: contexts, prechecked: prechecked, precheckResults: precheckResults, precheckSources: precheckSources, precheckClasses: precheckClasses, validIndexes: validIndexes, validItems: validItems, traceFields: traceFields}, nil
 }
