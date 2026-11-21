@@ -12,7 +12,7 @@ import (
 )
 
 func TestProviderQuoteSelectsCheapestExactPostPaidOfferWithoutMutation(t *testing.T) {
-	now := time.Date(2026, 8, 7, 10, 15, 0, 0, time.UTC)
+	now := time.Date(2026, 11, 21, 6, 15, 36, 0, time.UTC)
 	api := completeReadAPI()
 	provider := New(api, Options{Now: func() time.Time { return now }})
 	controller := cloudlease.NewController(provider, func() time.Time { return now })

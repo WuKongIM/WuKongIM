@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Refresh the reviewed Alibaba Cloud EIP billing evidence used for Cloud Lease quotes. / 更新 Cloud Lease 报价所用的阿里云 EIP 计费依据。
+
 - Foreground MQTT metadata reads rejected after a Slot route change retry once through the current authority within the original request deadline. / MQTT 前台元数据读取因 Slot 路由切换而被拒绝时，会在原请求时限内通过当前权威重试一次。
 
 - Local paired-P95 diagnostics can explicitly use a five-second first SEND attempt in every phase, with separate report versions and unchanged retry waits and latency gates. / 本地配对 P95 诊断支持显式设置所有阶段首发 5 秒，以独立报告版本记录，重试等待与延迟门禁保持不变。

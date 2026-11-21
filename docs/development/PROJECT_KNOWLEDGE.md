@@ -1867,6 +1867,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- Alibaba Cloud Lease quoting refuses expired EIP billing evidence before
+  contacting provider APIs. Refresh the evidence version and UTC expiration
+  after checking the official Hangzhou retention rate and direct-ECS waiver
+  conditions. Keep the full-Lease plus cleanup retention reserve even when a
+  waiver applies.
+
 - Foreground MQTT point reads may repeat once when the Slot proxy discards a
   stale-route result. The retry uses the same caller context and fresh routing
   and authority checks. Recovery scans and subscription writes are separate.
