@@ -24,6 +24,7 @@ const (
 	ModuleWebhook       Module = "webhook"
 	ModulePlugin        Module = "plugin"
 	ModuleBackup        Module = "backup"
+	ModuleCloudLease    Module = "cloudlease"
 	ModuleObservability Module = "observability"
 )
 
@@ -185,6 +186,7 @@ const (
 	TaskBackupScheduledCoordinator       TaskID = "backup/scheduled_coordinator"
 	TaskBackupCoordinatorFenceMonitor    TaskID = "backup/coordinator_fence_monitor"
 	TaskBackupScheduledSlotExport        TaskID = "backup/scheduled_slot_export"
+	TaskCloudLeaseQuoteOffer             TaskID = "cloudlease/quote_offer"
 	TaskObservabilityDashboard           TaskID = "observability/dashboard"
 	TaskObservabilityOpsMCPMetricsFanout TaskID = "observability/ops_mcp_metrics_fanout"
 )
@@ -310,6 +312,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskBackupScheduledCoordinator, Module: ModuleBackup, Name: "scheduled_coordinator", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskBackupCoordinatorFenceMonitor, Module: ModuleBackup, Name: "coordinator_fence_monitor", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskBackupScheduledSlotExport, Module: ModuleBackup, Name: "scheduled_slot_export", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskCloudLeaseQuoteOffer, Module: ModuleCloudLease, Name: "quote_offer", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskObservabilityDashboard, Module: ModuleObservability, Name: "dashboard", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskObservabilityOpsMCPMetricsFanout, Module: ModuleObservability, Name: "ops_mcp_metrics_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 }

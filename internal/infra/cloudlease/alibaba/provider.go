@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -412,7 +413,15 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 				if excludedOffer(request.Plan.Placement.ExcludedOffers, zone.ID, instanceType.ID) {
 					continue
 				}
-				reads.Go(func() {
+				reads.Add(1)
+				goroutine.SafeGo(nil, goroutine.TaskCloudLeaseQuoteOffer, func() {
+					defer func() {
+						// Keep Wait blocked until the supervisor repanics after a failed read.
+						if recovered := recover(); recovered != nil {
+							panic(recovered)
+						}
+						reads.Done()
+					}()
 					results[index] = discoverOffer(zone.ID, instanceType.ID)
 				})
 			}
