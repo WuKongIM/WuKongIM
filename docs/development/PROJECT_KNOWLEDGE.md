@@ -188,6 +188,12 @@ wall timestamps are audit fields, not a reconstructed qualification clock.
 Current result and capacity consumers require v8 and reject missing offsets;
 historical v7 reports remain available for diagnosis without upgrading old evidence.
 
+Lifecycle benchmark session expiry and generation stop fence new RECV work
+before closing transport. An already admitted RECVACK keeps the existing write
+deadline so planned cancellation cannot turn it into worker harness code 17.
+Real RECVACK cancellations, write deadlines, and disconnect errors retain their
+existing evidence classifications.
+
 Lifecycle driver `SDKAdmission` includes the entire `SessionPool.TrySend`,
 including its online-table read lock. Engine step-lock and owner-queue wait
 metrics do not measure that lock. Optional static runtime trace regions split

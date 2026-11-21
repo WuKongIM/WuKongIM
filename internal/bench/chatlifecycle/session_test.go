@@ -714,6 +714,10 @@ func TestSessionPoolLogoutJoinsOrderedDrainBeforeReleaseRecipient(t *testing.T) 
 			t.Fatalf("RECVACK order = %d, want %d", got, want)
 		}
 	}
+	// Wait for both packet reads and the next idle read before testing its join.
+	for range 3 {
+		<-client.readEntered
+	}
 	if got := fixture.verifier.Snapshot().SequenceCurrent; got != 1 {
 		t.Fatalf("sequence current before logout = %d, want 1 channel", got)
 	}
