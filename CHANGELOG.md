@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Count a person Channel's first metadata create once in chat-lifecycle benchmarks when it enters the active set after its initial SENDACK. / 聊天生命周期压测中，私聊在收到首条 SENDACK 后转入热集时，首次元数据创建只计一次。
+
 - Verify and reuse an exact pre-staged Cloud Deployment archive when the runner transfer is slow. / 云部署传输较慢时，可校验并复用已预传的完整部署包。
 
 - Reduce Alibaba Cloud Lease quote discovery time using up to two independent offer lookups, with the same pricing and freshness checks. / 阿里云租约报价最多并行查询两个独立候选，加快发现，保留原价格和有效期校验。

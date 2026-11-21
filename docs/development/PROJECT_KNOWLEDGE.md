@@ -2792,6 +2792,9 @@ specification, runbook, report, or module documentation; link to them when neede
   Channel counters use `wukongim_channel(v2)?_meta_created_total` and
   `wukongim_channel(v2)?_activation_rejected_total`. Legacy/promoted counter
   families remain separate raw series and must not be summed as distinct events.
+  In the worker, a pending person Channel can receive its initial SENDACK before
+  it enters the active set. The bounded Channel entry carries this acknowledged
+  state into promotion when that SEND was counted as the first create for the row.
   The 4 MiB cap applies to each physical file. Responses up to that size retain
   their original `metrics/range-X.json` bytes. A larger complete, validated
   response retains ordered raw byte parts of at most 4 MiB and an index at
