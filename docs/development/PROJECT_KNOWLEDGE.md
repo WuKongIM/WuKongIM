@@ -2027,6 +2027,9 @@ specification, runbook, report, or module documentation; link to them when neede
   for host activation, bounded readiness, and typed outcomes. Behavioral tests
   execute that entry with fake adapters; Go `clouddeploy` owns pure contracts
   and validation, not a parallel test-only execution model.
+  Slow runner links can use the existing Lease diagnostic identity to stage
+  only the public bundle. Activation checks the archive size and SHA-256
+  before reuse and relay. Runtime credentials stay on the ordinary upload path.
 - New immutable chat-lifecycle requests may lower `request_budget_limit_micros`
   below the CNY 1,500 default while retaining the exact CNY 150 stop reserve.
   Existing RunPlan/Lease fields carry the envelope; formal consumers authenticate
