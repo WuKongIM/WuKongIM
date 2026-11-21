@@ -44,6 +44,7 @@ type SessionClient interface {
 	// report transient local pressure with client.ErrSendQueueFull.
 	TrySend(context.Context, *frame.SendPacket) error
 	Ping(context.Context) error
+	// AckRecv is bounded by the context deadline or the client's operation timeout.
 	AckRecv(context.Context, *frame.RecvackPacket) error
 	Close() error
 	// QueueSnapshot must stop waiting when its context is canceled.
@@ -293,6 +294,8 @@ type onlineSession struct {
 	groupPosition         int
 	canaryAnchor          bool
 	relationshipsObserved bool
+	// recvAckActive is published before the drain checks the retirement fence.
+	recvAckActive atomic.Bool
 	// closeInitiator is guarded by SessionPool.mu and claimed exactly once.
 	closeInitiator sessionCloseReason
 }
@@ -1092,8 +1095,8 @@ func (p *SessionPool) dueSessionUIDs(now time.Time) []string {
 	return due
 }
 
-// Logout removes online admission, cancels and closes the socket, joins its
-// ordered drain and heartbeat, and only then releases recipient monotonic state.
+// Logout removes online admission, settles an admitted RECVACK before closing
+// the socket, and joins the drain and heartbeat before releasing recipient state.
 func (p *SessionPool) Logout(uid string) error {
 	return p.logout(uid, sessionCloseReasonExplicitLogout)
 }
@@ -1146,6 +1149,11 @@ func (p *SessionPool) finishDetachedSession(session *onlineSession) error {
 // finishDetachedTransport joins transport-owned work and releases verifier
 // state while the caller retains the session's closing tombstone.
 func (p *SessionPool) finishDetachedTransport(session *onlineSession) error {
+	// Detach has already canceled new RECV admission. A drain with an active
+	// RECVACK stops after that write; otherwise Close can unblock an idle read.
+	if session.recvAckActive.Load() {
+		<-session.done
+	}
 	closeErr := session.client.Close()
 	if closeErr != nil {
 		p.recordTransportCloseFailure()
@@ -1331,6 +1339,14 @@ func (p *SessionPool) resetRuntime() error {
 
 func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 	defer close(session.done)
+	// Read cancellation fences new work. The admitted write keeps its existing
+	// deadline, or the client operation timeout when there is no deadline.
+	ackCtx := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		var cancel context.CancelFunc
+		ackCtx, cancel = context.WithDeadline(ackCtx, deadline)
+		defer cancel()
+	}
 	for {
 		packet, timing, err := readSessionFrame(ctx, session.client)
 		if err != nil {
@@ -1381,13 +1397,23 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 				p.onSendack(session.snapshot.UID, packet, verificationErr)
 			}
 		case *frame.RecvPacket:
-			if err := p.verifier.HandleRecvAt(ctx, session.snapshot.UID, packet, session.client, p.clock.Now); err != nil {
+			session.recvAckActive.Store(true)
+			if ctx.Err() != nil {
+				session.recvAckActive.Store(false)
+				return
+			}
+			err := p.verifier.HandleRecvAt(ackCtx, session.snapshot.UID, packet, session.client, p.clock.Now)
+			session.recvAckActive.Store(false)
+			if err != nil {
 				p.mu.Lock()
 				p.verificationErrors++
 				p.mu.Unlock()
 			}
 			if !p.verifier.correlationOutstanding(packet.ClientMsgNo) {
 				p.releaseCorrelationLease(packet.ClientMsgNo)
+			}
+			if ctx.Err() != nil {
+				return
 			}
 		}
 	}

@@ -56,8 +56,8 @@ passing 72-hour formal generation -> same aged dataset and process proof
   One generation-owned advance retains its time cut and total budget across slices of32 work and frozen prefixes of at most32 commands; Snapshots may see partial progress. Two-half time leases retain canceled jobs and caller postprocessing; Stop joins logical jobs before executors and clients. AdmissionPending distinguishes queued/executing SDK work.
   Planning is history-independent; no historical user or Channel owns retained work. A returning-login cold revisit never overlaps the active or pending hot set.
   Session expiry skips online-table locking while a conservative atomic deadline bound proves nothing can be due; actual due sets reserve one generation-owned bounded cleanup queue.
-  Closing tombstones and per-SEND expiry leases prevent replacement or socket
-  teardown from racing admitted retry work; pinned overdue sessions remain due hints.
+  Closing tombstones and SEND leases serialize teardown with admitted retries. Pinned overdue sessions remain due hints.
+  Retirement fences new RECV work and joins one admitted RECVACK within its existing deadline before closing transport.
 - Retry admission and owner terminal decisions linearize with direct ACK verification.
   Only an exact registered positive completion receipt may transfer to the Engine's
   existing ACK settlement while its callback is queued. Missing state proves nothing;

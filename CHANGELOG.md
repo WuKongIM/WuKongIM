@@ -465,6 +465,10 @@ move those entries into a version section named for that exact tag.
   when several leading items fail, preserving one completion per input.
   / 修复批次开头连续多条请求失效时被重复纳入活动集的问题，保持每项只完成一次。
 
+- Let an in-flight RECVACK finish within its existing write deadline when a
+  chat-lifecycle benchmark session expires or stops.
+  / 聊天生命周期压测会话到期或停止时，允许已接手的 RECVACK 在原写入时限内完成，保留真实失败判定。
+
 - Preserve a recorded product terminal result during benchmark Stop cleanup
   instead of also reporting it as an internal generator error.
   / 压测驱动停止清理时保留已记录的产品终态，避免再次误记为内部生成器错误。
