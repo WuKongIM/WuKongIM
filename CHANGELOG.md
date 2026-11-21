@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Foreground MQTT metadata reads rejected after a Slot route change retry once through the current authority within the original request deadline. / MQTT 前台元数据读取因 Slot 路由切换而被拒绝时，会在原请求时限内通过当前权威重试一次。
+
 - Local paired-P95 diagnostics can explicitly use a five-second first SEND attempt in every phase, with separate report versions and unchanged retry waits and latency gates. / 本地配对 P95 诊断支持显式设置所有阶段首发 5 秒，以独立报告版本记录，重试等待与延迟门禁保持不变。
 
 - Personal whitelist additions prepare both users' Memberships and refresh only the whitelist owner's conversation activation, preserving existing read and hidden-history boundaries. / 添加个人白名单时确保双方 Membership，并刷新白名单所属用户的会话激活时间，保留已有已读位置和历史隐藏边界。

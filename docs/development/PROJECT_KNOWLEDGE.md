@@ -1867,6 +1867,10 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- Foreground MQTT point reads may repeat once when the Slot proxy discards a
+  stale-route result. The retry uses the same caller context and fresh routing
+  and authority checks. Recovery scans and subscription writes are separate.
+
 - Unreleased Changelog entries use the same standard category headings as
   versioned releases. OpenAPI descriptions stay concise and put detailed
   operation behavior in the bilingual operation-semantics registry before
