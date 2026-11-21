@@ -36,9 +36,10 @@ const (
 	// The risk allowance is 50 times the reviewed cn-hangzhou published rate
 	// and applies for the full Lease plus bounded cleanup, even when waiver
 	// evidence is present. It expires so stale billing policy fails closed.
+	// Source: https://help.aliyun.com/zh/eip/pay-as-you-go/
 	eipRetentionRiskUnitCostMicros = int64(1_000_000)
 	eipCleanupBillingHours         = 4
-	eipBillingEvidenceVersion      = "alibaba-eip-payg-cn-mainland-2026-08-07"
+	eipBillingEvidenceVersion      = "alibaba-eip-payg-cn-mainland-2026-11-21"
 	maxSystemDiskGiB               = 2_048
 	maxDataDiskGiB                 = 32_768
 )
@@ -55,7 +56,7 @@ var (
 
 	ubuntu2404ImagePattern = regexp.MustCompile(`^ubuntu_24_04_x64_20G_alibase_[0-9]{8}\.vhd$`)
 	// eipBillingEvidenceValidUntil forces periodic price and waiver review.
-	eipBillingEvidenceValidUntil = time.Date(2026, time.November, 6, 0, 0, 0, 0, time.UTC)
+	eipBillingEvidenceValidUntil = time.Date(2027, time.February, 19, 0, 0, 0, 0, time.UTC)
 )
 
 // Zone contains the provider fields used to choose an ESSD-capable placement.
