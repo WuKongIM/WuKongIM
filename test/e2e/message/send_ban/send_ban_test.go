@@ -80,13 +80,14 @@ func TestSendBanGatewayDistributions(t *testing.T) {
 		return out
 	}
 	for _, config := range []struct {
-		name                     string
-		users, channels, perUser int
+		name                                           string
+		users, channels, perUser, sendsPerChannelVisit int
 	}{
-		{"one-user-one-channel", 1, 1, 32},
-		{"many-users-one-channel", 4, 1, 8},
-		{"one-user-many-channels", 1, 16, 64},
-		{"many-users-many-channels", 16, 16, 8},
+		{"one-user-one-channel", 1, 1, 32, 1},
+		{"many-users-one-channel", 4, 1, 8, 1},
+		{"one-user-many-channels", 1, 16, 64, 1},
+		// Adjacent SENDs to the same Channel can batch in each session's shard.
+		{"many-users-many-channels", 16, 16, 8, 2},
 	} {
 		t.Run(config.name, func(t *testing.T) {
 			uids := make([]string, config.users)
@@ -100,6 +101,9 @@ func TestSendBanGatewayDistributions(t *testing.T) {
 				clients[i] = client
 			}
 			channels := make([]string, config.channels)
+			channelForSend := func(userIndex, ordinal int) int {
+				return (userIndex + ordinal/config.sendsPerChannelVisit) % len(channels)
+			}
 			expected := make([][]string, config.channels)
 			for i := range channels {
 				channels[i] = fmt.Sprintf("gateway-%s-channel-%02d", config.name, i)
@@ -134,7 +138,7 @@ func TestSendBanGatewayDistributions(t *testing.T) {
 				for userIndex, client := range clients {
 					go func(userIndex int, client *suite.WKProtoClient) {
 						for i := 0; i < config.perUser; i++ {
-							channelIndex := (userIndex + i) % len(channels)
+							channelIndex := channelForSend(userIndex, i)
 							no := fmt.Sprintf("%s-%d-%d-%d", config.name, phase, userIndex, i)
 							if err := client.SendFrame(&frame.SendPacket{ChannelID: channels[channelIndex], ChannelType: 2, ClientSeq: uint64(phase*config.perUser + i + 1), ClientMsgNo: no, Payload: []byte(no)}); err != nil {
 								results <- err
@@ -153,7 +157,7 @@ func TestSendBanGatewayDistributions(t *testing.T) {
 					want := map[string]frame.ReasonCode{}
 					channelByNo := map[string]int{}
 					for i := 0; i < config.perUser; i++ {
-						channelIndex := (userIndex + i) % len(channels)
+						channelIndex := channelForSend(userIndex, i)
 						no := fmt.Sprintf("%s-%d-%d-%d", config.name, phase, userIndex, i)
 						want[no] = frame.ReasonSuccess
 						channelByNo[no] = channelIndex

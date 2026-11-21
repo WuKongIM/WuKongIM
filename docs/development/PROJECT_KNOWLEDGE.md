@@ -2613,6 +2613,11 @@ specification, runbook, report, or module documentation; link to them when neede
   owners before closing or restarting append dependencies. This mechanism alone
   is not evidence that the 5,000-channel/4,500-SEND/s qualification passes.
 
+- The send-ban E2E burst across many users and Channels sends adjacent pairs
+  per session and Channel to exercise multi-record Gateway batches under
+  Channel-keyed sharding. The batch counter, per-request ACK and exact history
+  checks remain required.
+
 - Ordered submission can coalesce already-ready independent jobs within existing
   micro-batch targets. One execution counts as one busy worker; original callbacks
   retain their capacity and canonical Channel dependency until return. Both the

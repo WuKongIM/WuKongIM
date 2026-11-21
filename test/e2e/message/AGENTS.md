@@ -98,6 +98,8 @@ in both topologies; `WK_E2E_UNREAD_ACTIVATION_REPORT_DIR` retains its JSON repor
 cache freshness, WKProto and HTTP admission, atomic changes and CAS.
 Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
 The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
+Its many-user, many-Channel burst sends adjacent pairs per connection and
+Channel so the Gateway can form multi-record batches within one shard.
 The separate opt-in `TestPermissionCallerBaseline` characterizes Issue #977
 using fixed independent WKProto sessions, public per-node metric cuts and exact
 history across four actual Slot/leader placements. See `send_ban/AGENTS.md` for
