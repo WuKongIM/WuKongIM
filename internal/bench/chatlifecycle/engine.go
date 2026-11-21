@@ -745,6 +745,8 @@ func (i *engineInflight) hasClientSeq(clientSeq uint64) bool {
 type engineActiveChannel struct {
 	edge      RelationshipEdge
 	direction PersonDirection
+	// warmed travels with a pending Channel when it enters the active set.
+	warmed bool
 }
 
 type enginePendingChannel struct {
@@ -908,11 +910,8 @@ type Engine struct {
 	lifecycleApprovalRejections    LifecycleApprovalRejectionSnapshot
 	activeChannels                 []engineActiveChannel
 	activePosition                 map[string]int
-	// warmedActive records active person channels whose first classified cold
-	// SEND has a successful SENDACK. warmingChannels prevents a second logical
-	// SEND from being counted as the channel's metadata create while the first
-	// candidate is queued, inflight, or retrying.
-	warmedActive    map[string]struct{}
+	// warmingChannels prevents a second logical SEND from being counted as the
+	// Channel's metadata create while the first candidate is still in flight.
 	warmingChannels map[string]struct{}
 	pendingChannels []enginePendingChannel
 	pendingPosition map[string]int
@@ -1109,7 +1108,6 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.lifecycleApprovalReplayPruneScanned = 0
 	e.activeChannels = nil
 	e.activePosition = make(map[string]int)
-	e.warmedActive = make(map[string]struct{})
 	e.warmingChannels = make(map[string]struct{})
 	e.pendingChannels = nil
 	e.pendingPosition = make(map[string]int)
@@ -2677,7 +2675,6 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		e.lifecycleCandidateLeaseScanned = 0
 		e.activeChannels = nil
 		e.activePosition = nil
-		e.warmedActive = nil
 		e.warmingChannels = nil
 		e.pendingChannels = nil
 		e.pendingPosition = nil
@@ -3017,7 +3014,7 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 		if dispatchFailure != 0 {
 			e.recordDriverCPUDeadlineMiss(dispatchFailure)
 			e.activityUnderDelivered++
-			e.completeMetaCreate(work.intent, false)
+			e.releaseMetaCreateCandidate(work.intent)
 			return errors.Join(
 				e.recordUnderDelivery(dispatchFailure, 1),
 				e.settleLifecycleInitialActivity(work.intent),
@@ -3595,7 +3592,7 @@ func (e *Engine) startSDKAttempt(intent TrafficIntent, attempt uint8, now, dispa
 	}
 	if !dispatchDeadline.IsZero() && attemptAt.After(dispatchDeadline) {
 		e.activityUnderDelivered++
-		e.completeMetaCreate(intent, false)
+		e.releaseMetaCreateCandidate(intent)
 		err := errors.Join(
 			e.recordUnderDelivery(FailureCodeOfferedDispatchFreshDeadline, 1),
 			e.settleLifecycleInitialActivity(intent),
@@ -3732,7 +3729,7 @@ func (e *Engine) cancelAttempt(inflight *engineInflight) error {
 	logical := inflight.intent.Logical
 	e.cancelAttemptTimeout(inflight)
 	e.retries.cancel(logical.ClientMsgNo)
-	e.completeMetaCreate(inflight.intent, false)
+	e.releaseMetaCreateCandidate(inflight.intent)
 	if err := e.verifier.abortSendHarness(logical); err != nil {
 		return err
 	}
@@ -3760,7 +3757,7 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 		if completion != nil {
 			return e.settleVerifiedSendCompletion(inflight, completion)
 		}
-		e.completeMetaCreate(inflight.intent, false)
+		e.releaseMetaCreateCandidate(inflight.intent)
 		_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 		e.releaseCorrelationLease(inflight.intent)
 		removeErr := e.removeInflight(inflight)
@@ -3811,7 +3808,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			if completion != nil {
 				return e.settleVerifiedSendCompletion(inflight, completion)
 			}
-			e.completeMetaCreate(inflight.intent, false)
+			e.releaseMetaCreateCandidate(inflight.intent)
 			_ = e.verifier.ReleaseSendAt(logical, e.clock.Now())
 			e.releaseCorrelationLease(inflight.intent)
 			removeErr := e.removeInflight(inflight)
@@ -3828,19 +3825,19 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 		}
 		var lifecycleErr error
 		lifecycleErr = errors.Join(lifecycleErr, e.completeGroupMetaCreate(inflight.intent))
-		if inflight.intent.ColdAttempt {
-			e.markActiveWarmed(inflight.intent.ChannelID)
-		}
 		if inflight.intent.MetaCreateCandidate {
-			e.completeMetaCreate(inflight.intent, true)
 			hashSlot := lifecycleHashSlotForKey(inflight.intent.ChannelID, formalHashSlots)
 			if inflight.intent.Kind != TrafficPerson || inflight.intent.ChannelID == "" ||
 				e.metaCreatePersonByHashSlot[hashSlot] == math.MaxUint64 {
+				e.releaseMetaCreateCandidate(inflight.intent)
 				e.harnessInvalid++
 				lifecycleErr = errEngineConfig
 			} else {
 				e.metaCreatePersonByHashSlot[hashSlot]++
+				e.markPersonChannelWarmed(inflight.intent.ChannelID, true)
 			}
+		} else if inflight.intent.Kind == TrafficPerson && inflight.intent.ColdAttempt {
+			e.markPersonChannelWarmed(inflight.intent.ChannelID, false)
 		}
 		if lifecycle := e.lifecycleByChannel[inflight.intent.ChannelID]; lifecycle != nil &&
 			(inflight.intent.lifecycleTimerToken == 0 || inflight.intent.lifecycleTimerToken == lifecycle.lifecycleTimerToken) {
@@ -3880,7 +3877,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	if completion != nil {
 		return errors.Join(verificationErr, e.settleVerifiedSendCompletion(inflight, completion))
 	}
-	e.completeMetaCreate(inflight.intent, false)
+	e.releaseMetaCreateCandidate(inflight.intent)
 	releaseErr := e.verifier.ReleaseSendAt(logical, e.clock.Now())
 	e.releaseCorrelationLease(inflight.intent)
 	removeErr := e.removeInflight(inflight)
@@ -3933,7 +3930,7 @@ func (e *Engine) abortHarness(inflight *engineInflight, cause error) error {
 		logical := inflight.intent.Logical
 		e.cancelAttemptTimeout(inflight)
 		e.retries.cancel(logical.ClientMsgNo)
-		e.completeMetaCreate(inflight.intent, false)
+		e.releaseMetaCreateCandidate(inflight.intent)
 		_ = e.verifier.abortSendHarness(logical)
 		e.releaseCorrelationLease(inflight.intent)
 		cause = errors.Join(cause, e.removeInflight(inflight))
@@ -3969,26 +3966,26 @@ func (e *Engine) removeInflight(inflight *engineInflight) error {
 	return nil
 }
 
-func (e *Engine) completeMetaCreate(intent TrafficIntent, success bool) {
+func (e *Engine) releaseMetaCreateCandidate(intent TrafficIntent) {
 	if intent.Kind != TrafficPerson || !intent.MetaCreateCandidate || intent.ChannelID == "" {
 		return
 	}
 	delete(e.warmingChannels, intent.ChannelID)
-	if success {
-		if _, active := e.activePosition[intent.ChannelID]; active {
-			e.warmedActive[intent.ChannelID] = struct{}{}
-		}
-	}
 }
 
-func (e *Engine) markActiveWarmed(channelID string) {
-	if channelID == "" {
-		return
+// markPersonChannelWarmed retains the active acknowledgement or an already
+// counted pending create. A pending follower cannot release another SEND's
+// candidate while that SEND is queued, inflight, or retrying.
+func (e *Engine) markPersonChannelWarmed(channelID string, countedFirstCreate bool) {
+	if position, active := e.activePosition[channelID]; active {
+		e.activeChannels[position].warmed = true
+	} else if position, pending := e.pendingPosition[channelID]; pending {
+		if !countedFirstCreate {
+			return
+		}
+		e.pendingChannels[position].active.warmed = true
 	}
 	delete(e.warmingChannels, channelID)
-	if _, active := e.activePosition[channelID]; active {
-		e.warmedActive[channelID] = struct{}{}
-	}
 }
 
 func (e *Engine) cancelAttemptTimeout(inflight *engineInflight) {
@@ -4227,7 +4224,8 @@ func (e *Engine) routePersonGrantWithAdmission(grant TrafficIntent, now time.Tim
 			continue
 		}
 		_, warming := e.warmingChannels[activity.intent.ChannelID]
-		_, warmed := e.warmedActive[activity.intent.ChannelID]
+		position, active := e.activePosition[activity.intent.ChannelID]
+		warmed := active && e.activeChannels[position].warmed
 		activity.intent.ColdAttempt = !warmed
 		if activity.intent.MetaCreateCandidate && (warming || warmed) {
 			activity.intent.MetaCreateCandidate = false
@@ -4299,7 +4297,7 @@ func (e *Engine) routeActivePersonGrant(grant TrafficIntent, now time.Time, corr
 		active := e.activeChannels[position]
 		channelID := active.edge.PersonChannelID
 		_, warming := e.warmingChannels[channelID]
-		_, warmed := e.warmedActive[channelID]
+		warmed := active.warmed
 		sender, err := SenderFor(active.direction, grant.Logical.LogicalSend, active.edge.OwnerUID, active.edge.PeerUID)
 		if err != nil {
 			return TrafficIntent{}, false, err
@@ -4441,7 +4439,6 @@ func (e *Engine) removeActiveChannel(channelID string) bool {
 	e.activeChannels[last] = engineActiveChannel{}
 	e.activeChannels = e.activeChannels[:last]
 	delete(e.activePosition, channelID)
-	delete(e.warmedActive, channelID)
 	delete(e.warmingChannels, channelID)
 	if len(e.activeChannels) == 0 {
 		e.activeCursor = 0
@@ -4653,7 +4650,7 @@ func (e *Engine) recordGroupUnderDelivery(intent TrafficIntent, code FailureCode
 func (e *Engine) cleanupInflight() {
 	for _, inflight := range e.inflight {
 		logical := inflight.intent.Logical
-		e.completeMetaCreate(inflight.intent, false)
+		e.releaseMetaCreateCandidate(inflight.intent)
 		terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed)
 		// The strict verifier returns this exact product error after recording
 		// the terminal result. Other errors prove no successful state change.
