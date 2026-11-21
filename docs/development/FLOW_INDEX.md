@@ -31,7 +31,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/infra/backup/FLOW.md](../../internal/infra/backup/FLOW.md) | `package` | Adapts backup repositories, cluster routing, Controller state, export, and restore ports without owning backup policy. | 61 | ok |
 | [internal/infra/cloudanalysis/FLOW.md](../../internal/infra/cloudanalysis/FLOW.md) | `package` | Implements bounded private-origin sources and strict parsers for live cloud simulation analysis. | 59 | ok |
 | [internal/infra/clouddeploy/FLOW.md](../../internal/infra/clouddeploy/FLOW.md) | `package` | Provides a root-anchored filesystem adapter for cloud deployment files, inventory, and digests. | 44 | ok |
-| [internal/infra/cloudlease/alibaba/FLOW.md](../../internal/infra/cloudlease/alibaba/FLOW.md) | `package` | Implements fail-closed Alibaba Cloud lease quoting, paid lifecycle, inventory, release, sweep, and OIDC bootstrap. | 61 | ok |
+| [internal/infra/cloudlease/alibaba/FLOW.md](../../internal/infra/cloudlease/alibaba/FLOW.md) | `package` | Implements fail-closed Alibaba Cloud lease quoting, paid lifecycle, inventory, release, sweep, and OIDC bootstrap. | 63 | ok |
 | [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 149 | warning |
 | [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `package` | Adapts presence lookup and owner-local session writes for canonical online delivery. | 54 | ok |
 | [internal/infra/mqttowner/FLOW.md](../../internal/infra/mqttowner/FLOW.md) | `package` | Persists immutable node-local proofs of gracefully retired or crashed MQTT owner boots. | 53 | ok |
@@ -80,7 +80,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `package` | Owns Hash-Slot-scoped metadata tables, deterministic batches, membership directories, snapshots, restore, and cache invalidation. | 130 | warning |
 | [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 49 | ok |
 | [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 126 | warning |
-| [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 83 | ok |
+| [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 85 | ok |
 | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |
 | [pkg/protocol/publication/FLOW.md](../../pkg/protocol/publication/FLOW.md) | `package` | Defines bounded immutable publication metadata and its versioned durable codec independently of entry packets and storage. | 57 | ok |
 | [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 150 | warning |

@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	openapiutil "github.com/alibabacloud-go/darabonba-openapi/v2/utils"
 	ecs "github.com/alibabacloud-go/ecs-20140526/v7/client"
@@ -292,6 +293,10 @@ func newReadOpenAPITestClient(t *testing.T, handler http.Handler) *OpenAPI {
 	if err != nil {
 		t.Fatalf("create ECS test client: %v", err)
 	}
+	quoteClients, err := newQuoteECSClients(newConfig())
+	if err != nil {
+		t.Fatalf("create quote ECS test clients: %v", err)
+	}
 	quotaClient, err := quotas.NewClient(newConfig())
 	if err != nil {
 		t.Fatalf("create Quota test client: %v", err)
@@ -304,7 +309,48 @@ func newReadOpenAPITestClient(t *testing.T, handler http.Handler) *OpenAPI {
 	if err != nil {
 		t.Fatalf("create STS test client: %v", err)
 	}
-	return &OpenAPI{region: RegionHangzhou, ecs: ecsClient, quotas: quotaClient, ram: ramClient, sts: stsClient}
+	return &OpenAPI{region: RegionHangzhou, ecs: ecsClient, quoteClients: quoteClients, quotas: quotaClient, ram: ramClient, sts: stsClient}
+}
+
+func TestOpenAPIConcurrentQuoteReadsKeepSDKRequestsIndependent(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		entered := make(chan struct{}, 2)
+		release := make(chan struct{})
+		handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			action, _ := identityOpenAPIRequest(t, request)
+			if action != "DescribePrice" {
+				t.Errorf("action = %q, want DescribePrice", action)
+			}
+			entered <- struct{}{}
+			<-release
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"PriceInfo":{"Price":{"TradePrice":1.25,"Currency":"CNY"}}}`))
+		})
+		api := newReadOpenAPITestClient(t, handler)
+		priced := make(chan error, 2)
+		for range 2 {
+			go func() {
+				price, err := api.Price(context.Background(), PriceRequest{
+					Kind: PriceKindEIPTraffic, Region: RegionHangzhou,
+					InternetCharge: providerInternetPayTraffic, PeakBandwidthMbps: 20,
+				})
+				if err == nil && (price.Currency != "CNY" || price.UnitCostMicros != 1_250_000) {
+					t.Errorf("Price = %+v, want CNY 1.25 per GiB", price)
+				}
+				priced <- err
+			}()
+		}
+		synctest.Wait()
+		if got := len(entered); got != 2 {
+			t.Errorf("simultaneous SDK reads = %d, want two", got)
+		}
+		close(release)
+		for range 2 {
+			if err := <-priced; err != nil {
+				t.Errorf("Price: %v", err)
+			}
+		}
+	})
 }
 
 func TestOpenAPIReadBoundaryCancellationNeverReachesProvider(t *testing.T) {

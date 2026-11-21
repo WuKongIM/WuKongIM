@@ -26,6 +26,8 @@ It does not choose Lease policy, deploy WuKongIM, or run workloads.
 1. Quote validates region capabilities, paginates completely, finds exact
    4-CPU/8-GiB capacity, checks quota and image facts, and returns the lowest
    complete postpaid estimate including the versioned EIP risk allowance.
+   It joins at most two independent offer reads with separate ECS clients,
+   then reduces results in catalog order within the original freshness bound.
 2. Acquire creates one tagged VPC, vSwitch, security group, three service
    nodes, one load node, ESSD disks, and one EIP, then reconstructs an exact
    receipt from provider inventory.
