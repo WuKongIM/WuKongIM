@@ -18,11 +18,8 @@ _openapi:
       - content: Set maximum Conversation unread
         id: set-maximum-conversation-unread
     contents:
-      - content: Monotonically advances read_seq so no more than unread messages remain.
-          Refreshes activated_at even when the read position does not advance.
-          Missing or removed memberships and deleted Channels remain no-ops. If
-          activation fails after the read position commits, retry the same
-          request to finish activation.
+      - content: Advances read_seq so at most unread messages remain, and refreshes
+          conversation activation even when the read position stays the same.
         heading: set-maximum-conversation-unread
       - content: >-
           POST /conversations/setUnread
@@ -31,11 +28,8 @@ _openapi:
 
           Set maximum Conversation unread
 
-          Monotonically advances read_seq so no more than unread messages
-          remain. Refreshes activated_at even when the read position does not
-          advance. Missing or removed memberships and deleted Channels remain
-          no-ops. If activation fails after the read position commits, retry the
-          same request to finish activation.
+          Advances read_seq so at most unread messages remain, and refreshes
+          conversation activation even when the read position stays the same.
 
           ConversationSetUnreadRequest
 
@@ -91,6 +85,9 @@ _openapi:
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
+- **Scope**: Requests for missing or removed Memberships or deleted Channels leave state unchanged.
+- **Success**: read_seq advances monotonically, so the unread count can only decrease or stay the same. The service refreshes activated_at even when the read position stays the same.
+- **Recovery**: If activation fails after the read position commits, retry the same request to finish activation.
 
 </Callout>
 

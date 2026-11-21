@@ -18,15 +18,9 @@ _openapi:
       - content: Add Channel allowlist members
         id: add-channel-allowlist-members
     contents:
-      - content: "Adds non-blank UIDs to the derived Channel allowlist. For
-          channel_type=1, channel_id is the whitelist owner UID: after the ACL
-          write, prepare both users' canonical person Memberships and refresh
-          only the owner's activated_at, preserving existing join/read/delete
-          boundaries. Personal UIDs cannot contain @. Duplicate peers are
-          prepared once; repeated adds refresh activation. Preparation or
-          activation failure can leave a durable prefix; retry the same request
-          to finish. Group allowlists retain ACL-only behavior;
-          empty-conversation display is unchanged."
+      - content: Adds non-blank UIDs to the Channel allowlist. For a person Channel,
+          prepares both memberships and refreshes only the whitelist owner's
+          activation.
         heading: add-channel-allowlist-members
       - content: >-
           POST /channel/whitelist_add
@@ -35,15 +29,9 @@ _openapi:
 
           Add Channel allowlist members
 
-          Adds non-blank UIDs to the derived Channel allowlist. For
-          channel_type=1, channel_id is the whitelist owner UID: after the ACL
-          write, prepare both users' canonical person Memberships and refresh
-          only the owner's activated_at, preserving existing join/read/delete
-          boundaries. Personal UIDs cannot contain @. Duplicate peers are
-          prepared once; repeated adds refresh activation. Preparation or
-          activation failure can leave a durable prefix; retry the same request
-          to finish. Group allowlists retain ACL-only behavior;
-          empty-conversation display is unchanged.
+          Adds non-blank UIDs to the Channel allowlist. For a person Channel,
+          prepares both memberships and refreshes only the whitelist owner's
+          activation.
 
           ChannelAllowlistMutationRequest
 
@@ -97,7 +85,9 @@ _openapi:
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
-- **Scope**: The entry does not verify that the parent Channel exists; derived allowlist state can be created first and become effective if the parent Channel appears later.
+- **Scope**: A derived allowlist can be written before its parent Channel exists and takes effect when it appears. For channel_type=1, channel_id is the whitelist owner UID. Person UIDs cannot contain @. Group allowlist writes affect only permissions.
+- **Success**: After the person allowlist write, the service prepares both Memberships once per distinct peer and refreshes only the owner’s activated_at. Repeating an add refreshes activation. Join, read and hidden-history boundaries and empty-conversation visibility are preserved.
+- **Recovery**: A preparation or activation failure can leave earlier writes committed. Retry the same request to finish.
 
 </Callout>
 

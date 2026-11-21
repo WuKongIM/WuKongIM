@@ -1867,6 +1867,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- Unreleased Changelog entries use the same standard category headings as
+  versioned releases. OpenAPI descriptions stay concise and put detailed
+  operation behavior in the bilingual operation-semantics registry before
+  regenerating the reference pages.
+
 - MQTT Session transition observations retry only `proxy.ErrReadStaleRoute`
   within their existing deadline. Other read errors or missing Sessions terminate
   observation and fail; pending/inflight, offline and owner-drain proofs remain exact.

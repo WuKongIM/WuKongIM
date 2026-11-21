@@ -208,8 +208,44 @@ export const productHTTPOperationSemantics = {
   },
   'POST /channel/whitelist_add': {
     scope: text(
-      '入口不验证父 Channel 是否存在；派生允许列表可以先于父 Channel 建立，并在父 Channel 后续出现时生效。',
-      'The entry does not verify that the parent Channel exists; derived allowlist state can be created first and become effective if the parent Channel appears later.',
+      '派生允许列表可在父 Channel 创建前写入，并在父 Channel 出现后生效。channel_type=1 时，channel_id 是白名单所属用户的 UID。个人 UID 不得含 @。群白名单只修改权限。',
+      'A derived allowlist can be written before its parent Channel exists and takes effect when it appears. For channel_type=1, channel_id is the whitelist owner UID. Person UIDs cannot contain @. Group allowlist writes affect only permissions.',
+    ),
+    success: text(
+      '个人白名单写入后，每个不同的对方 UID 只准备一次双方的成员关系，且只刷新白名单所属用户的 activated_at。重复添加会刷新激活时间。保留加入、已读和历史隐藏边界，空会话显示规则保持不变。',
+      'After the person allowlist write, the service prepares both Memberships once per distinct peer and refreshes only the owner’s activated_at. Repeating an add refreshes activation. Join, read and hidden-history boundaries and empty-conversation visibility are preserved.',
+    ),
+    recovery: text(
+      '目录准备或激活失败时，前序写入可能已提交。重试相同请求可完成剩余步骤。',
+      'A preparation or activation failure can leave earlier writes committed. Retry the same request to finish.',
+    ),
+  },
+  'POST /conversations/clearUnread': {
+    scope: text(
+      '成员关系缺失或已移除、频道已删除时不执行变更。',
+      'Requests for missing or removed Memberships or deleted Channels leave state unchanged.',
+    ),
+    success: text(
+      '清除未读。即使已读位置不变，也会刷新 activated_at。',
+      'Clears unread and refreshes activated_at even when the read position stays the same.',
+    ),
+    recovery: text(
+      '若已读位置已提交但激活失败，重试原请求可完成激活。',
+      'If activation fails after the read position commits, retry the same request to finish activation.',
+    ),
+  },
+  'POST /conversations/setUnread': {
+    scope: text(
+      '成员关系缺失或已移除、频道已删除时不执行变更。',
+      'Requests for missing or removed Memberships or deleted Channels leave state unchanged.',
+    ),
+    success: text(
+      'read_seq 单调前进，未读数只会减少或持平。即使已读位置不变，也会刷新 activated_at。',
+      'read_seq advances monotonically, so the unread count can only decrease or stay the same. The service refreshes activated_at even when the read position stays the same.',
+    ),
+    recovery: text(
+      '若已读位置已提交但激活失败，重试原请求可完成激活。',
+      'If activation fails after the read position commits, retry the same request to finish activation.',
     ),
   },
   'POST /message/send': {

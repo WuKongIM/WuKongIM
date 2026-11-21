@@ -18,8 +18,7 @@ _openapi:
       - content: 设置会话最大未读数
         id: 设置会话最大未读数
     contents:
-      - content: 单调推进 read_seq，使剩余未读消息不超过 unread。已读位置不变时也刷新
-          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
+      - content: 推进 read_seq，使未读数不超过 unread。已读位置不变时也会刷新会话激活时间。
         heading: 设置会话最大未读数
       - content: >-
           POST /conversations/setUnread
@@ -28,8 +27,7 @@ _openapi:
 
           设置会话最大未读数
 
-          单调推进 read_seq，使剩余未读消息不超过 unread。已读位置不变时也刷新
-          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
+          推进 read_seq，使未读数不超过 unread。已读位置不变时也会刷新会话激活时间。
 
           ConversationSetUnreadRequest
 
@@ -81,6 +79,9 @@ _openapi:
 <Callout type="warn" title="接口边界">
 
 - **调用方**：仅限受信业务后端
+- **作用域**：成员关系缺失或已移除、频道已删除时不执行变更。
+- **成功判定**：read_seq 单调前进，未读数只会减少或持平。即使已读位置不变，也会刷新 activated_at。
+- **恢复**：若已读位置已提交但激活失败，重试原请求可完成激活。
 
 </Callout>
 
