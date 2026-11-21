@@ -66,8 +66,10 @@ const (
 type OpenAPI struct {
 	// region is the single reviewed provider discovery boundary.
 	region string
-	// ecs serves inventory, price, capacity, quota, and permission-probe calls.
+	// ecs serves serial discovery, inventory, lifecycle, and permission probes.
 	ecs *ecs.Client
+	// quoteClients lends each concurrent offer RPC its own mutable SDK state.
+	quoteClients chan *ecs.Client
 	// sts verifies the exact temporary caller identity.
 	sts *sts.Client
 	// quotas proves EIP headroom and the retention-fee waiver precondition.
@@ -128,6 +130,10 @@ func newOpenAPIFromOIDCEnvironment(region string, lifecycleAuthorized bool) (*Op
 	if err != nil {
 		return nil, fmt.Errorf("%w: create ECS client: %v", ErrInvalidConfig, err)
 	}
+	quoteClients, err := newQuoteECSClients(config)
+	if err != nil {
+		return nil, fmt.Errorf("%w: create quote ECS clients: %v", ErrInvalidConfig, err)
+	}
 	stsClient, err := sts.NewClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("%w: create STS client: %v", ErrInvalidConfig, err)
@@ -145,10 +151,39 @@ func newOpenAPIFromOIDCEnvironment(region string, lifecycleAuthorized bool) (*Op
 		return nil, fmt.Errorf("%w: create VPC client: %v", ErrInvalidConfig, err)
 	}
 	return &OpenAPI{
-		region: region, ecs: ecsClient, sts: stsClient, quotas: quotaClient,
+		region: region, ecs: ecsClient, quoteClients: quoteClients, sts: stsClient, quotas: quotaClient,
 		ram: ramClient, vpc: vpcClient, lifecycleAuthorized: lifecycleAuthorized,
 		cloudShellAuthorized: cloudShellAuthorized,
 	}, nil
+}
+
+// newQuoteECSClients isolates SDK RPC headers from concurrent quote requests.
+func newQuoteECSClients(config *openapiutil.Config) (chan *ecs.Client, error) {
+	clients := make(chan *ecs.Client, maxConcurrentQuoteOffers)
+	for range maxConcurrentQuoteOffers {
+		client, err := ecs.NewClient(config)
+		if err != nil {
+			return nil, err
+		}
+		clients <- client
+	}
+	return clients, nil
+}
+
+// takeQuoteECS grants a quote RPC exclusive use of an SDK client.
+func (a *OpenAPI) takeQuoteECS(ctx context.Context) (*ecs.Client, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if a.quoteClients == nil {
+		return nil, ErrInvalidConfig
+	}
+	select {
+	case client := <-a.quoteClients:
+		return client, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // RequiredQuoteActions is the exact read-only RAM action set used by OpenAPI.
@@ -464,8 +499,13 @@ func (a *OpenAPI) Images(ctx context.Context, region, instanceType string) ([]Im
 	if !a.validRegion(region) || strings.TrimSpace(instanceType) == "" {
 		return nil, ErrInvalidConfig
 	}
+	client, err := a.takeQuoteECS(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { a.quoteClients <- client }()
 	return discoverImages(ctx, func(ctx context.Context, page int32) ([]Image, int32, error) {
-		response, err := a.ecs.DescribeImagesWithContext(ctx, (&ecs.DescribeImagesRequest{}).
+		response, err := client.DescribeImagesWithContext(ctx, (&ecs.DescribeImagesRequest{}).
 			SetRegionId(region).
 			SetInstanceType(instanceType).
 			SetImageOwnerAlias("system").
@@ -551,15 +591,20 @@ func (a *OpenAPI) Availability(ctx context.Context, request AvailabilityRequest)
 		!validDiskSizes(request.DataDiskSizesGiB, maxDataDiskGiB) {
 		return Availability{}, ErrInvalidConfig
 	}
-	instance, instanceReason, err := a.resourceAvailable(ctx, request, "InstanceType", request.InstanceType, nil)
+	client, err := a.takeQuoteECS(ctx)
 	if err != nil {
 		return Availability{}, err
 	}
-	systemDisk, systemDiskReason, err := a.resourceAvailable(ctx, request, "SystemDisk", providerDiskESSD, request.SystemDiskSizesGiB)
+	defer func() { a.quoteClients <- client }()
+	instance, instanceReason, err := resourceAvailable(ctx, client, request, "InstanceType", request.InstanceType, nil)
 	if err != nil {
 		return Availability{}, err
 	}
-	dataDisk, dataDiskReason, err := a.resourceAvailable(ctx, request, "DataDisk", providerDiskESSD, request.DataDiskSizesGiB)
+	systemDisk, systemDiskReason, err := resourceAvailable(ctx, client, request, "SystemDisk", providerDiskESSD, request.SystemDiskSizesGiB)
+	if err != nil {
+		return Availability{}, err
+	}
+	dataDisk, dataDiskReason, err := resourceAvailable(ctx, client, request, "DataDisk", providerDiskESSD, request.DataDiskSizesGiB)
 	if err != nil {
 		return Availability{}, err
 	}
@@ -582,9 +627,9 @@ func validDiskSizes(sizesGiB []int, maximumGiB int) bool {
 	return true
 }
 
-func (a *OpenAPI) resourceAvailable(ctx context.Context, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, string, error) {
+func resourceAvailable(ctx context.Context, client *ecs.Client, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, string, error) {
 	providerRequest := availabilityProviderRequest(request, destination)
-	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, providerRequest, &dara.RuntimeOptions{})
+	response, err := client.DescribeAvailableResourceWithContext(ctx, providerRequest, &dara.RuntimeOptions{})
 	if err != nil || response == nil {
 		return false, "", discoveryError("DescribeAvailableResource "+destination, err)
 	}
@@ -1119,7 +1164,12 @@ func (a *OpenAPI) Price(ctx context.Context, request PriceRequest) (Price, error
 	default:
 		return Price{}, ErrInvalidConfig
 	}
-	response, err := a.ecs.DescribePrice(providerRequest)
+	client, err := a.takeQuoteECS(ctx)
+	if err != nil {
+		return Price{}, err
+	}
+	defer func() { a.quoteClients <- client }()
+	response, err := client.DescribePriceWithContext(ctx, providerRequest, &dara.RuntimeOptions{})
 	if err != nil || response == nil || response.Body == nil || response.Body.PriceInfo == nil || response.Body.PriceInfo.Price == nil {
 		return Price{}, discoveryError("DescribePrice", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -367,6 +368,8 @@ func approvedPlan(now time.Time) cloudlease.Plan {
 }
 
 type fakeReadAPI struct {
+	readMu sync.Mutex
+
 	accountHash          string
 	zones                []Zone
 	instanceTypes        []InstanceType
@@ -438,11 +441,15 @@ func (f *fakeReadAPI) InstanceTypes(context.Context, string, int, int64) ([]Inst
 }
 
 func (f *fakeReadAPI) Images(_ context.Context, _, instanceType string) ([]Image, error) {
+	f.readMu.Lock()
+	defer f.readMu.Unlock()
 	f.readCalls++
 	return f.images[instanceType], nil
 }
 
 func (f *fakeReadAPI) Availability(_ context.Context, request AvailabilityRequest) (Availability, error) {
+	f.readMu.Lock()
+	defer f.readMu.Unlock()
 	f.readCalls++
 	f.availabilityRequests = append(f.availabilityRequests, request)
 	return f.availability[offerKey(request.Zone, request.InstanceType)], nil
@@ -459,6 +466,8 @@ func (f *fakeReadAPI) EIPQuota(context.Context, string) (EIPQuota, error) {
 }
 
 func (f *fakeReadAPI) Price(_ context.Context, request PriceRequest) (Price, error) {
+	f.readMu.Lock()
+	defer f.readMu.Unlock()
 	f.readCalls++
 	f.priceRequests = append(f.priceRequests, request)
 	if f.priceErr != nil {

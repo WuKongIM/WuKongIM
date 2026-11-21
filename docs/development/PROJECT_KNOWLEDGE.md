@@ -1873,6 +1873,10 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- Alibaba Cloud Lease reads availability, images, and host prices in batches
+  of at most two independent offers with separate ECS clients. The pinned SDK
+  clears RPC headers per request. Discovery joins evidence in catalog order
+  before choosing a price and retains the ten-minute quote lifetime.
 - Alibaba Cloud Lease quoting refuses expired EIP billing evidence before
   contacting provider APIs. Refresh the evidence version and UTC expiration
   after checking the official Hangzhou retention rate and direct-ECS waiver

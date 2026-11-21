@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
@@ -24,6 +25,7 @@ const (
 	RegionHangzhou = "cn-hangzhou"
 
 	quoteTTL                   = 10 * time.Minute
+	maxConcurrentQuoteOffers   = 2
 	bytesPerGiB                = int64(1 << 30)
 	providerArchitectureX86    = "x86_64"
 	providerBillingPostPaid    = "PostPaid"
@@ -185,6 +187,7 @@ type Price struct {
 
 // ReadAPI is the complete provider authority reachable from Quote. Keeping
 // mutation methods out of this interface makes the no-write property structural.
+// Availability, Images, and Price may be called concurrently for independent offers.
 type ReadAPI interface {
 	// AccountIDHash verifies the caller and returns a non-secret stable account binding.
 	AccountIDHash(context.Context) (string, error)
@@ -348,6 +351,43 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 		return cloudlease.Quote{}, discoveryError("EIP retention price overflow", nil)
 	}
 
+	type placementQuote struct {
+		checked      bool
+		hasCapacity  bool
+		availability Availability
+		offer        *offer
+		err          error
+	}
+	discoverOffer := func(zone, instanceType string) placementQuote {
+		availability, err := p.api.Availability(ctx, AvailabilityRequest{
+			Region: RegionHangzhou, Zone: zone, InstanceType: instanceType,
+			HostCount: shape.totalHosts, SystemDiskSizesGiB: shape.systemDiskSizesGiB,
+			DataDiskSizesGiB: shape.dataDiskSizesGiB,
+		})
+		if err != nil {
+			return placementQuote{err: discoveryError("availability", err)}
+		}
+		result := placementQuote{checked: true, availability: availability,
+			hasCapacity: availability.Instance && availability.SystemESSDPL0 && availability.DataESSDPL0}
+		if !result.hasCapacity {
+			return result
+		}
+		images, err := p.api.Images(ctx, RegionHangzhou, instanceType)
+		if err != nil {
+			return placementQuote{err: discoveryError("images", err)}
+		}
+		image, found := latestUbuntu2404(images)
+		if !found {
+			return result
+		}
+		candidate, err := p.quoteOffer(ctx, request, shape, zone, instanceType, image.ID, hours, trafficGiB, eipCost, eipRetentionQuantity, eipRetentionCost)
+		if err != nil {
+			return placementQuote{err: err}
+		}
+		result.offer = &candidate
+		return result
+	}
+
 	var best *offer
 	sawCapacity := false
 	sawQuota := false
@@ -362,42 +402,41 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 			continue
 		}
 		sawQuota = true
-		for _, instanceType := range types {
-			if excludedOffer(request.Plan.Placement.ExcludedOffers, zone.ID, instanceType.ID) {
-				continue
+		// Independent read-only offers share one small batch. Join before reducing
+		// in catalog order so incomplete evidence cannot admit a cheaper offer.
+		for offset := 0; offset < len(types); offset += maxConcurrentQuoteOffers {
+			batch := types[offset:min(offset+maxConcurrentQuoteOffers, len(types))]
+			var results [maxConcurrentQuoteOffers]placementQuote
+			var reads sync.WaitGroup
+			for index, instanceType := range batch {
+				if excludedOffer(request.Plan.Placement.ExcludedOffers, zone.ID, instanceType.ID) {
+					continue
+				}
+				reads.Go(func() {
+					results[index] = discoverOffer(zone.ID, instanceType.ID)
+				})
 			}
-			availability, availabilityErr := p.api.Availability(ctx, AvailabilityRequest{
-				Region: RegionHangzhou, Zone: zone.ID, InstanceType: instanceType.ID,
-				HostCount: shape.totalHosts, SystemDiskSizesGiB: shape.systemDiskSizesGiB,
-				DataDiskSizesGiB: shape.dataDiskSizesGiB,
-			})
-			if availabilityErr != nil {
-				return cloudlease.Quote{}, discoveryError("availability", availabilityErr)
-			}
-			availabilityChecks++
-			if !availability.Instance || !availability.SystemESSDPL0 || !availability.DataESSDPL0 {
-				recordAvailabilityEvidence(availabilityEvidence, "instance", availability.Instance, availability.InstanceReason)
-				recordAvailabilityEvidence(availabilityEvidence, "system_disk", availability.SystemESSDPL0, availability.SystemESSDPL0Reason)
-				recordAvailabilityEvidence(availabilityEvidence, "data_disk", availability.DataESSDPL0, availability.DataESSDPL0Reason)
-				continue
-			}
-			sawCapacity = true
-			images, imageErr := p.api.Images(ctx, RegionHangzhou, instanceType.ID)
-			if imageErr != nil {
-				return cloudlease.Quote{}, discoveryError("images", imageErr)
-			}
-			image, found := latestUbuntu2404(images)
-			if !found {
-				continue
-			}
-			candidate, quoteErr := p.quoteOffer(ctx, request, shape, zone.ID, instanceType.ID, image.ID, hours, trafficGiB, eipCost, eipRetentionQuantity, eipRetentionCost)
-			if quoteErr != nil {
-				return cloudlease.Quote{}, quoteErr
-			}
-			if best == nil || candidate.cost < best.cost ||
-				(candidate.cost == best.cost && offerIdentity(candidate) < offerIdentity(*best)) {
-				candidateCopy := candidate
-				best = &candidateCopy
+			reads.Wait()
+			for _, result := range results[:len(batch)] {
+				if result.err != nil {
+					return cloudlease.Quote{}, result.err
+				}
+				if !result.checked {
+					continue
+				}
+				availabilityChecks++
+				if !result.hasCapacity {
+					availability := result.availability
+					recordAvailabilityEvidence(availabilityEvidence, "instance", availability.Instance, availability.InstanceReason)
+					recordAvailabilityEvidence(availabilityEvidence, "system_disk", availability.SystemESSDPL0, availability.SystemESSDPL0Reason)
+					recordAvailabilityEvidence(availabilityEvidence, "data_disk", availability.DataESSDPL0, availability.DataESSDPL0Reason)
+					continue
+				}
+				sawCapacity = true
+				if candidate := result.offer; candidate != nil && (best == nil || candidate.cost < best.cost ||
+					(candidate.cost == best.cost && offerIdentity(*candidate) < offerIdentity(*best))) {
+					best = candidate
+				}
 			}
 		}
 	}
