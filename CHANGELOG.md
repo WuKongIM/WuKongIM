@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Verify and reuse an exact pre-staged Cloud Deployment archive when the runner transfer is slow. / 云部署传输较慢时，可校验并复用已预传的完整部署包。
+
 - Refresh the reviewed Alibaba Cloud EIP billing evidence used for Cloud Lease quotes. / 更新 Cloud Lease 报价所用的阿里云 EIP 计费依据。
 
 - Foreground MQTT metadata reads rejected after a Slot route change retry once through the current authority within the original request deadline. / MQTT 前台元数据读取因 Slot 路由切换而被拒绝时，会在原请求时限内通过当前权威重试一次。

@@ -45,14 +45,71 @@ export WK_CLOUD_SSH_DEADLINE_EPOCH="${WK_CLOUD_SSH_DEADLINE_EPOCH:-$(( $(date -u
 write_failure bundle_transfer_failed plan_validated load \
   "load host did not accept the deployment payload" "load payload state is unknown"
 cloud_ssh_retry load-ready 30 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load true
-cloud_ssh_retry load-upload 3 5 scp -F "$WK_CLOUD_SSH_CONFIG" \
-  "$WK_CLOUD_BUNDLE_ARCHIVE" "$WK_CLOUD_DEPLOYMENT_PLAN" \
+archive_sha256="$(sha256sum <"$WK_CLOUD_BUNDLE_ARCHIVE" | cut -d ' ' -f1)"
+archive_bytes="$(wc -c <"$WK_CLOUD_BUNDLE_ARCHIVE" | awk '{print $1}')"
+[[ "$archive_sha256" =~ ^[0-9a-f]{64}$ && "$archive_bytes" =~ ^[1-9][0-9]*$ ]]
+load_archive=/home/wkdeploy/cloud-deployment-bundle.tar.gz
+staged_archive="$load_archive.$archive_sha256.staged"
+incoming_archive="$staged_archive.incoming"
+# The diagnostic identity writes a separate file and atomically publishes it.
+# The normal SCP path can proceed without racing an unfinished pre-stage.
+verify_archive_script="verify_archive() {
+  test ! -L \"\$1\" && test -f \"\$1\" &&
+  test \"\$(wc -c < \"\$1\")\" -eq '$archive_bytes' &&
+  test \"\$(sha256sum < \"\$1\" | cut -d ' ' -f1)\" = '$archive_sha256'
+}"
+probe_load_bundle() {
+  local wait_for_staging="$1"
+  cloud_ssh_retry_capture load-bundle-probe 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    "$verify_archive_script
+     if test -L '$load_archive' || { test -e '$load_archive' && ! test -f '$load_archive'; }; then exit 2; fi
+     if verify_archive '$load_archive'; then echo verified; exit 0; fi
+     if verify_archive '$staged_archive'; then echo staged; exit 0; fi
+     if $wait_for_staging; then
+       waited=0
+       while test ! -L '$incoming_archive' && test -f '$incoming_archive' && test \"\$waited\" -lt 120; do
+         sleep 1
+         waited=\$((waited + 1))
+       done
+     fi
+     if verify_archive '$staged_archive'; then echo staged; else echo upload; fi"
+}
+staging_wait_until="$(( $(date -u +%s) + 120 ))"
+if (( staging_wait_until > WK_CLOUD_SSH_DEADLINE_EPOCH )); then
+  staging_wait_until="$WK_CLOUD_SSH_DEADLINE_EPOCH"
+fi
+probe_status=0
+load_bundle_status="$(WK_CLOUD_SSH_DEADLINE_EPOCH="$staging_wait_until" probe_load_bundle true)" || probe_status=$?
+case "$probe_status" in
+  0) ;;
+  124) load_bundle_status="$(probe_load_bundle false)" ;;
+  *) exit "$probe_status" ;;
+esac
+case "$load_bundle_status" in
+  verified) load_upload=() ;;
+  staged)
+    cloud_ssh_retry load-bundle-adopt 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      "$verify_archive_script
+       if verify_archive '$load_archive'; then exit 0; fi
+       verify_archive '$staged_archive' && mv -- '$staged_archive' '$load_archive'"
+    load_upload=()
+    ;;
+  upload) load_upload=("$WK_CLOUD_BUNDLE_ARCHIVE") ;;
+  *) exit 2 ;;
+esac
+load_upload+=("$WK_CLOUD_DEPLOYMENT_PLAN" \
   "$WK_CLOUD_RUNTIME_NODE_ARCHIVE" "$WK_CLOUD_RUNTIME_LOAD_ARCHIVE" \
   "$script_dir/install-orchestrator-compat-user.sh" \
   "$script_dir/install-frozen-worker-health-compat.sh" \
   "$script_dir/install-frozen-stage-process-compat.sh" \
-  "$script_dir/prime-frozen-orchestrator-stage.sh" \
+  "$script_dir/prime-frozen-orchestrator-stage.sh")
+cloud_ssh_retry load-upload 3 5 scp -F "$WK_CLOUD_SSH_CONFIG" "${load_upload[@]}" \
   wukong-load:/home/wkdeploy/
+write_failure bundle_digest_mismatch plan_validated load \
+  "load archive does not match the admitted bundle" "load bundle digest is unverified"
+cloud_ssh_retry load-bundle-check 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  "$verify_archive_script
+   verify_archive '$load_archive'"
 
 eval "$(ssh-agent -s)"
 agent_started=true

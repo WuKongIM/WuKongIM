@@ -36,6 +36,11 @@ Go `clouddeploy` owns the pure Plan, bundle, and readiness validation contracts.
 - Activation is never replayed by readiness retries. Cleanup failure prevents
   readiness admission. Frozen compatibility allowlists stay in host adapters.
 - Activation uses the shared SSH deadline; only transport exit 255 retries.
+- A regular load-host archive can skip the bulk SCP upload only when its size
+  and SHA-256 match the admitted local archive. An in-progress pre-stage can
+  wait at most 120 seconds within the shared deadline. Its separate files
+  cannot race the normal upload. Verify the archive again before relay.
+  Deployment inputs and runtime credentials always use the normal upload.
 - The readiness budget defaults to 1,200 seconds and includes commands and
   sleeps. Timeout/cancellation stops the active local process group with up to
   ten seconds of termination grace. Both callers use the repository Python

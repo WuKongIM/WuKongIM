@@ -90,6 +90,23 @@ writes the stable failure code, exact role, conservative last completed gate,
 and bounded known-host state that will be uploaded if that operation stops the
 Action.
 
+For a slow runner-to-load transfer, an operator with the exact Lease's
+authorized diagnostic SSH identity may pre-stage the admitted, non-secret
+`cloud-deployment-bundle.tar.gz`. Fetch the exact Bundle Workflow artifact
+and verify its archive checksum and Lease-bound bundle identity. Start one
+upload before activation reaches `load-ready`, using the regular file
+`/home/wkdeploy/cloud-deployment-bundle.tar.gz.<archive-sha256>.staged.incoming`
+owned by `wkdeploy`. After size and SHA-256 verification, atomically rename
+that file to the same path without `.incoming`. Leave the canonical archive
+path, Deployment Plan, and runtime archives to the Action.
+
+The Action waits up to 120 seconds for that exact in-progress upload inside
+its existing activation deadline. It accepts only regular staged files of
+the size and SHA-256 of its own admitted archive. Missing, incomplete, or
+mismatched staged bytes use the normal SCP path. It rejects a linked or
+special canonical target and checks the archive again before relay.
+Readiness gates and credential cleanup remain mandatory.
+
 The Action cannot Quote, Acquire, GrantAccess, RevokeAccess, Release, Sweep, or
 call an Alibaba API. On failure the caller decides whether to release the Lease
 and use the one permitted fresh retry.

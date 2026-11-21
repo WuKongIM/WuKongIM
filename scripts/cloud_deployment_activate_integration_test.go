@@ -3,8 +3,10 @@
 package scripts_test
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,15 +18,28 @@ import (
 
 func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 	for _, fixture := range []struct {
-		name        string
-		failTool    string
-		failHost    string
-		failCommand string
-		wantCode    string
-		wantGate    string
-		wantRole    string
+		name            string
+		failTool        string
+		failHost        string
+		failCommand     string
+		wantCode        string
+		wantGate        string
+		wantRole        string
+		prestaged       string
+		incoming        string
+		publishIncoming bool
+		reuseBundle     bool
+		retryProbe      bool
+		probeExpires    bool
 	}{
 		{name: "success", wantGate: "ready"},
+		{name: "verified pre-staging", prestaged: "fixture\n", reuseBundle: true, wantGate: "ready"},
+		{name: "in-progress pre-staging", incoming: "fixture\n", publishIncoming: true, reuseBundle: true, wantGate: "ready"},
+		{name: "verified pre-staging with stale incoming", prestaged: "fixture\n", incoming: "badfile\n", publishIncoming: true, reuseBundle: true, wantGate: "ready"},
+		{name: "wrong pre-staging", prestaged: "badfile\n", wantGate: "ready"},
+		{name: "unfinished pre-staging", incoming: "partial", wantGate: "ready"},
+		{name: "transient probe failure", retryProbe: true, wantGate: "ready"},
+		{name: "expired staging wait", incoming: "partial", probeExpires: true, wantGate: "ready"},
 		{name: "transfer", failTool: "scp", wantCode: "bundle_transfer_failed", wantGate: "plan_validated", wantRole: "load"},
 		{name: "verification", failHost: "10.42.0.12", failCommand: "verify-offline", wantCode: "bundle_digest_mismatch", wantGate: "bundle_transferred", wantRole: "service-2"},
 		{name: "orchestrator compatibility", failHost: "10.42.0.12", failCommand: "orchestrator-compat", wantCode: "credential_materialization_failed", wantGate: "bundle_verified", wantRole: "service-2"},
@@ -43,10 +58,43 @@ func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 			if err := os.Mkdir(fakeBin, 0o755); err != nil {
 				t.Fatal(err)
 			}
+			remoteBundle := filepath.Join(root, "load-bundle")
+			stagedBundle := remoteBundle + fmt.Sprintf(".%x.staged", sha256.Sum256([]byte("fixture\n")))
+			if fixture.prestaged != "" {
+				if err := os.WriteFile(stagedBundle, []byte(fixture.prestaged), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if fixture.incoming != "" {
+				if err := os.WriteFile(stagedBundle+".incoming", []byte(fixture.incoming), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				sleep := "#!/usr/bin/env bash\nexit 0\n"
+				if fixture.publishIncoming {
+					sleep = `#!/usr/bin/env bash
+set -euo pipefail
+incoming=("$WK_FAKE_REMOTE_BUNDLE".*.incoming)
+mv -- "${incoming[0]}" "${incoming[0]%.incoming}"
+`
+				}
+				writeFakeDeploymentCommand(t, fakeBin, "sleep", sleep)
+			}
 			writeFakeDeploymentCommand(t, fakeBin, "ssh", `#!/usr/bin/env bash
 set -euo pipefail
 joined="$*"
 printf 'ssh %s\n' "$joined" >>"$WK_FAKE_OPERATIONS"
+if [[ "${!#}" == *sha256sum* ]]; then
+  command="${!#}"
+  if [[ "$command" == *"echo upload"* && "$WK_FAKE_RETRY_PROBE" == true && ! -f "$WK_FAKE_REMOTE_BUNDLE.probed" ]]; then
+    : >"$WK_FAKE_REMOTE_BUNDLE.probed"
+    exit 255
+  fi
+  if [[ "$command" == *"echo upload"* && "$WK_FAKE_PROBE_EXPIRES" == true && ! -f "$WK_FAKE_REMOTE_BUNDLE.probed" ]]; then
+    : >"$WK_FAKE_REMOTE_BUNDLE.probed"
+    exit 124
+  fi
+  exec sh -c "${command//\/home\/wkdeploy\/cloud-deployment-bundle.tar.gz/$WK_FAKE_REMOTE_BUNDLE}"
+fi
 if [[ "$joined" == *"root_source="* ]]; then printf '/dev/fake-data\n'; exit 0; fi
 if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == normalize-config && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sed -i"* ]]; then exit 42; fi
 if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == orchestrator-compat && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sudo bash /home/wkdeploy/install-orchestrator-compat-user.sh"* ]]; then exit 42; fi
@@ -60,6 +108,9 @@ exit 0
 set -euo pipefail
 printf 'scp %s\n' "$*" >>"$WK_FAKE_OPERATIONS"
 if [[ "${WK_FAKE_FAIL_TOOL:-}" == scp ]]; then exit 42; fi
+for arg in "$@"; do
+  if [[ "$arg" == */cloud-deployment-bundle.tar.gz ]]; then cp "$arg" "$WK_FAKE_REMOTE_BUNDLE"; fi
+done
 exit 0
 `)
 			writeFakeDeploymentCommand(t, fakeBin, "ssh-add", "#!/usr/bin/env bash\nexit 0\n")
@@ -110,6 +161,9 @@ jq -n --arg digest "$(jq -r .plan_digest "$WK_CLOUD_DEPLOYMENT_PLAN")" '{passed:
 				"WK_CLOUD_READINESS_COLLECTOR="+filepath.Join(fakeBin, "collector"),
 				"WK_CLOUD_GATE_TOOL="+filepath.Join(fakeBin, "gate"),
 				"WK_FAKE_OPERATIONS="+operationsPath,
+				"WK_FAKE_REMOTE_BUNDLE="+remoteBundle,
+				"WK_FAKE_RETRY_PROBE="+strconv.FormatBool(fixture.retryProbe),
+				"WK_FAKE_PROBE_EXPIRES="+strconv.FormatBool(fixture.probeExpires),
 				"PATH="+fakeBin+":"+os.Getenv("PATH"),
 				"RUNNER_TEMP="+root,
 				"WK_CLOUD_DEPLOYMENT_PLAN="+planPath,
@@ -149,6 +203,9 @@ jq -n --arg digest "$(jq -r .plan_digest "$WK_CLOUD_DEPLOYMENT_PLAN")" '{passed:
 					switch {
 					case strings.HasPrefix(operation, "scp "):
 						phase = 0
+						if gotUpload := strings.Contains(operation, "cloud-deployment-bundle.tar.gz"); gotUpload == fixture.reuseBundle {
+							t.Fatalf("bundle uploaded=%v, want %v", gotUpload, !fixture.reuseBundle)
+						}
 					case strings.Contains(operation, "scp -o BatchMode=yes"):
 						phase = 1
 					case strings.Contains(operation, "verify-offline"):
