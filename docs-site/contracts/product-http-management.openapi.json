@@ -295,11 +295,11 @@
       "post": {
         "operationId": "addChannelAllowlistMembers",
         "summary": "Add Channel allowlist members",
-        "description": "Adds non-blank UIDs to the derived Channel allowlist. For channel_type=1, channel_id is the whitelist owner UID: after the ACL write, prepare both users' canonical person Memberships and refresh only the owner's activated_at, preserving existing join/read/delete boundaries. Personal UIDs cannot contain @. Duplicate peers are prepared once; repeated adds refresh activation. Preparation or activation failure can leave a durable prefix; retry the same request to finish. Group allowlists retain ACL-only behavior; empty-conversation display is unchanged.",
+        "description": "Adds non-blank UIDs to the Channel allowlist. For a person Channel, prepares both memberships and refreshes only the whitelist owner's activation.",
         "x-i18n": {
           "zh": {
             "summary": "添加 Channel 白名单成员",
-            "description": "把非空白 UID 加入派生 Channel 允许列表。channel_type=1 时，channel_id 为白名单所属用户 UID：白名单写入成功后确保双方个人频道 Membership，再仅刷新所属用户的 activated_at，保留已有加入、已读及历史隐藏边界。个人 UID 不能含 @。重复 UID 仅准备一次；重复添加会刷新激活时间。目录准备或激活失败可能已提交部分步骤，应重试相同请求完成。群白名单仍仅修改权限，空会话显示规则不变。"
+            "description": "将非空白 UID 加入频道允许列表。个人频道会准备双方成员关系，并仅刷新白名单所属用户的会话激活时间。"
           }
         },
         "tags": ["Channels"],
@@ -494,11 +494,11 @@
       "post": {
         "operationId": "clearConversationUnread",
         "summary": "Clear Conversation unread",
-        "description": "Advances read_seq to the latest committed Channel head. The contract omits legacy message_seq; the runtime ignores it. Refreshes activated_at even when already read. Missing or removed memberships and deleted Channels remain no-ops. If activation fails after the read position commits, retry the same request to finish activation.",
+        "description": "Advances read_seq to the committed Channel head and refreshes activation. The contract omits legacy message_seq; the runtime ignores it.",
         "x-i18n": {
           "zh": {
             "summary": "清除会话未读",
-            "description": "把 read_seq 推进到最新已提交 Channel head；合同不发布旧 message_seq，运行时会忽略它。已读位置不变时也刷新 activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。"
+            "description": "将 read_seq 推进到已提交的频道末尾并刷新会话激活时间。合同不发布旧 message_seq，运行时会忽略它。"
           }
         },
         "tags": ["Conversations"],
@@ -530,11 +530,11 @@
       "post": {
         "operationId": "setConversationUnread",
         "summary": "Set maximum Conversation unread",
-        "description": "Advances read_seq so no more than unread messages remain. It never increases the unread count. Refreshes activated_at even when the read position does not advance. Missing or removed memberships and deleted Channels remain no-ops. If activation fails after the read position commits, retry the same request to finish activation.",
+        "description": "Advances read_seq so at most unread messages remain, and refreshes conversation activation even when the read position stays the same.",
         "x-i18n": {
           "zh": {
             "summary": "设置会话未读上限",
-            "description": "推进 read_seq，使未读数不超过 unread；该操作不会增加未读数。已读位置不变时也刷新 activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。"
+            "description": "推进 read_seq，使未读数不超过 unread。已读位置不变时也会刷新会话激活时间。"
           }
         },
         "tags": ["Conversations"],

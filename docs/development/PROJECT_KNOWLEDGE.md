@@ -1867,6 +1867,15 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- Foreground MQTT point reads may repeat once when the Slot proxy discards a
+  stale-route result. The retry uses the same caller context and fresh routing
+  and authority checks. Recovery scans and subscription writes are separate.
+
+- Unreleased Changelog entries use the same standard category headings as
+  versioned releases. OpenAPI descriptions stay concise and put detailed
+  operation behavior in the bilingual operation-semantics registry before
+  regenerating the reference pages.
+
 - MQTT Session transition observations retry only `proxy.ErrReadStaleRoute`
   within their existing deadline. Other read errors or missing Sessions terminate
   observation and fail; pending/inflight, offline and owner-drain proofs remain exact.
@@ -2607,6 +2616,11 @@ specification, runbook, report, or module documentation; link to them when neede
   Stop/restore must join both
   owners before closing or restarting append dependencies. This mechanism alone
   is not evidence that the 5,000-channel/4,500-SEND/s qualification passes.
+
+- The send-ban E2E burst across many users and Channels sends adjacent pairs
+  per session and Channel to exercise multi-record Gateway batches under
+  Channel-keyed sharding. The batch counter, per-request ACK and exact history
+  checks remain required.
 
 - Ordered submission can coalesce already-ready independent jobs within existing
   micro-batch targets. One execution counts as one busy worker; original callbacks

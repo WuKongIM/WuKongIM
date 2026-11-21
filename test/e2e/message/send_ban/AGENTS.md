@@ -91,8 +91,10 @@ and group rejections, including NoPersist/SyncOnce, bounded empty reads, and
 successful controls on both sides. Complete history must equal successful IDs.
 
 The `.gateway-distributions.json` companion exercises one/many UIDs against
-one/many Channels through actual WKProto bursts. Public gateway histograms must
-prove multi-record batches, with per-request ACK decisions and exact histories.
+one/many Channels through WKProto bursts. The many-user, many-Channel case
+sends adjacent pairs per connection and Channel within one Gateway shard.
+Public histograms must prove multi-record batches, with per-request ACK
+decisions and exact histories.
 Counter deltas include all related work in their public scope; do not interpret
 aggregate Slot groups as only the mandatory policy reads or claim timing gates.
 

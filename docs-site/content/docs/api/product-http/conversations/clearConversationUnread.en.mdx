@@ -18,11 +18,9 @@ _openapi:
       - content: Clear Conversation unread
         id: clear-conversation-unread
     contents:
-      - content: Advances read_seq to the current committed head; unknown legacy fields
-          such as message_seq are ignored. Refreshes activated_at even when
-          already read. Missing or removed memberships and deleted Channels
-          remain no-ops. If activation fails after the read position commits,
-          retry the same request to finish activation.
+      - content: Advances read_seq to the committed Channel head and refreshes
+          activation. The contract omits legacy message_seq; the runtime ignores
+          it.
         heading: clear-conversation-unread
       - content: >-
           POST /conversations/clearUnread
@@ -31,11 +29,9 @@ _openapi:
 
           Clear Conversation unread
 
-          Advances read_seq to the current committed head; unknown legacy fields
-          such as message_seq are ignored. Refreshes activated_at even when
-          already read. Missing or removed memberships and deleted Channels
-          remain no-ops. If activation fails after the read position commits,
-          retry the same request to finish activation.
+          Advances read_seq to the committed Channel head and refreshes
+          activation. The contract omits legacy message_seq; the runtime ignores
+          it.
 
           ConversationMutationRequest
 
@@ -89,6 +85,9 @@ _openapi:
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
+- **Scope**: Requests for missing or removed Memberships or deleted Channels leave state unchanged.
+- **Success**: Clears unread and refreshes activated_at even when the read position stays the same.
+- **Recovery**: If activation fails after the read position commits, retry the same request to finish activation.
 
 </Callout>
 

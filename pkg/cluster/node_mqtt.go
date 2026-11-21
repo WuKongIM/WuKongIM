@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
@@ -20,8 +21,20 @@ func (n *Node) mqttMetadataStore() (*slotproxy.Store, error) {
 }
 
 // ReadMQTT obtains one coherent, authoritative view through a fresh Slot barrier.
+// A discarded stale-route result permits one fresh read within the same context.
 func (n *Node) ReadMQTT(ctx context.Context, q metadb.MQTTRead) (metadb.MQTTReadResult, error) {
 	s, err := n.mqttMetadataStore()
+	if err != nil {
+		return metadb.MQTTReadResult{}, err
+	}
+	result, err := s.ReadMQTT(ctx, q)
+	if !errors.Is(err, slotproxy.ErrReadStaleRoute) {
+		return result, err
+	}
+	if err := ctx.Err(); err != nil {
+		return metadb.MQTTReadResult{}, err
+	}
+	s, err = n.mqttMetadataStore()
 	if err != nil {
 		return metadb.MQTTReadResult{}, err
 	}

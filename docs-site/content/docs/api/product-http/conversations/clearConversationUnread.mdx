@@ -18,8 +18,7 @@ _openapi:
       - content: 清除会话未读
         id: 清除会话未读
     contents:
-      - content: 把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。已读位置不变时也刷新
-          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
+      - content: 将 read_seq 推进到已提交的频道末尾并刷新会话激活时间。合同不发布旧 message_seq，运行时会忽略它。
         heading: 清除会话未读
       - content: >-
           POST /conversations/clearUnread
@@ -28,8 +27,7 @@ _openapi:
 
           清除会话未读
 
-          把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。已读位置不变时也刷新
-          activated_at；成员关系不存在、已移除或频道已删除时仍为空操作。若已读位置写入后激活失败，可重试原请求完成激活。
+          将 read_seq 推进到已提交的频道末尾并刷新会话激活时间。合同不发布旧 message_seq，运行时会忽略它。
 
           ConversationMutationRequest
 
@@ -79,6 +77,9 @@ _openapi:
 <Callout type="warn" title="接口边界">
 
 - **调用方**：仅限受信业务后端
+- **作用域**：成员关系缺失或已移除、频道已删除时不执行变更。
+- **成功判定**：清除未读。即使已读位置不变，也会刷新 activated_at。
+- **恢复**：若已读位置已提交但激活失败，重试原请求可完成激活。
 
 </Callout>
 

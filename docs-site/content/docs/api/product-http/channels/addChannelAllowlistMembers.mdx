@@ -18,10 +18,7 @@ _openapi:
       - content: 添加 Channel 允许列表成员
         id: 添加-channel-允许列表成员
     contents:
-      - content: 把非空白 UID 加入派生 Channel 允许列表。channel_type=1 时，channel_id 为白名单所属用户
-          UID：白名单写入成功后确保双方个人频道 Membership，再仅刷新所属用户的
-          activated_at，保留已有加入、已读及历史隐藏边界。个人 UID 不能含 @。重复 UID
-          仅准备一次；重复添加会刷新激活时间。目录准备或激活失败可能已提交部分步骤，应重试相同请求完成。群白名单仍仅修改权限，空会话显示规则不变。
+      - content: 将非空白 UID 加入频道允许列表。个人频道会准备双方成员关系，并仅刷新白名单所属用户的会话激活时间。
         heading: 添加-channel-允许列表成员
       - content: >-
           POST /channel/whitelist_add
@@ -30,10 +27,7 @@ _openapi:
 
           添加 Channel 允许列表成员
 
-          把非空白 UID 加入派生 Channel 允许列表。channel_type=1 时，channel_id 为白名单所属用户
-          UID：白名单写入成功后确保双方个人频道 Membership，再仅刷新所属用户的
-          activated_at，保留已有加入、已读及历史隐藏边界。个人 UID 不能含 @。重复 UID
-          仅准备一次；重复添加会刷新激活时间。目录准备或激活失败可能已提交部分步骤，应重试相同请求完成。群白名单仍仅修改权限，空会话显示规则不变。
+          将非空白 UID 加入频道允许列表。个人频道会准备双方成员关系，并仅刷新白名单所属用户的会话激活时间。
 
           ChannelAllowlistMutationRequest
 
@@ -83,7 +77,9 @@ _openapi:
 <Callout type="warn" title="接口边界">
 
 - **调用方**：仅限受信业务后端
-- **作用域**：入口不验证父 Channel 是否存在；派生允许列表可以先于父 Channel 建立，并在父 Channel 后续出现时生效。
+- **作用域**：派生允许列表可在父 Channel 创建前写入，并在父 Channel 出现后生效。channel_type=1 时，channel_id 是白名单所属用户的 UID。个人 UID 不得含 @。群白名单只修改权限。
+- **成功判定**：个人白名单写入后，每个不同的对方 UID 只准备一次双方的成员关系，且只刷新白名单所属用户的 activated_at。重复添加会刷新激活时间。保留加入、已读和历史隐藏边界，空会话显示规则保持不变。
+- **恢复**：目录准备或激活失败时，前序写入可能已提交。重试相同请求可完成剩余步骤。
 
 </Callout>
 
