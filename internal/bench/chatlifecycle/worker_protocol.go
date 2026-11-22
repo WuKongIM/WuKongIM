@@ -79,9 +79,12 @@ type WorkerStartRequest struct {
 	WorkerFence
 }
 
-// WorkerCheckpointRequest takes a consistent bounded snapshot without pausing generation.
+// WorkerCheckpointRequest takes a consistent bounded snapshot of one generation.
 type WorkerCheckpointRequest struct {
 	WorkerFence
+	// PauseSessionExpiry suspends new planned expirations through Stop while
+	// the scheduler and already-admitted replacement work keep running.
+	PauseSessionExpiry bool `json:"pause_session_expiry,omitempty"`
 }
 
 // WorkerRateRequest changes only the global SEND rate and its two-second burst bound.

@@ -235,14 +235,17 @@ type CoordinatorEvidenceCut struct {
 }
 
 // CoordinatorFinalCut is emitted after the bounded stop round. Decision is the
-// terminal outcome frozen by the preceding terminal evidence cut.
+// terminal outcome frozen by the preceding terminal evidence cut, or a harness
+// failure when a natural terminal checkpoint could not qualify.
 type CoordinatorFinalCut struct {
-	Start          CoordinatorRunStart
-	At             time.Time
-	Decision       CoordinatorOutcome
-	Prepare        []WorkerSnapshot
-	FinalSnapshots []WorkerSnapshot
-	Capacity       CapacitySnapshot
+	Start    CoordinatorRunStart
+	At       time.Time
+	Decision CoordinatorOutcome
+	// CheckpointFailed allows a natural rehearsal to report complete Stop evidence without a qualified cut.
+	CheckpointFailed bool
+	Prepare          []WorkerSnapshot
+	FinalSnapshots   []WorkerSnapshot
+	Capacity         CapacitySnapshot
 	// Continuous marks the hour-72 formal boundary. Workers remain running on
 	// the same fence, and the owning formal-chain process must immediately
 	// continue into capacity rather than treating this cut as resumable state.
@@ -899,6 +902,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 	}
 	cutoffOwned := false
 	stopRequested := false
+	rehearsalStopsWorkers := cfg.Stage == StageRehearsal && !c.keepWorkersRunningOnSuccess
 	failureCode := CoordinatorCode("")
 	failureDisposition := coordinatorRoundStageFailed
 	var failureReason coordinatorTerminationReason
@@ -1528,6 +1532,11 @@ observationFailure:
 		joinCapacityAsync()
 	}
 	result.Outcome, result.Code = coordinatorConcurrentFailure(observation, failureReason)
+	if rehearsalStopsWorkers && !stopRequested && result.Outcome == CoordinatorHarnessInvalid &&
+		result.Code == CoordinatorCodeCheckpoint && !c.clock.Now().Before(observationDeadline) &&
+		!grantCoverageMissing(observationDeadline) {
+		return c.finishFailedTerminalCheckpoint(result, runStart, assigned)
+	}
 	c.stopAfterFailure(fence, attempted)
 	return result
 
@@ -1604,10 +1613,19 @@ observationComplete:
 	}
 	checkpoint := hookPrepareSnapshots
 	terminalDecision := hookTerminalDecision
+	endingRehearsal := rehearsalStopsWorkers && !stopRequested && !c.clock.Now().Before(observationDeadline) &&
+		!grantCoverageMissing(observationDeadline)
 	if len(checkpoint) == 0 {
 		var disposition coordinatorRoundDisposition
-		checkpoint, disposition = c.checkpointRoundWithTimeout(ctx, assignments, fence, terminalRoundTimeout)
+		if endingRehearsal {
+			checkpoint, disposition = c.prepareRehearsalTerminal(ctx, assignments, fence, terminalRoundTimeout)
+		} else {
+			checkpoint, disposition = c.checkpointRoundWithTimeout(ctx, assignments, WorkerCheckpointRequest{WorkerFence: fence}, terminalRoundTimeout)
+		}
 		if disposition != coordinatorRoundSucceeded {
+			if endingRehearsal && disposition != coordinatorRoundParentCanceled {
+				return c.finishFailedTerminalCheckpoint(result, runStart, assigned)
+			}
 			c.stopAfterFailure(fence, attempted)
 			if disposition == coordinatorRoundParentCanceled {
 				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
@@ -1621,7 +1639,7 @@ observationComplete:
 		// become a successful completion; preserve its current fenced snapshot
 		// and finish within the cleanup budget instead of waiting for a
 		// transient all-online instant that may never occur under steady churn.
-		if !stopRequested && terminalSnapshotsNeedTrafficRecovery(checkpoint) {
+		if !endingRehearsal && !stopRequested && terminalSnapshotsNeedTrafficRecovery(checkpoint) {
 			statuses, statusDisposition := c.statusRoundWithin(ctx, assignments, terminalRoundTimeout)
 			if statusDisposition != coordinatorRoundSucceeded {
 				c.stopAfterFailure(fence, attempted)
@@ -1639,11 +1657,11 @@ observationComplete:
 				}
 			}
 			checkpoint, disposition = c.checkpointRoundWithTimeout(
-				ctx, assignments, fence, terminalRoundTimeout,
+				ctx, assignments, WorkerCheckpointRequest{WorkerFence: fence}, terminalRoundTimeout,
 			)
 			if disposition == coordinatorRoundSucceeded && terminalSnapshotsNeedTrafficRecovery(checkpoint) {
 				checkpoint, disposition = c.waitForTerminalSnapshotsReady(
-					ctx, assignments, fence, checkpoint, terminalRoundTimeout,
+					ctx, assignments, fence, checkpoint, c.clock.Now().Add(terminalRoundTimeout),
 				)
 			}
 			if disposition != coordinatorRoundSucceeded {
@@ -1670,6 +1688,9 @@ observationComplete:
 			cancelHook()
 			if hookErr != nil || (decision != CoordinatorCompleted && decision != CoordinatorProductFailure &&
 				decision != CoordinatorHarnessInvalid && decision != CoordinatorInfrastructureFailure && decision != CoordinatorStopped) {
+				if endingRehearsal && ctx.Err() == nil {
+					return c.finishFailedTerminalCheckpoint(result, runStart, assigned)
+				}
 				c.stopAfterFailure(fence, attempted)
 				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 				return result
@@ -1688,6 +1709,9 @@ observationComplete:
 	prepareSnapshots := checkpoint
 	preparedAggregate, err := aggregator.Aggregate(checkpoint)
 	if err != nil {
+		if endingRehearsal && ctx.Err() == nil {
+			return c.finishFailedTerminalCheckpoint(result, runStart, assigned)
+		}
 		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 		return result
@@ -1715,22 +1739,12 @@ observationComplete:
 		result.Outcome, result.Code, result.Snapshot = CoordinatorCompleted, CoordinatorCodeCompleted, preparedAggregate
 		return result
 	}
-	final, err := c.stopAssignedSnapshots(fence, assigned)
+	final, err := c.finalizeStoppedWorkers(assigned, CoordinatorFinalCut{
+		Start: runStart, Decision: terminalDecision, Prepare: prepareSnapshots, Capacity: result.Capacity,
+	})
 	if err != nil {
-		result.failFinalization(err, terminalDecision, "worker_stop", "snapshot_unavailable")
+		result.failFinalization(err, terminalDecision, "controller_unknown", "invalid")
 		return result
-	}
-	if c.hooks != nil {
-		hookContext, cancelHook := context.WithTimeout(context.Background(), c.cleanupTimeout)
-		hookErr := c.hooks.Finalize(hookContext, CoordinatorFinalCut{
-			Start: runStart, At: c.clock.Now(), Decision: terminalDecision,
-			Prepare: prepareSnapshots, FinalSnapshots: final, Capacity: result.Capacity,
-		})
-		cancelHook()
-		if hookErr != nil {
-			result.failFinalization(hookErr, terminalDecision, "controller_unknown", "invalid")
-			return result
-		}
 	}
 	aggregated, err := aggregator.Aggregate(final)
 	if err != nil {
@@ -1747,6 +1761,42 @@ observationComplete:
 		result.Code = CoordinatorCodeObserver
 	}
 	return result
+}
+
+// finishFailedTerminalCheckpoint keeps the original failure while collecting the
+// exact stopped workers for a final failure report. The cleanup deadline cannot
+// qualify the expired readiness window.
+func (c *Coordinator) finishFailedTerminalCheckpoint(
+	result CoordinatorResult,
+	start CoordinatorRunStart,
+	assigned [coordinatorWorkerCount]bool,
+) CoordinatorResult {
+	_, err := c.finalizeStoppedWorkers(assigned, CoordinatorFinalCut{
+		Start: start, Decision: CoordinatorHarnessInvalid, CheckpointFailed: true,
+	})
+	if err != nil {
+		result.failFinalization(err, CoordinatorHarnessInvalid, "controller_unknown", "invalid")
+	}
+	result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
+	return result
+}
+
+func (c *Coordinator) finalizeStoppedWorkers(
+	assigned [coordinatorWorkerCount]bool, cut CoordinatorFinalCut,
+) ([]WorkerSnapshot, error) {
+	final, err := c.stopAssignedSnapshots(cut.Start.Fence, assigned)
+	if err != nil {
+		return nil, err
+	}
+	if c.hooks != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), c.cleanupTimeout)
+		defer cancel()
+		cut.At, cut.FinalSnapshots = c.clock.Now(), final
+		if err := c.hooks.Finalize(ctx, cut); err != nil {
+			return nil, err
+		}
+	}
+	return final, nil
 }
 
 // failFinalization records diagnostics while preserving the existing fail-closed
@@ -1916,13 +1966,13 @@ func (c *Coordinator) checkpointRoundWithin(
 	if len(assignments) != coordinatorWorkerCount || maximum <= 0 {
 		return nil, coordinatorRoundStageFailed
 	}
-	return c.checkpointRoundWithTimeout(parent, assignments, fence, min(c.roundTimeout, maximum))
+	return c.checkpointRoundWithTimeout(parent, assignments, WorkerCheckpointRequest{WorkerFence: fence}, min(c.roundTimeout, maximum))
 }
 
 func (c *Coordinator) checkpointRoundWithTimeout(
 	parent context.Context,
 	assignments []CoordinatorAssignment,
-	fence WorkerFence,
+	request WorkerCheckpointRequest,
 	timeout time.Duration,
 ) ([]WorkerSnapshot, coordinatorRoundDisposition) {
 	if len(assignments) != coordinatorWorkerCount || timeout <= 0 {
@@ -1941,9 +1991,7 @@ func (c *Coordinator) checkpointRoundWithTimeout(
 		go func() {
 			defer wait.Done()
 			result := &results[workerID]
-			snapshot, err := c.workers[workerID].Checkpoint(
-				roundContext, WorkerCheckpointRequest{WorkerFence: fence},
-			)
+			snapshot, err := c.workers[workerID].Checkpoint(roundContext, request)
 			result.snapshot = snapshot
 			result.err = err
 			result.valid = err == nil && snapshot.WorkerID == uint64(workerID) &&
@@ -1966,6 +2014,25 @@ func (c *Coordinator) checkpointRoundWithTimeout(
 	return snapshots, disposition
 }
 
+// prepareRehearsalTerminal pauses new planned expirations before the first cut and
+// gives all checkpoints one readiness budget. Replacements already needed
+// keep using the worker scheduler until the generation stops.
+func (c *Coordinator) prepareRehearsalTerminal(
+	ctx context.Context,
+	assignments []CoordinatorAssignment,
+	fence WorkerFence,
+	timeout time.Duration,
+) ([]WorkerSnapshot, coordinatorRoundDisposition) {
+	deadline := c.clock.Now().Add(timeout)
+	checkpoint, disposition := c.checkpointRoundWithTimeout(ctx, assignments, WorkerCheckpointRequest{
+		WorkerFence: fence, PauseSessionExpiry: true,
+	}, timeout)
+	if disposition != coordinatorRoundSucceeded {
+		return nil, disposition
+	}
+	return c.waitForTerminalSnapshotsReady(ctx, assignments, fence, checkpoint, deadline)
+}
+
 // waitForTerminalSnapshotsReady proves current replacement completion from
 // exact snapshots. WorkerStatus.TrafficReady is deliberately sticky after the
 // initial readiness barrier and therefore cannot prove a churn-free terminal
@@ -1975,38 +2042,38 @@ func (c *Coordinator) waitForTerminalSnapshotsReady(
 	assignments []CoordinatorAssignment,
 	fence WorkerFence,
 	initial []WorkerSnapshot,
-	maximumWait time.Duration,
+	deadline time.Time,
 ) ([]WorkerSnapshot, coordinatorRoundDisposition) {
-	if ctx == nil || len(assignments) != coordinatorWorkerCount || maximumWait <= 0 {
+	if ctx == nil || len(assignments) != coordinatorWorkerCount {
 		return nil, coordinatorRoundStageFailed
 	}
-	if !terminalSnapshotsNeedTrafficRecovery(initial) {
-		return initial, coordinatorRoundSucceeded
-	}
-	ticker := c.clock.NewTicker(time.Second)
-	if ticker == nil {
-		return nil, coordinatorRoundStageFailed
-	}
-	defer ticker.Stop()
-	deadline := c.clock.Now().Add(maximumWait)
+	snapshots := initial
 	for {
+		if ctx.Err() != nil {
+			return nil, coordinatorRoundParentCanceled
+		}
+		remaining := deadline.Sub(c.clock.Now())
+		if remaining <= 0 {
+			return nil, coordinatorRoundStageFailed
+		}
+		if !terminalSnapshotsNeedTrafficRecovery(snapshots) {
+			return snapshots, coordinatorRoundSucceeded
+		}
+		ticker := c.clock.NewTicker(min(time.Second, remaining))
+		if ticker == nil {
+			return nil, coordinatorRoundStageFailed
+		}
 		select {
 		case <-ctx.Done():
+			ticker.Stop()
 			return nil, coordinatorRoundParentCanceled
 		case <-ticker.C():
-			now := c.clock.Now()
-			if !now.Before(deadline) {
-				return nil, coordinatorRoundStageFailed
-			}
-			snapshots, disposition := c.checkpointRoundWithin(
-				ctx, assignments, fence, deadline.Sub(now),
-			)
-			if disposition != coordinatorRoundSucceeded {
-				return nil, disposition
-			}
-			if !terminalSnapshotsNeedTrafficRecovery(snapshots) {
-				return snapshots, coordinatorRoundSucceeded
-			}
+			ticker.Stop()
+		}
+		var disposition coordinatorRoundDisposition
+		snapshots, disposition = c.checkpointRoundWithin(ctx, assignments, fence, deadline.Sub(c.clock.Now()))
+		if disposition != coordinatorRoundSucceeded {
+			return nil, disposition
 		}
 	}
 }

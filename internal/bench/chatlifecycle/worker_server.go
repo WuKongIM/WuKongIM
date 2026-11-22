@@ -529,6 +529,19 @@ func (s *WorkerServer) handleCheckpoint(response http.ResponseWriter, request *h
 		return
 	}
 	generation := s.generation
+	if checkpoint.PauseSessionExpiry {
+		pauser, supported := generation.(interface{ pausePlannedSessionExpiry() })
+		if !supported {
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorInvalidState)
+			return
+		}
+		if request.Context().Err() != nil {
+			s.mu.Unlock()
+			return
+		}
+		pauser.pausePlannedSessionExpiry()
+	}
 	control := workerControlState{generation: generation, phase: s.phase, fence: checkpoint.WorkerFence}
 	s.mu.Unlock()
 
@@ -1687,6 +1700,10 @@ func (g *engineWorkerGeneration) ApproveLifecycleReheat(ctx context.Context, ite
 }
 
 func (g *engineWorkerGeneration) TrafficReady() bool { return g.trafficReady.Load() }
+
+func (g *engineWorkerGeneration) pausePlannedSessionExpiry() {
+	g.engine.sessions.pausePlannedExpiry()
+}
 
 func (g *engineWorkerGeneration) Checkpoint(ctx context.Context) (WorkerSnapshot, error) {
 	return g.workerSnapshot(ctx)

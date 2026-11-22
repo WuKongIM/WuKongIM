@@ -2798,7 +2798,14 @@ specification, runbook, report, or module documentation; link to them when neede
   At soak cutoff the coordinator joins the existing in-flight
   checkpoint before canceling its shared observer context. Its original round
   budget and terminal evidence requirements still apply. A concurrent observer
-  failure keeps its original priority.
+  failure keeps its original priority. At natural rehearsal cutoff, the Coordinator
+  and Workers use the same immutable bundle. The fenced checkpoint pauses new planned
+  session expiry while existing cleanup, replacements and transport checks
+  continue. All readiness polls share the original five-second round budget
+  and require the exact online and synchronized target. Failed readiness stays
+  invalid and uses the stopped workers to write both final report formats when
+  complete evidence is available. Confirmed correctness failures in that
+  evidence retain their original priority.
   In the worker, a pending person Channel can receive its initial SENDACK before
   it enters the active set. The bounded Channel entry carries this acknowledged
   state into promotion when that SEND was counted as the first create for the row.

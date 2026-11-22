@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -147,6 +148,66 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	}
 	if meta.calls != 1 || dataset.calls != 3 {
 		t.Fatalf("meta/dataset calls = %d/%d, want 1/3", meta.calls, dataset.calls)
+	}
+}
+
+func TestProductionEvidenceControllerWritesFailedCheckpointReportFromDrainedSnapshots(t *testing.T) {
+	for _, scenario := range []struct {
+		name    string
+		losses  uint64
+		outcome VerdictOutcome
+		cause   VerdictCause
+	}{
+		{name: "readiness_timeout", outcome: VerdictHarnessInvalid, cause: VerdictCauseInvalidObservation},
+		{name: "loss_in_drain", losses: 1, outcome: VerdictProductFailure, cause: VerdictCauseMessageLoss},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			checkFailedCheckpointReport(t, scenario.losses, scenario.outcome, scenario.cause)
+		})
+	}
+}
+
+func checkFailedCheckpointReport(t *testing.T, losses uint64, outcome VerdictOutcome, cause VerdictCause) {
+	t.Helper()
+	cfg := RehearsalConfig()
+	cfg.RunID = "production-terminal-checkpoint-failure"
+	start := time.Unix(1_960_000_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-terminal-checkpoint", Generation: 4}
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("failed-checkpoint-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	ctx := context.Background()
+	run := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	elapsed := cfg.measuredDuration() + 5*time.Second
+	final := productionControllerQualifiedSnapshots(cfg, fence, 8, elapsed, WorkerPhaseFinal, 8)
+	final[0].Messages.Losses = losses
+	if err := controller.Finalize(ctx, CoordinatorFinalCut{
+		Start: run, At: start.Add(elapsed), Decision: CoordinatorHarnessInvalid, CheckpointFailed: true, FinalSnapshots: final,
+	}); err != nil {
+		t.Fatalf("%v (%+v), cause %v", err, finalizationDiagnostic(err, "", ""), errors.Unwrap(err))
+	}
+	report, err := ReadCurrentReport(filepath.Join(controller.OutputDir(), "final.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Stage != StageRehearsal || !report.Final || !report.Verdict.Terminal || report.Verdict.Outcome != outcome ||
+		report.Verdict.Cause != cause || len(report.Workers) != 3 {
+		t.Fatalf("final report verdict = %+v, worker count %d", report.Verdict, len(report.Workers))
+	}
+	if _, err := os.Stat(filepath.Join(controller.OutputDir(), "final.md")); err != nil {
+		t.Fatal(err)
 	}
 }
 

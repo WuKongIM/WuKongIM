@@ -642,13 +642,16 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	switch {
 	case !c.begun || c.closed:
 		return c.finalizeFailure(cut, "controller_guard", "state", errProductionController)
-	case cut.Start.Fence != c.start.Fence:
+	case cut.Start.Fence != c.start.Fence || !cut.Start.StartedAt.Equal(c.start.StartedAt):
 		return c.finalizeFailure(cut, "controller_guard", "fence", errProductionController)
 	case cut.At.IsZero():
 		return c.finalizeFailure(cut, "controller_guard", "time", errProductionController)
 	case len(cut.FinalSnapshots) != coordinatorWorkerCount:
 		return c.finalizeFailure(cut, "controller_guard", "snapshot_count", errProductionController)
-	case !c.frozen.Terminal:
+	case cut.CheckpointFailed && (cut.Decision != CoordinatorHarnessInvalid || c.cfg.Stage != StageRehearsal ||
+		c.continuous || cut.Continuous || cut.At.Before(c.start.StartedAt.Add(c.cfg.measuredDuration()))):
+		return c.finalizeFailure(cut, "controller_guard", "terminal", errProductionController)
+	case !c.frozen.Terminal && !cut.CheckpointFailed:
 		return c.finalizeFailure(cut, "controller_guard", "terminal", errProductionController)
 	}
 	if cut.Continuous != (c.continuous && !c.continuing) {
@@ -680,6 +683,9 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 		return c.finalizeFailure(cut, "meta_checkpoint", "invalid", metaErr)
 	}
 	lifecycle := c.lifecycle.Snapshot()
+	if cut.CheckpointFailed {
+		c.freezeFailedTerminalCheckpoint(cut, lifecycle)
+	}
 	current := VerdictSignal{Outcome: c.frozen.Outcome, Cause: c.frozen.Cause}
 	if metaProduct {
 		metaSignal := VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseMetaCreateProduct}
@@ -711,6 +717,26 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	}
 	c.closed = true
 	return nil
+}
+
+// freezeFailedTerminalCheckpoint keeps known resource evidence and applies the
+// original correctness reducer to the stopped workers. An incomplete readiness
+// cut cannot add latency-window samples or qualify a successful verdict.
+func (c *ProductionEvidenceController) freezeFailedTerminalCheckpoint(cut CoordinatorFinalCut, lifecycle LifecycleProofSnapshot) {
+	if c.lastObservation.Sequence == 0 {
+		observation := c.observation.Snapshot()
+		if observation.Sequence != 0 && !observation.At.Before(c.start.StartedAt) && !observation.At.After(cut.At) &&
+			len(observation.Resources) == coordinatorWorkerCount {
+			c.lastObservation = observation
+		}
+	}
+	counters, _, signals, err := projectWorkerVerdictEvidence(c.cfg, cut.FinalSnapshots, lifecycle)
+	if err == nil {
+		counters.ActivationRejections = c.lastObservation.ActivationRejections
+		_ = c.evaluator.Observe(VerdictObservation{At: cut.At, Correctness: &counters, Signals: signals})
+	}
+	c.evaluator.setTerminal(VerdictHarnessInvalid, VerdictCauseInvalidObservation)
+	c.frozen = c.evaluator.Snapshot()
 }
 
 // finalizeFailure preserves the primary private cause and the already-frozen
