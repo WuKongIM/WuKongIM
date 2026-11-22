@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -1096,6 +1097,127 @@ func TestCoordinatorStopRequestDoesNotCancelInflightPeriodicCheckpoint(t *testin
 		}
 	case <-time.After(time.Second):
 		t.Fatal("coordinator did not finish after the in-flight checkpoint")
+	}
+}
+
+func TestCoordinatorNaturalCutoffJoinsInflightPeriodicCheckpoint(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		outcome CoordinatorOutcome
+		code    CoordinatorCode
+	}{
+		{"completes", CoordinatorCompleted, CoordinatorCodeCompleted},
+		{"round deadline", CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint},
+		{"observed product failure", CoordinatorProductFailure, CoordinatorCodeObserver},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				testCoordinatorCutoffWithPeriodicCheckpoint(t, test.outcome, test.code)
+			})
+		})
+	}
+}
+
+func testCoordinatorCutoffWithPeriodicCheckpoint(t *testing.T, want CoordinatorOutcome, code CoordinatorCode) {
+	t.Helper()
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-natural-cutoff-periodic-checkpoint"
+	configureFastCoordinatorCutoff(&cfg)
+	clock := newManualCoordinatorClock(time.Unix(1_700_100_000, 0))
+	entered, release := make(chan struct{}), make(chan struct{})
+	observationStopped, productFailure := make(chan struct{}), make(chan struct{})
+	var log []string
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for id := range workers {
+		worker := &recordingCoordinatorWorker{id: uint64(id), log: &log}
+		workers[id] = worker
+		if id == 0 {
+			workers[id] = &blockingPeriodicCheckpointCoordinatorWorker{
+				recordingCoordinatorWorker: worker, entered: entered, release: release,
+			}
+		}
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 96,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			defer close(observationStopped)
+			select {
+			case <-productFailure:
+				return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
+			case <-ctx.Done():
+				return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+			}
+		}),
+		Clock: clock, Hooks: hooks,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer func() {
+		cancel()
+		synctest.Wait()
+	}()
+	results := make(chan CoordinatorResult, 1)
+	go func() { results <- coordinator.Run(ctx, cfg) }()
+
+	var start CoordinatorRunStart
+	synctest.Wait()
+	select {
+	case start = <-hooks.started:
+	case result := <-results:
+		t.Fatalf("coordinator ended before start: %s/%s", result.Outcome, result.Code)
+	default:
+		t.Fatal("coordinator did not reach the measured clock")
+	}
+	clock.advance(cfg.Observation.Cadence)
+	synctest.Wait()
+	select {
+	case <-entered:
+	default:
+		t.Fatal("coordinator did not begin a periodic checkpoint")
+	}
+	// The run is blocked in its status select with the periodic checkpoint pending.
+	cutoff := start.StartedAt.Add(cfg.measuredDuration())
+	clock.setNowAndQueue(cutoff, map[time.Duration]time.Time{cfg.Observation.Cadence: cutoff})
+	synctest.Wait()
+	select {
+	case <-observationStopped:
+		t.Fatal("natural cutoff canceled the pending checkpoint")
+	default:
+	}
+	switch want {
+	case CoordinatorCompleted:
+		close(release)
+	case CoordinatorProductFailure:
+		close(productFailure)
+	case CoordinatorHarnessInvalid:
+		time.Sleep(coordinatorDefaultRoundTime)
+	}
+	synctest.Wait()
+	select {
+	case result := <-results:
+		if result.Outcome != want || result.Code != code {
+			t.Fatalf("natural cutoff result = %s/%s, want %s/%s", result.Outcome, result.Code, want, code)
+		}
+	default:
+		t.Fatal("natural cutoff did not finish")
+	}
+	select {
+	case final := <-hooks.finalized:
+		if want != CoordinatorCompleted || final.Decision != CoordinatorCompleted || len(final.FinalSnapshots) != coordinatorWorkerCount {
+			t.Fatalf("unexpected natural final cut: %+v", final)
+		}
+	default:
+		if want == CoordinatorCompleted {
+			t.Fatal("natural cutoff did not finalize all workers")
+		}
 	}
 }
 
