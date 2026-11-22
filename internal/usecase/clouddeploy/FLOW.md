@@ -46,6 +46,11 @@ non-secret Lease inventory and has no provider lifecycle authority.
 - Public Manager and Demo share temporary Basic Authentication; Manager keeps
   its own read-only login. Only safe GET/HEAD may retry upstreams; writes and
   WebSockets disable retries and connection reuse.
+- Process metrics publish a complete snapshot atomically. Only a successful
+  systemd observation of a stopped or absent service reports it down. The
+  kernel start time fences resource reads while the process remains live.
+  Unverified process state keeps the prior complete file and timestamp, so
+  the existing host-metrics freshness limit still applies.
 - Formal execution is one native process across soak, capacity, and recovery;
   it never restarts services/workers, clears data, or splices process lifetimes.
 - Direct repair may pass one validated process-duration override only to the

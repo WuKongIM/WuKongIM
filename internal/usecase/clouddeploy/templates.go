@@ -283,55 +283,97 @@ units=(
   node-exporter.service
 )
 
+unknown_process() {
+  printf 'process metrics: %s for %s; snapshot skipped\n' "$2" "$1" >&2
+}
+
+emit_snapshot() {
+  local page_size observed_at
+  page_size="$(getconf PAGESIZE)" || return 1
+  printf '# HELP wukongim_process_up Whether the exact systemd process is running.\n' || return 1
+  printf '# TYPE wukongim_process_up gauge\n' || return 1
+  local unit properties name value load_state active_state pid stat_line current_stat rss_pages read_bytes write_bytes
+  local -a fields current_fields descriptors
+  for unit in "${units[@]}"; do
+    if ! properties="$(systemctl show --property=LoadState --property=ActiveState --property=MainPID "$unit" 2>/dev/null)"; then
+      unknown_process "$unit" systemd_query_failed
+      return 1
+    fi
+    load_state= active_state= pid=
+    while IFS='=' read -r name value; do
+      case "$name" in
+        LoadState) load_state="$value" ;;
+        ActiveState) active_state="$value" ;;
+        MainPID) pid="$value" ;;
+      esac
+    done <<<"$properties"
+
+    case "$load_state:$active_state:$pid" in
+      loaded:inactive:0|loaded:failed:0|not-found:inactive:0|not-found:inactive:)
+        printf 'wukongim_process_up{unit="%s"} 0\n' "$unit" || return 1
+        continue
+        ;;
+    esac
+    if [[ "$load_state" != loaded || -z "$active_state" || ! "$pid" =~ ^[1-9][0-9]*$ ]]; then
+      unknown_process "$unit" systemd_state_incomplete
+      return 1
+    fi
+    if ! { IFS= read -r stat_line <"/proc/$pid/stat"; } 2>/dev/null; then
+      unknown_process "$unit" process_stat_unreadable
+      return 1
+    fi
+    read -r -a fields <<<"${stat_line##*) }"
+    if (( ${#fields[@]} < 22 )) || [[ ! "${fields[11]}" =~ ^[0-9]+$ || ! "${fields[12]}" =~ ^[0-9]+$ ||
+          ! "${fields[17]}" =~ ^[0-9]+$ || ! "${fields[19]}" =~ ^[0-9]+$ ||
+          ! "${fields[21]}" =~ ^[1-9][0-9]*$ ]]; then
+      unknown_process "$unit" process_stat_incomplete
+      return 1
+    fi
+    rss_pages="${fields[21]}"
+    read_bytes=0
+    write_bytes=0
+    if [[ -r "/proc/$pid/io" ]]; then
+      while read -r name value; do
+        case "$name" in
+          read_bytes:) read_bytes="$value" ;;
+          write_bytes:) write_bytes="$value" ;;
+        esac
+      done <"/proc/$pid/io" || return 1
+    fi
+    shopt -s nullglob
+    descriptors=(/proc/"$pid"/fd/*)
+    shopt -u nullglob
+    # Bind the resource reads to the same live process using its kernel start time.
+    if ! { IFS= read -r current_stat <"/proc/$pid/stat"; } 2>/dev/null; then
+      unknown_process "$unit" process_stat_unreadable
+      return 1
+    fi
+    read -r -a current_fields <<<"${current_stat##*) }"
+    if [[ "${current_fields[19]:-}" != "${fields[19]}" || "${current_fields[0]}" == [ZXx] ]]; then
+      unknown_process "$unit" process_identity_changed
+      return 1
+    fi
+    printf 'wukongim_process_up{unit="%s"} 1\n' "$unit" || return 1
+    printf 'wukongim_process_cpu_jiffies_total{unit="%s"} %s\n' "$unit" "$((fields[11] + fields[12]))" || return 1
+    printf 'wukongim_process_resident_memory_bytes{unit="%s"} %s\n' "$unit" "$((rss_pages * page_size))" || return 1
+    printf 'wukongim_process_threads{unit="%s"} %s\n' "$unit" "${fields[17]}" || return 1
+    printf 'wukongim_process_open_fds{unit="%s"} %s\n' "$unit" "${#descriptors[@]}" || return 1
+    printf 'wukongim_process_read_bytes_total{unit="%s"} %s\n' "$unit" "$read_bytes" || return 1
+    printf 'wukongim_process_write_bytes_total{unit="%s"} %s\n' "$unit" "$write_bytes" || return 1
+  done
+  observed_at="$(date +%s)" || return 1
+  printf 'wukongim_process_collector_last_success_unixtime_seconds %s\n' "$observed_at"
+}
+
 collect() {
-  install -d -m 0755 "$(dirname "$output")"
+  install -d -m 0755 "$(dirname "$output")" || return 1
   local temporary="${output}.tmp.$$"
-  local page_size
-  page_size="$(getconf PAGESIZE)"
-  {
-    printf '# HELP wukongim_process_up Whether the exact systemd process is running.\n'
-    printf '# TYPE wukongim_process_up gauge\n'
-    local unit pid stat_line rest rss_pages read_bytes write_bytes
-    local -a fields descriptors
-    for unit in "${units[@]}"; do
-      pid="$(systemctl show --property=MainPID --value "$unit" 2>/dev/null || true)"
-      if [[ ! "$pid" =~ ^[1-9][0-9]*$ || ! -r "/proc/$pid/stat" ]]; then
-        printf 'wukongim_process_up{unit="%s"} 0\n' "$unit"
-        continue
-      fi
-      stat_line="$(</proc/"$pid"/stat)"
-      rest="${stat_line#*) }"
-      read -r -a fields <<<"$rest"
-      if (( ${#fields[@]} < 22 )); then
-        printf 'wukongim_process_up{unit="%s"} 0\n' "$unit"
-        continue
-      fi
-      rss_pages="${fields[21]}"
-      read_bytes=0
-      write_bytes=0
-      if [[ -r "/proc/$pid/io" ]]; then
-        while read -r key value; do
-          case "$key" in
-            read_bytes:) read_bytes="$value" ;;
-            write_bytes:) write_bytes="$value" ;;
-          esac
-        done <"/proc/$pid/io"
-      fi
-      shopt -s nullglob
-      descriptors=(/proc/"$pid"/fd/*)
-      shopt -u nullglob
-      printf 'wukongim_process_up{unit="%s"} 1\n' "$unit"
-      printf 'wukongim_process_cpu_jiffies_total{unit="%s"} %s\n' "$unit" "$((fields[11] + fields[12]))"
-      printf 'wukongim_process_resident_memory_bytes{unit="%s"} %s\n' "$unit" "$((rss_pages * page_size))"
-      printf 'wukongim_process_threads{unit="%s"} %s\n' "$unit" "${fields[17]}"
-      printf 'wukongim_process_open_fds{unit="%s"} %s\n' "$unit" "${#descriptors[@]}"
-      printf 'wukongim_process_read_bytes_total{unit="%s"} %s\n' "$unit" "$read_bytes"
-      printf 'wukongim_process_write_bytes_total{unit="%s"} %s\n' "$unit" "$write_bytes"
-    done
-    printf 'wukongim_process_collector_last_success_unixtime_seconds %s\n' "$(date +%s)"
-  } >"$temporary"
-  chmod 0644 "$temporary"
-  mv -f "$temporary" "$output"
+  if emit_snapshot >"$temporary" && chmod 0644 "$temporary" && mv -f "$temporary" "$output"; then
+    return 0
+  fi
+  # Keep the prior timestamp so the host metrics freshness limit still applies.
+  rm -f "$temporary"
+  return 1
 }
 
 if [[ "${1:-}" == --once ]]; then
@@ -339,7 +381,7 @@ if [[ "${1:-}" == --once ]]; then
   exit 0
 fi
 while true; do
-  collect
+  collect || true
   sleep "$interval"
 done
 `,
