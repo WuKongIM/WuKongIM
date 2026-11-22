@@ -374,6 +374,8 @@ type SessionPool struct {
 	cleanupQueue   chan *onlineSession
 	cleanupDone    chan struct{}
 	cleanupPending int
+	// plannedExpiryPaused belongs to the cleanup lifecycle under cleanupMu.
+	plannedExpiryPaused bool
 }
 
 // NewSessionPool validates all lifecycle seams before any client is created.
@@ -845,6 +847,7 @@ func (p *SessionPool) startExpiryCleanup(capacity int) error {
 	}
 	p.ownershipCapacity = capacity
 	p.mu.Unlock()
+	p.plannedExpiryPaused = false
 	p.cleanupQueue = make(chan *onlineSession, capacity)
 	p.cleanupDone = make(chan struct{})
 	go p.runExpiryCleanup(p.cleanupQueue, p.cleanupDone)
@@ -873,6 +876,14 @@ func (p *SessionPool) stopExpiryCleanup() {
 	p.cleanupMu.Unlock()
 }
 
+// pausePlannedExpiry serializes with detachment; already detached sessions
+// keep their cleanup ownership, and transport failures still close sessions.
+func (p *SessionPool) pausePlannedExpiry() {
+	p.cleanupMu.Lock()
+	defer p.cleanupMu.Unlock()
+	p.plannedExpiryPaused = true
+}
+
 // expireAsync atomically reserves bounded cleanup ownership before detaching
 // every due session. The generation ownership invariant makes queue exhaustion
 // unreachable; violating it is a terminal configuration error, never a reason
@@ -886,7 +897,7 @@ func (p *SessionPool) expireAsync(now time.Time) (int, error) {
 	if p.cleanupQueue == nil || p.cleanupPending > cap(p.cleanupQueue) {
 		return 0, errSessionConfig
 	}
-	if p.sessionExpiryNotDue(now) {
+	if p.plannedExpiryPaused || p.sessionExpiryNotDue(now) {
 		return 0, nil
 	}
 	sessions, ok := p.detachExpiredWithin(now, cap(p.cleanupQueue)-p.cleanupPending)

@@ -1408,6 +1408,7 @@ type recordingCoordinatorRunHooks struct {
 	cuts             chan CoordinatorEvidenceCut
 	finalized        chan CoordinatorFinalCut
 	terminalDecision CoordinatorOutcome
+	terminalError    error
 }
 
 func newRecordingCoordinatorRunHooks() *recordingCoordinatorRunHooks {
@@ -1425,6 +1426,9 @@ func (h *recordingCoordinatorRunHooks) Begin(_ context.Context, start Coordinato
 func (h *recordingCoordinatorRunHooks) Observe(_ context.Context, cut CoordinatorEvidenceCut) (CoordinatorOutcome, error) {
 	h.cuts <- cut
 	if cut.Kind == CoordinatorCutTerminal {
+		if h.terminalError != nil {
+			return "", h.terminalError
+		}
 		if h.terminalDecision != "" {
 			return h.terminalDecision, nil
 		}

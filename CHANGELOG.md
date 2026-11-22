@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Pause scheduled session expiry at the end of a chat-lifecycle rehearsal and let pending replacements finish before checking the online target. If readiness times out, write the failure report from the drained workers once their complete evidence is available. / 聊天生命周期演练到期后暂停计划轮换，先完成已有补位再校验在线目标；就绪超时时，用完整的 Worker 排空证据生成失败报告。
+
 - Finish an in-flight chat-lifecycle checkpoint at natural cutoff before stopping the observer, so bounded checkpoint work can complete and the final report can be written. / 聊天生命周期测试自然到期时先完成在途检查点，再停止观察器，避免收尾证据被提前取消。
 
 - Preserve the last complete cloud process sample when systemd or procfs cannot verify a process, so a transient read failure does not end chat-lifecycle testing as a server crash. / 云端进程采集暂时失败时保留上一份完整样本，避免聊天生命周期测试误报服务崩溃。
