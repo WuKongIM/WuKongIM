@@ -660,13 +660,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		}
 	}
 	preserveObservation := false
-	finishObservationForCutoff := func() {
-		if c.keepWorkersRunningOnSuccess {
-			preserveObservation = true
-			return
-		}
-		observation = joinObservation()
-	}
 	completeParentCancellation := func() CoordinatorResult {
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeStopped, coordinatorRoundParentCanceled)
 		observation = joinObservation()
@@ -1336,7 +1329,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				}
 				if hook.decision != "" {
 					hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
-					finishObservationForCutoff()
 					cutoffOwned = true
 					goto observationComplete
 				}
@@ -1365,7 +1357,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				failureCode = CoordinatorCodeGrant
 				goto observationFailure
 			}
-			finishObservationForCutoff()
 			cutoffOwned = true
 			goto observationComplete
 		}
@@ -1401,7 +1392,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			}
 			if hook.decision != "" {
 				hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
-				finishObservationForCutoff()
 				cutoffOwned = true
 				goto observationComplete
 			}
@@ -1439,7 +1429,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
-				finishObservationForCutoff()
 				cutoffOwned = true
 				goto observationComplete
 			}
@@ -1480,7 +1469,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 						}
 						if hook.decision != "" {
 							hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
-							finishObservationForCutoff()
 							cutoffOwned = true
 							goto observationComplete
 						}
@@ -1515,7 +1503,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
-				finishObservationForCutoff()
 				cutoffOwned = true
 				goto observationComplete
 			}
@@ -1548,9 +1535,8 @@ observationComplete:
 	if hookResults != nil {
 		hook := joinHookAsync()
 		if hook.disposition != coordinatorRoundSucceeded {
-			c.stopAfterFailure(fence, attempted)
-			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
-			return result
+			failureCode, failureDisposition = CoordinatorCodeCheckpoint, hook.disposition
+			goto observationFailure
 		}
 		if hook.kind == CoordinatorCutQualification {
 			qualificationCaptured = true
@@ -1563,11 +1549,14 @@ observationComplete:
 		cancelObservation()
 		joinCapacityAsync()
 	}
-	if stopRequested && !observationJoined {
-		// The observer context also owns any periodic checkpoint already in
-		// flight. Join that checkpoint above before canceling observation, then
-		// take the distinct stop-request terminal cut below.
-		observation = joinObservation()
+	if cutoffOwned && !observationJoined {
+		// The observer context also owns any in-flight checkpoint. Join the
+		// checkpoint above before canceling observation at either cutoff.
+		if !stopRequested && c.keepWorkersRunningOnSuccess {
+			preserveObservation = true
+		} else {
+			observation = joinObservation()
+		}
 	}
 	preservedObservationEnded := false
 	if preserveObservation {
