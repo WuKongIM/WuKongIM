@@ -2789,6 +2789,9 @@ specification, runbook, report, or module documentation; link to them when neede
   not measure HTTP/TLS/SSH wire bytes or bound process RSS. Resource queries use
   registered standard `go_*` and
   `process_*` names alongside the independent `wukongim_process_*` collector;
+  on uncertain systemd or procfs reads the collector keeps the prior complete
+  cut without refreshing it. The host endpoint still rejects evidence older
+  than 45 seconds, and a confirmed exit in a complete cut still stops the run.
   Channel counters use `wukongim_channel(v2)?_meta_created_total` and
   `wukongim_channel(v2)?_activation_rejected_total`. Legacy/promoted counter
   families remain separate raw series and must not be summed as distinct events.

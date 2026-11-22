@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve the last complete cloud process sample when systemd or procfs cannot verify a process, so a transient read failure does not end chat-lifecycle testing as a server crash. / 云端进程采集暂时失败时保留上一份完整样本，避免聊天生命周期测试误报服务崩溃。
+
 - Count a person Channel's first metadata create once in chat-lifecycle benchmarks when it enters the active set after its initial SENDACK. / 聊天生命周期压测中，私聊在收到首条 SENDACK 后转入热集时，首次元数据创建只计一次。
 
 - Verify and reuse an exact pre-staged Cloud Deployment archive when the runner transfer is slow. / 云部署传输较慢时，可校验并复用已预传的完整部署包。
