@@ -76,14 +76,15 @@ func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id cha
 	// API observers update only their own node, so a cache hit elsewhere can
 	// keep delivering to removed members indefinitely. The versioned recipient
 	// snapshot still avoids rereading subscriber pages when membership is stable.
-	const personChannelType = 1
-	if id.Type == personChannelType {
+	person := id.Type == personAppendMetadataChannelType
+	var cacheGeneration uint64
+	if person {
 		if metadata, ok := c.metadata.Lookup(id); ok {
 			applyChannelAppendMetadata(&target, metadata)
 			return target, nil
 		}
+		cacheGeneration = c.metadata.Generation()
 	}
-	cacheGeneration := c.metadata.Generation()
 	channel, err := c.node.GetChannelMetadataAuthoritative(ctx, id.ID, int64(id.Type))
 	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
 		return channelappend.AuthorityTarget{}, mapChannelAppendRouteError(err)
@@ -95,7 +96,9 @@ func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id cha
 			DirectoryProjectionState:  channel.DirectoryProjectionState,
 		}
 		applyChannelAppendMetadata(&target, metadata)
-		c.metadata.StoreIfGeneration(id, metadata, cacheGeneration)
+		if person {
+			c.metadata.StoreIfGeneration(id, metadata, cacheGeneration)
+		}
 	}
 	return target, nil
 }

@@ -654,8 +654,17 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	case !c.frozen.Terminal && !cut.CheckpointFailed:
 		return c.finalizeFailure(cut, "controller_guard", "terminal", errProductionController)
 	}
-	if cut.Continuous != (c.continuous && !c.continuing) {
+	formalSoak := c.continuous && !c.continuing
+	continueFormal := formalSoak && coordinatorOutcomeForVerdict(c.frozen) == CoordinatorCompleted
+	if cut.Continuous != continueFormal {
 		return c.finalizeFailure(cut, "controller_continuity", "mismatch", errProductionController)
+	}
+	if formalSoak && !continueFormal {
+		for _, worker := range cut.FinalSnapshots {
+			if worker.Phase != WorkerPhaseFinal {
+				return c.finalizeFailure(cut, "checkpoint_evidence", "invalid_snapshot_cut", ErrCheckpointEvidence)
+			}
+		}
 	}
 	if c.diagnostics == nil {
 		return c.finalizeFailure(cut, "live_diagnostic", "missing", errProductionController)
@@ -708,6 +717,11 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 		c.frozen.Outcome, c.frozen.Cause, c.frozen.Terminal = current.Outcome, current.Cause, true
 	}
 	finalEvidence := c.checkpointEvidenceLocked(lifecycle, c.frozen, cut.Capacity)
+	if formalSoak {
+		// An early terminal verdict drains its Workers. Only a live Soak cut
+		// carries the running Worker fence across the formal boundary.
+		finalEvidence.Continuous = cut.Continuous
+	}
 	if _, err := c.recorder.CaptureAndWrite(cut.At, cut.FinalSnapshots, finalEvidence, c.paths("final")); err != nil {
 		return c.finalizeFailure(cut, "checkpoint_evidence", "invalid_evidence", err)
 	}

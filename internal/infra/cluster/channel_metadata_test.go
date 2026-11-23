@@ -152,23 +152,24 @@ func TestChannelMetadataStoreRefreshesAppendMetadataCache(t *testing.T) {
 	store := NewChannelMetadataStore(node, cache, nil)
 
 	channel := metadb.Channel{
-		ChannelID:                 "g1",
-		ChannelType:               2,
+		ChannelID:                 "u1@u2",
+		ChannelType:               1,
 		Large:                     1,
 		SubscriberMutationVersion: 7,
 	}
 	if err := store.UpsertChannel(context.Background(), channel); err != nil {
 		t.Fatalf("UpsertChannel() error = %v", err)
 	}
-	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "g1", Type: 2})
+	id := channelappend.ChannelID{ID: channel.ChannelID, Type: uint8(channel.ChannelType)}
+	metadata, ok := cache.Lookup(id)
 	if !ok || !metadata.Large || metadata.SubscriberMutationVersion != 7 {
 		t.Fatalf("metadata cache = %#v ok=%v, want large version 7", metadata, ok)
 	}
 
-	if err := store.DeleteChannel(context.Background(), "g1", 2); err != nil {
+	if err := store.DeleteChannel(context.Background(), channel.ChannelID, channel.ChannelType); err != nil {
 		t.Fatalf("DeleteChannel() error = %v", err)
 	}
-	if metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "g1", Type: 2}); ok {
+	if metadata, ok := cache.Lookup(id); ok {
 		t.Fatalf("metadata cache = %#v ok=true, want deleted", metadata)
 	}
 }
@@ -582,10 +583,10 @@ func TestAtomicChannelInfoInvalidatesAppendMetadata(t *testing.T) {
 	for _, result := range []error{nil, context.DeadlineExceeded} {
 		node := &atomicChannelInfoNode{err: result}
 		cache := NewChannelAppendMetadataCache()
-		id := channelappend.ChannelID{ID: "g1", Type: 2}
+		id := channelappend.ChannelID{ID: "u1@u2", Type: 1}
 		cache.Store(id, ChannelAppendMetadata{Large: false})
 		store := NewChannelMetadataStore(node, cache, nil)
-		_, err := store.UpdateChannelInfo(context.Background(), metadb.ChannelInfoMutation{ChannelID: id.ID, ChannelType: 2, Large: 1})
+		_, err := store.UpdateChannelInfo(context.Background(), metadb.ChannelInfoMutation{ChannelID: id.ID, ChannelType: int64(id.Type), Large: 1})
 		if !errors.Is(err, result) {
 			t.Fatalf("error = %v, want %v", err, result)
 		}

@@ -211,6 +211,106 @@ func checkFailedCheckpointReport(t *testing.T, losses uint64, outcome VerdictOut
 	}
 }
 
+func TestProductionEvidenceControllerWritesStoppedFormalHeapFailure(t *testing.T) {
+	t.Run("before_qualification", func(t *testing.T) { checkStoppedFormalHeapFailure(t, 8) })
+	t.Run("at_qualification", func(t *testing.T) { checkStoppedFormalHeapFailure(t, 24) })
+}
+
+func checkStoppedFormalHeapFailure(t *testing.T, lastHour uint64) {
+	t.Helper()
+	cfg := FormalConfig()
+	cfg.RunID = "formal-heap-failure"
+	start := time.Unix(1_960_000_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "formal-heap-failure", Generation: 1}
+	observation := newProductionControllerObservation(cfg, start)
+	accounting := NewMetaCreateAccounting()
+	output := t.TempDir()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: output, Observation: observation, Continuous: true,
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("formal-heap-failure-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	ctx := context.Background()
+	run := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	var decision CoordinatorOutcome
+	var running []WorkerSnapshot
+	for hour := uint64(0); hour <= lastHour; hour++ {
+		elapsed := time.Duration(hour) * time.Hour
+		observation.snapshot.Sequence = hour + 1
+		observation.snapshot.At = start.Add(elapsed)
+		if hour == lastHour {
+			observation.snapshot.Resources[1].HeapBytes = 106
+			observation.snapshot.ResourceEvidence.Nodes[1].HeapEndBytes = 106
+		}
+		running = productionControllerQualifiedSnapshots(cfg, fence, hour+1, elapsed+time.Second, WorkerPhaseRunning, 1201*(hour+1))
+		kind := CoordinatorCutPeriodic
+		if elapsed == cfg.Thresholds.Timeline.Checkpoint {
+			kind = CoordinatorCutQualification
+		}
+		decision, err = controller.Observe(ctx, CoordinatorEvidenceCut{
+			Start: run, Kind: kind, At: start.Add(elapsed + time.Second), Snapshots: running,
+		})
+		if err != nil || (hour < lastHour && decision != "") {
+			t.Fatalf("hour %d observation = %q/%v", hour, decision, err)
+		}
+	}
+	if decision != CoordinatorProductFailure {
+		t.Fatalf("hour %d decision = %q, want product failure", lastHour, decision)
+	}
+
+	elapsed := time.Duration(lastHour)*time.Hour + 2*time.Second
+	sequence, count := lastHour+2, 1201*(lastHour+1)
+	final := productionControllerQualifiedSnapshots(cfg, fence, sequence, elapsed, WorkerPhaseFinal, count)
+	cut := CoordinatorFinalCut{
+		Start: run, At: start.Add(elapsed), Decision: decision, Prepare: running, FinalSnapshots: final,
+	}
+	if lastHour == 8 {
+		wrong := cut
+		wrong.FinalSnapshots = productionControllerQualifiedSnapshots(cfg, fence, sequence, elapsed, WorkerPhaseRunning, count)
+		if err := controller.Finalize(ctx, wrong); err == nil {
+			t.Fatal("early formal failure accepted running Workers as Stop evidence")
+		}
+		wrong.FinalSnapshots[0].Phase = WorkerPhaseFinal
+		if err := controller.Finalize(ctx, wrong); err == nil {
+			t.Fatal("early formal failure accepted mixed stopped and running Workers")
+		}
+	}
+	if err := controller.Finalize(ctx, cut); err != nil {
+		t.Fatalf("stopped formal failure: %v (%+v)", err, finalizationDiagnostic(err, "", ""))
+	}
+	reportPath := filepath.Join(output, "final.json")
+	report, err := ReadCurrentReport(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Stage != StageFormal || report.Kind != CheckpointFinal || !report.Final || report.Continue || report.Continuous ||
+		report.Verdict.Outcome != VerdictProductFailure || report.Verdict.Cause != VerdictCauseHeapGrowth {
+		t.Fatalf("stopped formal report = %s %q/%q, final=%t continue=%t continuous=%t", report.Kind, report.Verdict.Outcome,
+			report.Verdict.Cause, report.Final, report.Continue, report.Continuous)
+	}
+	for _, worker := range report.Workers {
+		if worker.Phase != WorkerPhaseFinal || worker.SnapshotSequence != sequence {
+			t.Fatalf("stopped formal worker = %+v", worker)
+		}
+	}
+	markdown, err := os.ReadFile(filepath.Join(output, "final.md"))
+	if err != nil || !strings.Contains(string(markdown), string(VerdictCauseHeapGrowth)) {
+		t.Fatalf("stopped formal markdown lacks heap failure: %v", err)
+	}
+	if _, err := PrepareCapacityConfig(cfg, report, reportPath); err == nil {
+		t.Fatal("failed formal report authorized capacity")
+	}
+}
+
 func TestProductionEvidenceControllerArmsObservationBeforeDatasetProbe(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "production-controller-observation-order"

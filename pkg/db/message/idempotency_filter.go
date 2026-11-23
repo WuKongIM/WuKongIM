@@ -7,6 +7,7 @@ const (
 	idempotencyMembershipOverflowWords   = 128
 	idempotencyMembershipPrimaryCapacity = 384
 	idempotencyMembershipHashCount       = 7
+	idempotencyMembershipSparseKeys      = 8
 )
 
 var (
@@ -18,17 +19,19 @@ var (
 // possible hit must still be verified against durable storage; saturation can
 // therefore increase point reads but cannot admit a duplicate message.
 type idempotencyMembershipFilter struct {
-	primaryBits  []uint64
+	// primary starts as hash pairs for sparse Channels. At the ninth distinct
+	// key it becomes the usual fixed-size Bloom layer.
+	primary      []uint64
 	overflowBits []uint64
 	primaryAdds  uint32
 }
 
 func (f *idempotencyMembershipFilter) mayContain(key []byte) bool {
-	if f == nil || len(f.primaryBits) == 0 {
+	if f == nil || len(f.primary) == 0 {
 		return false
 	}
 	h1, h2 := idempotencyMembershipHashes(key)
-	return idempotencyMembershipLayerMayContain(f.primaryBits, h1, h2) ||
+	return f.primaryMayContain(h1, h2) ||
 		idempotencyMembershipLayerMayContain(f.overflowBits, h1, h2)
 }
 
@@ -37,15 +40,24 @@ func (f *idempotencyMembershipFilter) add(key []byte) {
 		return
 	}
 	h1, h2 := idempotencyMembershipHashes(key)
-	if idempotencyMembershipLayerMayContain(f.primaryBits, h1, h2) ||
+	if f.primaryMayContain(h1, h2) ||
 		idempotencyMembershipLayerMayContain(f.overflowBits, h1, h2) {
 		return
 	}
+	if f.primaryAdds < idempotencyMembershipSparseKeys {
+		f.primary = append(f.primary, h1, h2)
+		f.primaryAdds++
+		return
+	}
 	if f.primaryAdds < idempotencyMembershipPrimaryCapacity {
-		if f.primaryBits == nil {
-			f.primaryBits = make([]uint64, idempotencyMembershipPrimaryWords)
+		if len(f.primary) != idempotencyMembershipPrimaryWords {
+			bits := make([]uint64, idempotencyMembershipPrimaryWords)
+			for i := 0; i < len(f.primary); i += 2 {
+				idempotencyMembershipLayerAdd(bits, f.primary[i], f.primary[i+1])
+			}
+			f.primary = bits
 		}
-		idempotencyMembershipLayerAdd(f.primaryBits, h1, h2)
+		idempotencyMembershipLayerAdd(f.primary, h1, h2)
 		f.primaryAdds++
 		return
 	}
@@ -53,6 +65,18 @@ func (f *idempotencyMembershipFilter) add(key []byte) {
 		f.overflowBits = make([]uint64, idempotencyMembershipOverflowWords)
 	}
 	idempotencyMembershipLayerAdd(f.overflowBits, h1, h2)
+}
+
+func (f *idempotencyMembershipFilter) primaryMayContain(h1, h2 uint64) bool {
+	if len(f.primary) == idempotencyMembershipPrimaryWords {
+		return idempotencyMembershipLayerMayContain(f.primary, h1, h2)
+	}
+	for i := 0; i < len(f.primary); i += 2 {
+		if f.primary[i] == h1 && f.primary[i+1] == h2 {
+			return true
+		}
+	}
+	return false
 }
 
 func idempotencyMembershipHashes(key []byte) (uint64, uint64) {

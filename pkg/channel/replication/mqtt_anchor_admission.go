@@ -135,7 +135,7 @@ func (l *quorumLog) CommitMQTTReplayAnchor(ctx context.Context, q MQTTReplayAnch
 		return current.Latest, nil
 	}
 	if state.pending != nil {
-		p := state.pending.proposal
+		p := *state.pending
 		if p.manifest.CommandID != command {
 			return empty, ch.ErrBackpressured
 		}

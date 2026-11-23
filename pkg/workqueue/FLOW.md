@@ -40,6 +40,8 @@ It does not own business retries, fencing, ordering, or protocol semantics.
   distinct bounded observations.
 - Mailboxes guarantee one drain per shard, not per-business-key isolation;
   keyed state machines remain above this package.
+  A handler borrows its batch only until return. The shard clears completed
+  item references before reusing the batch array, including on handler panic.
 - Runtime packages should wrap these generic primitives in typed APIs.
 
 ## Read First

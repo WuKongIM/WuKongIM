@@ -321,6 +321,9 @@ func (m *ShardedMailbox[T]) runBatchHandler(shard *mailboxShard[T], items []T, w
 	started := time.Now()
 	var err error
 	defer func() {
+		// The slice is only borrowed by the handler. Release payloads,
+		// callbacks and contexts before the shard reuses the backing array.
+		clear(items)
 		if v := recover(); v != nil {
 			m.observeBatch(shard, len(items), wait, time.Since(started), resultPanic, nil)
 			panic(v)

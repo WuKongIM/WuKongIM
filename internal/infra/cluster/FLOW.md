@@ -36,7 +36,7 @@ management, plugins, diagnostics, and bounded operations observations.
    order, command flags, and owned payloads; `message.PageReader` selects pages.
    Channel append clones payload bytes once and explicitly transfers that
    immutable ownership to the Channel runtime. Mutable recipient metadata is
-   reread from the Slot leader per routed batch; only person metadata is cached.
+   reread from the Slot leader per routed batch. The person recipient cache retains up to 32,768 recent identities and 4 MiB of owned identity bytes; misses read authority and restore fences late fills.
    First ordinary persistent person SENDs coalesce source tasks/runtime metadata and directly dispatch projection to the source leader.
    UID memberships and generation-fenced Ready commit before append; Pending keeps its original captured tail. Ready/epoch/route proof travels to append without renewal; hot permission reads include it in their existing snapshot.
 2. Full presence maps rare Controller claims to usecase generations; actual Slot

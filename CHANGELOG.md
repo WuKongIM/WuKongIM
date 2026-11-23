@@ -8,6 +8,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve the original failure and stopped Worker evidence in both final reports when a formal soak stops early. / 正式长测提前停止时，JSON 和 Markdown 终态报告保留原始失败原因和已停止的 Worker 证据。
+
+- Reduce memory retained by Channel routes, committed retries, sparse idempotency filters, and completed mailbox batches. Bound the person recipient metadata cache and keep group recipient reads authoritative. / 减少频道路由、已提交命令重试证明、稀疏幂等过滤器和已完成批次的内存驻留，限制私聊收件人元数据缓存，群聊继续读取权威元数据。
+
+- Release evicted diagnostic index keys from the reused FIFO storage. / 诊断索引淘汰旧键时释放复用队列中的引用。
+
 - Pause scheduled session expiry at the end of a chat-lifecycle rehearsal and let pending replacements finish before checking the online target. If readiness times out, write the failure report from the drained workers once their complete evidence is available. / 聊天生命周期演练到期后暂停计划轮换，先完成已有补位再校验在线目标；就绪超时时，用完整的 Worker 排空证据生成失败报告。
 
 - Finish an in-flight chat-lifecycle checkpoint at natural cutoff before stopping the observer, so bounded checkpoint work can complete and the final report can be written. / 聊天生命周期测试自然到期时先完成在途检查点，再停止观察器，避免收尾证据被提前取消。

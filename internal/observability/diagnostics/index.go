@@ -291,6 +291,8 @@ func (b *boundedIndex) Len() int { return len(b.values) }
 func (b *boundedIndex) evictKeys() {
 	for len(b.values) > b.maxKeys && len(b.order) > 0 {
 		key := b.order[0]
+		// The remaining slice can keep the same backing array alive.
+		b.order[0] = ""
 		b.order = b.order[1:]
 		delete(b.values, key)
 	}
@@ -339,6 +341,7 @@ func (b *boundedRangeIndex) Get(key string, seq uint64) []uint64 {
 func (b *boundedRangeIndex) evictKeys() {
 	for len(b.values) > b.maxKeys && len(b.order) > 0 {
 		key := b.order[0]
+		b.order[0] = ""
 		b.order = b.order[1:]
 		delete(b.values, key)
 	}

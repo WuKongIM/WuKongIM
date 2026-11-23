@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
@@ -90,11 +91,43 @@ func TestChannelAppendClientRefreshesGroupRecipientMetadata(t *testing.T) {
 	if !first.Large || first.SubscriberMutationVersion != 19 || second.Large || second.SubscriberMutationVersion != 20 {
 		t.Fatalf("targets = %#v %#v, want current recipient metadata", first, second)
 	}
+	cache.Store(channelID, ChannelAppendMetadata{Large: true})
+	if _, ok := cache.Lookup(channelID); ok {
+		t.Fatal("group recipient metadata was retained despite per-batch authoritative reads")
+	}
+}
+
+func TestChannelAppendMetadataCacheKeepsHotPersonUnderColdChurn(t *testing.T) {
+	cache := NewChannelAppendMetadataCache()
+	hot := channelappend.ChannelID{ID: "hot-person", Type: 1}
+	cold := channelappend.ChannelID{ID: "cold-person", Type: 1}
+	cache.Store(hot, ChannelAppendMetadata{SubscriberMutationVersion: 7})
+	cache.Store(cold, ChannelAppendMetadata{})
+
+	// Exercise the public cache through more identities than its person bound,
+	// refreshing the hot route as live traffic would.
+	for i := range 33_000 {
+		cache.Store(channelappend.ChannelID{ID: fmt.Sprintf("one-shot-%d", i), Type: 1}, ChannelAppendMetadata{})
+		if meta, ok := cache.Lookup(hot); !ok || meta.SubscriberMutationVersion != 7 {
+			t.Fatalf("hot recipient metadata lost at %d: %+v/%t", i, meta, ok)
+		}
+	}
+	if _, ok := cache.Lookup(cold); ok {
+		t.Fatal("inactive person metadata survived the entry limit")
+	}
+	oversize := channelappend.ChannelID{ID: strings.Repeat("x", (4<<20)+1), Type: 1}
+	if cache.StoreIfGeneration(oversize, ChannelAppendMetadata{}, cache.Generation()) {
+		t.Fatal("cache retained an identity larger than its entire byte budget")
+	}
+	cache.ResetAfterRestore()
+	if _, ok := cache.Lookup(hot); ok {
+		t.Fatal("restore left cached person metadata visible")
+	}
 }
 
 func TestChannelAppendMetadataCacheRejectsLatePreRestoreLoad(t *testing.T) {
 	cache := NewChannelAppendMetadataCache()
-	id := channelappend.ChannelID{ID: "room", Type: 2}
+	id := channelappend.ChannelID{ID: "u1@u2", Type: 1}
 	generation := cache.Generation()
 
 	cache.ResetAfterRestore()

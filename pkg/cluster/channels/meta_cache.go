@@ -3,6 +3,7 @@ package channels
 import (
 	"slices"
 	"sync"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -17,26 +18,81 @@ type MetaCacheObserver interface {
 type channelMetaCache struct {
 	// mu serializes metadata-floor installation and version invalidation.
 	mu sync.RWMutex
-	// items stores the newest complete or generation-bearing metadata observed.
-	items map[ch.ChannelID]ch.Meta
-	// stale marks an installed exact version unusable until a fresh resolve
-	// confirms the same complete version or installs a newer one.
-	stale map[ch.ChannelID]struct{}
+	// items retains the latest exact route even after the runtime cools down.
+	items map[ch.ChannelID]appendMetaFloor
+}
+
+// appendMetaFloor keeps the identity in the map key, the invalidation bit in
+// the same entry, and rare write fences out of the common route footprint.
+type appendMetaFloor struct {
+	key                            ch.ChannelKey
+	epoch, leaderEpoch, generation uint64
+	leader                         ch.NodeID
+	retentionThroughSeq            uint64
+	minISR                         int
+	leaseUntil                     time.Time
+	writeFence                     *ch.WriteFence
+	// replicas owns its array. A distinct ISR is stored in the capacity tail.
+	replicas                       []ch.NodeID
+	status                         ch.Status
+	isrMatchesReplicas, appendable bool
+	stale                          bool
+}
+
+// view borrows immutable rosters while the caller owns the cache lock. Return
+// a clone to any consumer outside the cache.
+func (f appendMetaFloor) view(id ch.ChannelID) ch.Meta {
+	isr := f.replicas[len(f.replicas):cap(f.replicas)]
+	if f.isrMatchesReplicas {
+		isr = f.replicas
+	}
+	meta := ch.Meta{
+		ID: id, Key: f.key, Epoch: f.epoch, LeaderEpoch: f.leaderEpoch, RouteGeneration: f.generation,
+		Leader: f.leader, Replicas: f.replicas, ISR: isr, MinISR: f.minISR, LeaseUntil: f.leaseUntil,
+		RetentionThroughSeq: f.retentionThroughSeq, Status: f.status,
+	}
+	if f.writeFence != nil {
+		meta.WriteFence = *f.writeFence
+	}
+	return meta
+}
+
+func (c *channelMetaCache) storeLocked(id ch.ChannelID, meta ch.Meta, appendable bool) {
+	floor := appendMetaFloor{
+		key: meta.Key, epoch: meta.Epoch, leaderEpoch: meta.LeaderEpoch, generation: meta.RouteGeneration,
+		leader: meta.Leader, retentionThroughSeq: meta.RetentionThroughSeq, minISR: meta.MinISR,
+		leaseUntil: meta.LeaseUntil, status: meta.Status, appendable: appendable,
+		isrMatchesReplicas: slices.Equal(meta.Replicas, meta.ISR),
+	}
+	if meta.WriteFence != (ch.WriteFence{}) {
+		fence := meta.WriteFence
+		floor.writeFence = &fence
+	}
+	rosterSize := len(meta.Replicas)
+	if !floor.isrMatchesReplicas {
+		rosterSize += len(meta.ISR)
+	}
+	roster := make([]ch.NodeID, rosterSize)
+	n := copy(roster, meta.Replicas)
+	if !floor.isrMatchesReplicas {
+		copy(roster[n:], meta.ISR)
+	}
+	floor.replicas = roster[:n]
+	if c.items == nil {
+		c.items = make(map[ch.ChannelID]appendMetaFloor)
+	}
+	c.items[id] = floor
 }
 
 // get returns one appendable, non-stale cached metadata snapshot.
 func (c *channelMetaCache) get(id ch.ChannelID) (ch.Meta, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.items == nil {
+	floor, ok := c.items[id]
+	if !ok || floor.stale || !floor.appendable {
 		return ch.Meta{}, false
 	}
-	meta, ok := c.items[id]
-	_, invalidated := c.stale[id]
-	if !ok || invalidated || !cacheableAppendMeta(id, meta) {
-		return ch.Meta{}, false
-	}
-	return cloneMeta(meta), true
+	return cloneMeta(floor.view(id)), true
 }
 
 // installIfNewer advances the monotonic cache floor and returns the selected
@@ -55,25 +111,23 @@ func (c *channelMetaCache) installIfNewer(id ch.ChannelID, meta ch.Meta) ch.Meta
 func (c *channelMetaCache) selectResolved(id ch.ChannelID, meta ch.Meta) (ch.Meta, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if current, ok := c.items[id]; ok && !appendMetaNewer(current, meta) {
+	floor, exists := c.items[id]
+	current := floor.view(id)
+	if exists && !appendMetaNewer(current, meta) {
 		accepted := sameCompleteAppendMeta(current, meta)
-		if accepted {
-			delete(c.stale, id)
+		if accepted && floor.stale {
+			floor.stale = false
+			c.items[id] = floor
 		}
-		_, invalidated := c.stale[id]
-		appendable := !invalidated && cacheableAppendMeta(id, current)
-		return cloneMeta(current), accepted || appendable
+		return cloneMeta(current), accepted || (!floor.stale && floor.appendable)
 	}
 	// Modern projections carry an exact route generation, so even a deleting
 	// or temporarily non-appendable record is a useful monotonic floor. Legacy
 	// generation-zero invalid metadata stays uncached so a corrected record at
 	// the same legacy fence can recover.
-	if cacheableAppendMeta(id, meta) || meta.RouteGeneration != 0 {
-		if c.items == nil {
-			c.items = make(map[ch.ChannelID]ch.Meta)
-		}
-		c.items[id] = cloneMeta(meta)
-		delete(c.stale, id)
+	appendable := cacheableAppendMeta(id, meta)
+	if appendable || meta.RouteGeneration != 0 {
+		c.storeLocked(id, meta, appendable)
 	}
 	return cloneMeta(meta), true
 }
@@ -81,20 +135,18 @@ func (c *channelMetaCache) selectResolved(id ch.ChannelID, meta ch.Meta) (ch.Met
 // installIfNewerLocked advances the cache floor while the caller holds mu and
 // reports whether the candidate was accepted as the selected exact version.
 func (c *channelMetaCache) installIfNewerLocked(id ch.ChannelID, meta ch.Meta) (ch.Meta, bool) {
-	if c.items == nil {
-		c.items = make(map[ch.ChannelID]ch.Meta)
-	}
-	if current, ok := c.items[id]; ok && !appendMetaNewer(current, meta) {
+	floor, exists := c.items[id]
+	current := floor.view(id)
+	if exists && !appendMetaNewer(current, meta) {
 		accepted := sameCompleteAppendMeta(current, meta)
-		if accepted {
-			delete(c.stale, id)
+		if accepted && floor.stale {
+			floor.stale = false
+			c.items[id] = floor
 		}
 		return cloneMeta(current), accepted
 	}
-	installed := cloneMeta(meta)
-	c.items[id] = installed
-	delete(c.stale, id)
-	return cloneMeta(installed), true
+	c.storeLocked(id, meta, cacheableAppendMeta(id, meta))
+	return cloneMeta(meta), true
 }
 
 // preferCurrent keeps a cached monotonic floor when a delayed candidate is not
@@ -102,7 +154,8 @@ func (c *channelMetaCache) installIfNewerLocked(id ch.ChannelID, meta ch.Meta) (
 func (c *channelMetaCache) preferCurrent(id ch.ChannelID, candidate ch.Meta) (ch.Meta, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	current, ok := c.items[id]
+	floor, ok := c.items[id]
+	current := floor.view(id)
 	if ok && !appendMetaNewer(current, candidate) {
 		return cloneMeta(current), false
 	}
@@ -138,14 +191,11 @@ func appendMetaNewer(current ch.Meta, candidate ch.Meta) bool {
 func (c *channelMetaCache) invalidateUsedMeta(id ch.ChannelID, used ch.Meta) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.items == nil {
+	floor, ok := c.items[id]
+	if !ok || !sameUsedAppendMeta(floor.view(id), used) {
 		return false
 	}
-	current, ok := c.items[id]
-	if !ok || !sameUsedAppendMeta(current, used) {
-		return false
-	}
-	return c.markStaleLocked(id)
+	return c.markStaleLocked(id, floor)
 }
 
 // invalidateAuthority marks a cached version stale only when every supplied
@@ -153,27 +203,21 @@ func (c *channelMetaCache) invalidateUsedMeta(id ch.ChannelID, used ch.Meta) boo
 func (c *channelMetaCache) invalidateAuthority(id ch.ChannelID, leader ch.NodeID, epoch uint64, leaderEpoch uint64, routeGeneration uint64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.items == nil {
+	floor, ok := c.items[id]
+	if !ok || floor.leader != leader || floor.epoch != epoch || floor.leaderEpoch != leaderEpoch ||
+		floor.generation != routeGeneration {
 		return false
 	}
-	meta, ok := c.items[id]
-	if !ok || meta.Leader != leader || meta.Epoch != epoch || meta.LeaderEpoch != leaderEpoch ||
-		(routeGeneration == 0 && meta.RouteGeneration != 0) ||
-		(routeGeneration != 0 && meta.RouteGeneration != routeGeneration) {
-		return false
-	}
-	return c.markStaleLocked(id)
+	return c.markStaleLocked(id, floor)
 }
 
 // markStaleLocked records one exact invalidation while the caller holds mu.
-func (c *channelMetaCache) markStaleLocked(id ch.ChannelID) bool {
-	if c.stale == nil {
-		c.stale = make(map[ch.ChannelID]struct{})
-	}
-	if _, exists := c.stale[id]; exists {
+func (c *channelMetaCache) markStaleLocked(id ch.ChannelID, floor appendMetaFloor) bool {
+	if floor.stale {
 		return false
 	}
-	c.stale[id] = struct{}{}
+	floor.stale = true
+	c.items[id] = floor
 	return true
 }
 

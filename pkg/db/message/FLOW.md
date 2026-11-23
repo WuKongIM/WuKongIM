@@ -84,9 +84,9 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   conflict, or outcome-unknown. Durable indexes remain authoritative across
   cache eviction, prefix retention, and reopen; incomplete manifests, chains,
   overlaps, or checkpoints above LEO are corruption.
-- Idempotency filter negatives may avoid a read; possible hits always verify
-  durable index and message data. Saturation can increase reads, never admit a
-  duplicate.
+- Idempotency filter negatives may avoid a read; possible hits verify durable
+  index and message data. Saturation can increase reads, never admit a duplicate.
+  Up to eight keys retain hash pairs; promotion copies every pair into the Bloom layer.
 - Keyed Wills derive unique index 8 from publication metadata and UID; client
   index 3 preserves history lookup while native index 4 stays separate. Will
   uniqueness uses durable point proofs without the native negative filter. System 16 atomically retains compact Will receipts across prefix trim; still-present legacy originals can materialize them during trim, while suffix rollback removes matching receipts.
