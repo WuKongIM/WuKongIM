@@ -1177,7 +1177,11 @@ func TestCoordinatorCapacityRateChangesCommitInsideActiveGrantLoop(t *testing.T)
 
 func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) {
 	t.Helper()
-	soak := FormalConfig()
+	return capacityTestAdmissionWithSoak(t, FormalConfig())
+}
+
+func capacityTestAdmissionWithSoak(t *testing.T, soak Config) (Config, CapacityAdmission, time.Time) {
+	t.Helper()
 	soak.RunID = "capacity-aged-soak"
 	soakStart := time.Unix(1_900_000_000, 0)
 	fence := WorkerFence{RunID: soak.RunID, AssignmentID: "aged-assignment", Generation: 1}
@@ -1198,7 +1202,7 @@ func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) 
 		t.Fatal(err)
 	}
 
-	cfg := FormalConfig()
+	cfg := soak
 	cfg.RunID = "capacity-run"
 	cfg.Mode = ModeCapacity
 	cfg.Capacity.AgedCheckpoint = AgedCheckpoint{Reference: "reports/formal-72h", Completed: true, Passed: true, Duration: 72 * time.Hour}
@@ -1206,6 +1210,31 @@ func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) 
 		Reference: cfg.Capacity.AgedCheckpoint.Reference, Checkpoint: checkpoint,
 	}
 	return cfg, admission, checkpoint.Window.End.Add(time.Minute)
+}
+
+func TestPrepareCapacityKeepsFiveSecondFirstAttemptFromPassingSoak(t *testing.T) {
+	formal := FormalConfig()
+	formal.RunID = "capacity-aged-soak"
+	formal.Thresholds.Latency.FirstAttemptTimeout = 5 * time.Second
+	_, admission, _ := capacityTestAdmissionWithSoak(t, formal)
+	prepared, err := PrepareCapacityConfig(formal, admission.Checkpoint, admission.Reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Mode != ModeCapacity || prepared.Thresholds != formal.Thresholds {
+		t.Fatal("capacity changed the soak gates or first-attempt policy")
+	}
+	if err := validateCapacityCheckpoint(prepared, admission); err != nil {
+		t.Fatal(err)
+	}
+	prepared.Thresholds.Latency.FirstAttemptTimeout = 0
+	if err := validateCapacityCheckpoint(prepared, admission); !errors.Is(err, ErrCapacityAdmission) {
+		t.Fatalf("different capacity policy accepted a checkpoint: %v", err)
+	}
+	formal.Thresholds.Latency.FirstAttemptTimeout = 0
+	if _, err := PrepareCapacityConfig(formal, admission.Checkpoint, admission.Reference); !errors.Is(err, ErrCapacityAdmission) {
+		t.Fatalf("different first-attempt policy continued a formal checkpoint: %v", err)
+	}
 }
 
 func TestPrepareCapacityConfigBindsExactPassingFormalCheckpoint(t *testing.T) {

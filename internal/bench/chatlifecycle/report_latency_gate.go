@@ -212,7 +212,7 @@ func validReportLatencyGate(report Report) bool {
 	if report.SchemaVersion == legacyReportSchemaVersion {
 		return gate == nil
 	}
-	if report.SchemaVersion != ReportSchemaVersion && report.SchemaVersion != localP95ReportSchemaVersion && !pairedReportSchema(report.SchemaVersion) {
+	if !isCurrentReportSchema(report.SchemaVersion) {
 		return false
 	}
 	p95 := report.Thresholds.Latency.HotSendACK.P95 != 0

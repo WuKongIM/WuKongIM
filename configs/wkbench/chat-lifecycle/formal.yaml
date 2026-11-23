@@ -80,8 +80,9 @@ thresholds:
     any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1000, operator: "<="}
   latency:
     hot_sendack: {p99: 400ms, p999: 1s}
-    # Per-hot-attempt wait (including retries), independent of percentile SLOs.
+    # Keep the hot retry wait separate from the original SEND budget and percentile SLOs.
     hot_attempt_timeout: 2s
+    first_attempt_timeout: 5s
     cold: {p99: 2s, p999: 5s}
     sync: {p99: 1s, p999: 3s}
     single_anomaly: 10s

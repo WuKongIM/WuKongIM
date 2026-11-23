@@ -10,7 +10,7 @@ const (
 
 func (c Config) reportVersions() (string, string) {
 	if c.Thresholds.Latency.FirstAttemptTimeout != 0 {
-		return localFirstAttemptReportSchemaVersion, localFirstAttemptReportThresholdVersion
+		return firstAttemptReportVersions(c.Profile)
 	}
 	if c.Thresholds.Latency.pairedP95Policy() {
 		return localPairedP95ReportSchemaVersion, localPairedP95ReportThresholdVersion
@@ -25,7 +25,9 @@ func (c Config) reportVersions() (string, string) {
 // capacity or historical evidence authority by changing only a report header.
 func validReportVersions(r Report) bool {
 	if r.Thresholds.Latency.FirstAttemptTimeout != 0 {
-		return r.SchemaVersion == localFirstAttemptReportSchemaVersion && r.ThresholdVersion == localFirstAttemptReportThresholdVersion && validFirstAttemptOverride(r.Profile, r.Stage, r.Mode, r.Thresholds.Latency)
+		schema, thresholds := firstAttemptReportVersions(r.Profile)
+		return r.SchemaVersion == schema && r.ThresholdVersion == thresholds &&
+			validFirstAttemptOverride(r.Profile, r.Stage, r.Mode, r.Thresholds.Latency)
 	}
 	if r.Thresholds.Latency.pairedP95Policy() {
 		return r.SchemaVersion == localPairedP95ReportSchemaVersion && r.ThresholdVersion == localPairedP95ReportThresholdVersion && r.Profile == ProfileLocal && r.Stage == StageShakeout && r.Mode == ModeSoak

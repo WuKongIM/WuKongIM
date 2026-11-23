@@ -25,7 +25,8 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 		formal.Thresholds.Timeline.Checkpoint != 24*time.Hour || formal.Thresholds.Timeline.Final != 72*time.Hour ||
 		formal.Thresholds.MinimumDataFilesystemBytes != 500_000_000_000 ||
 		formal.Thresholds.Resource.MinimumLoadFilesystemBytes != 200_000_000_000 ||
-		formal.Thresholds.DiskSafeStopFreePercent != 5 {
+		formal.Thresholds.DiskSafeStopFreePercent != 5 ||
+		formal.Thresholds.Latency.FirstAttemptTimeout != 5*time.Second || formal.Thresholds.Latency.HotAttemptTimeout != 2*time.Second {
 		t.Fatalf("formal example drifted: %+v", formal)
 	}
 	rehearsal, err := LoadConfig(filepath.Join(root, "rehearsal.yaml"))

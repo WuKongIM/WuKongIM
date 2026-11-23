@@ -361,6 +361,19 @@ class CollectorTests(unittest.TestCase):
         rc,m,_,_,_=self.run_case('capacity-backward-submillisecond',stage='formal',capacity=True,capacity_end='2026-10-21T17:06:50.121277291Z')
         self.assertNotEqual(rc,0);self.assertEqual(self.capture(m,'capacity-terminal-anchor')['state'],'invalid')
 
+    def test_capacity_with_different_first_attempt_policy_cannot_anchor_metrics(self):
+        def use_five_seconds(value):
+            value.update(schema_version="wukongim/chat-lifecycle-report/v12",
+                         threshold_version="wukongim/chat-lifecycle-thresholds/v6",
+                         thresholds={"latency": {"first_attempt_timeout": 5_000_000_000}})
+        code, manifest, _, files, _ = self.run_case(
+            "mixed-capacity-policy", stage="formal", capacity=True, report_mutation=use_five_seconds)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(self.capture(manifest, "capacity-terminal-anchor")["state"], "invalid")
+        self.assertEqual(self.capture(manifest, "range-up")["window"]["source"], "formal/final.json")
+        self.assertIn("workload/formal/worker-evidence.json", files)
+        self.assertNotIn("workload/capacity/worker-evidence.json", files)
+
     def test_formal_exemption_requires_legal_failure_and_phase_evidence(self):
         for outcome,cause in [('product_failure','message_loss'),('harness_invalid','invalid_observation'),('infrastructure_failure','lease_expiry'),('operator_stop','operator_requested'),('insufficient_evidence','insufficient_evidence')]:
             with self.subTest(outcome=outcome):
@@ -768,6 +781,29 @@ class HelperBoundsTests(unittest.TestCase):
             with self.subTest(rejected=(version,code,value,stage,kind)):
                 with self.assertRaises((ValueError,KeyError,TypeError)):
                     self.helper.validate_worker(json.dumps(document(version,code,value,stage,kind)).encode(),report())
+
+    def test_first_attempt_policy_evidence_requires_matching_headers_and_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "final.json"
+            for stage in ("rehearsal", "formal", "capacity"):
+                with self.subTest(stage=stage):
+                    value = report(stage)
+                    if stage == "capacity":
+                        value["capacity"]["attempted"] = True
+                    value["schema_version"] = "wukongim/chat-lifecycle-report/v12"
+                    value["threshold_version"] = "wukongim/chat-lifecycle-thresholds/v6"
+                    value["thresholds"] = {"latency": {"first_attempt_timeout": 5_000_000_000}}
+                    target.write_text(json.dumps(value))
+                    self.helper.read_report(target, stage)
+                    for path, setting in [
+                        ("schema_version", "wukongim/chat-lifecycle-report/v8"),
+                        ("threshold_version", "wukongim/chat-lifecycle-thresholds/v2"),
+                        ("thresholds", {"latency": {"first_attempt_timeout": 0}}),
+                        ("thresholds", {"latency": {"first_attempt_timeout": "5000000000"}}),
+                    ]:
+                        target.write_text(json.dumps({**value, path: setting}))
+                        with self.assertRaises(ValueError):
+                            self.helper.read_report(target, stage)
 
     def test_terminal_report_contract_versions_and_scope_fail_closed(self):
         # Failure matrix: v6/v5 schema and historical thresholds, absent version or

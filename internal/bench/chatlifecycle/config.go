@@ -32,7 +32,7 @@ func (c Config) Validate() error {
 		return fieldError("thresholds.latency.hot_sendack.p95", "is allowed only for local shakeout soak")
 	}
 	if !validFirstAttemptOverride(c.Profile, c.Stage, c.Mode, c.Thresholds.Latency) {
-		return fieldError("thresholds.latency.first_attempt_timeout", "must be zero or5s for local paired-P95 shakeout soak")
+		return fieldError("thresholds.latency.first_attempt_timeout", "must be zero or 5s for formal, rehearsal, or local paired-P95 soak")
 	}
 	if c.Profile == ProfileFormal {
 		if err := validateFormalDefaults(c); err != nil {

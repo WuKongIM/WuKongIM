@@ -218,6 +218,49 @@ func TestFirstFiveACKBoundaryAndStop(t *testing.T) {
 	})
 }
 
+func TestFormalFirstFiveWorkerWaitsAndRetainsHotRetryBudget(t *testing.T) {
+	cfg := firstFiveConfig(t, RehearsalConfig(), 5*time.Second)
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("5-second rehearsal configuration rejected: %v", err)
+	}
+	f := hotAttemptBudgetFactoryFixture(t, cfg)
+	_, intent, start := hotAttemptBudgetStartSend(t, f, 180)
+	advance := func(at time.Time) EngineSnapshot {
+		t.Helper()
+		f.clock.Set(at)
+		if _, err := f.engine.Advance(at); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := f.engine.Snapshot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return snapshot
+	}
+	if got := advance(start.Add(5*time.Second - time.Nanosecond)); got.RetryQueueDepth != 0 || got.InflightCurrent != 1 {
+		t.Fatalf("original hot SEND was no longer pending before 5 seconds: %+v", got)
+	}
+	if got := advance(start.Add(5 * time.Second)); got.RetryQueueDepth != 1 {
+		t.Fatalf("original hot SEND did not queue one retry at 5 seconds: %+v", got)
+	}
+	retry, err := f.retry.Attempt(intent.Logical, 1)
+	if err != nil || retry.BaseDelay != 100*time.Millisecond {
+		t.Fatalf("original retry delay: %+v, %v", retry, err)
+	}
+	retryStart := start.Add(5*time.Second + retry.Delay)
+	advance(retryStart)
+	waitForEngineAdmissions(t, f.engine)
+	if got := f.factory.sentCount(); got != 2 {
+		t.Fatalf("SENDS after first retry = %d, want 2", got)
+	}
+	if got := advance(retryStart.Add(2*time.Second - time.Nanosecond)); got.RetryQueueDepth != 0 {
+		t.Fatalf("hot retry expired before 2 seconds: %+v", got)
+	}
+	if got := advance(retryStart.Add(2 * time.Second)); got.RetryQueueDepth != 1 {
+		t.Fatalf("hot retry did not expire at 2 seconds: %+v", got)
+	}
+}
+
 func TestFirstFiveConfigAndReportContract(t *testing.T) {
 	cfg := firstFiveConfig(t, pairedLocalP95Fixture(), 5*time.Second)
 	if err := cfg.Validate(); err != nil {
@@ -232,7 +275,7 @@ func TestFirstFiveConfigAndReportContract(t *testing.T) {
 	if r.SchemaVersion != "wukongim/chat-lifecycle-report/v11" || r.ThresholdVersion != "wukongim/chat-lifecycle-thresholds/v5" {
 		t.Fatal("native writer did not separate5s policy")
 	}
-	for _, invalid := range []Config{firstFiveConfig(t, FormalConfig(), 5*time.Second), firstFiveConfig(t, RehearsalConfig(), 5*time.Second), firstFiveConfig(t, LocalConfig(), 5*time.Second), firstFiveConfig(t, pairedLocalP95Fixture(), -time.Nanosecond), firstFiveConfig(t, pairedLocalP95Fixture(), 4*time.Second)} {
+	for _, invalid := range []Config{firstFiveConfig(t, FormalConfig(), 4*time.Second), firstFiveConfig(t, RehearsalConfig(), 6*time.Second), firstFiveConfig(t, LocalConfig(), 5*time.Second), firstFiveConfig(t, pairedLocalP95Fixture(), -time.Nanosecond), firstFiveConfig(t, pairedLocalP95Fixture(), 4*time.Second)} {
 		if invalid.Validate() == nil {
 			t.Fatal("nonlocal/nonpaired/non5s override accepted")
 		}

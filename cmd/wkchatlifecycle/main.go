@@ -90,7 +90,7 @@ func addFormalChainReportCommand(root *cobra.Command) {
 }
 
 func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlifecycle.Report) (formalChainResult, error) {
-	if formal.SchemaVersion != chatlifecycle.ReportSchemaVersion ||
+	if !chatlifecycle.IsCurrentP99ReportSchema(formal.SchemaVersion) ||
 		formal.Profile != chatlifecycle.ProfileFormal || formal.Mode != chatlifecycle.ModeSoak ||
 		formal.Stage != chatlifecycle.StageFormal || formal.Kind != chatlifecycle.CheckpointFinal ||
 		!formal.Final || formal.Continue || !formal.Verdict.Terminal {
@@ -115,7 +115,7 @@ func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlif
 		}
 		return result, nil
 	}
-	if !formal.Continuous || capacity == nil || capacity.SchemaVersion != chatlifecycle.ReportSchemaVersion ||
+	if !formal.Continuous || capacity == nil || capacity.SchemaVersion != formal.SchemaVersion ||
 		capacity.Profile != chatlifecycle.ProfileFormal || capacity.Mode != chatlifecycle.ModeCapacity ||
 		capacity.Stage != chatlifecycle.StageFormal || capacity.Kind != chatlifecycle.CheckpointFinal ||
 		!capacity.Final || capacity.Continue || !capacity.Continuous || !capacity.Verdict.Terminal || !capacity.Capacity.Attempted {

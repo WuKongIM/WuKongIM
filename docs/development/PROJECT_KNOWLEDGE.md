@@ -203,8 +203,9 @@ run with insufficient evidence, but elapsed rehearsal time alone cannot pass.
 Qualification persists baseline/start/end elapsed positions from one monotonic
 process clock; duration, order and freshness use those positions. Serialized
 wall timestamps are audit fields, not a reconstructed qualification clock.
-Current result and capacity consumers require v8 and reject missing offsets;
-historical v7 reports remain available for diagnosis without upgrading old evidence.
+Current P99 result and capacity consumers require v8/v2 or v12/v6 with the
+matching original-attempt policy. Missing offsets still fail validation.
+Historical v7 reports remain available for diagnosis.
 
 Lifecycle benchmark session expiry and generation stop fence new RECV work
 before closing transport. An already admitted RECVACK keeps the existing write
@@ -3194,7 +3195,7 @@ completion, installation and provider-reference release.
   The first terminal cut freezes this child; later cleanup cannot refresh it.
   Positive ten-minute qualification remains separate, and no numerical gate
   changes. Legacy v7 without this child is readable as unknown diagnostic proof;
-  current terminal handoff requires v8. Missing evidence never becomes pass.
+  current terminal handoff requires v8/v2 or v12/v6. Missing evidence never becomes pass.
 - Chat-lifecycle code38 is a fresh-clock dispatch miss before SDK admission,
   not an accepted product SEND or a delivery-loss proof. Optional driver timing
   retains the first 16 numeric prefixes per generation, stops extra timing at
@@ -3343,10 +3344,10 @@ prove recovery of the 5000-online workload.
 
 Person-directory preparation consumes actual admission callbacks while independent source-node groups run. A group waits for its own admissions and retains the original 64-item RPC chunks/four origin workers. Its final fresh Ready/runtime proof remains mandatory. Cancellation does not abandon the admission owner or RPC workers. A real three-node public regression holds one successful Slot admission return for at most two seconds and checks an unrelated source can publish Ready first; this proves scheduling behavior, not original-scale recovery.
 
-## Local first-attempt policy (2026-11-12)
+## Chat-lifecycle original SEND budget
 
-- An explicit `thresholds.latency.first_attempt_timeout: 5s` is permitted only for local paired-P95 shakeout/soak. All original SENDs use the same5s clock, regardless of phase or class; hot/cold retry waits remain2s/5s with original retry delays and counts. Omission preserves all previous defaults/digests. This is a user-approved policy change, not evidence that a product performance defect was fixed.
-- Reportv11/thresholdv5 carries that explicit budget and retains paired gatev3, sample/freshness and percentile contracts. v7-v10 cannot acquire the5s override; formal/rehearsal/capacity policies and old evidence are unchanged. The real worker-factory regression observed original retries at2s (RED), then correct5s first attempts and unchanged retries (GREEN). Original-scale performance remains separately unverified.
+- The reviewed Linux rehearsal and formal YAML use `thresholds.latency.first_attempt_timeout: 5s` for all original SENDs. Hot and cold retry waits remain 2s and 5s, with the original delays and counts. Formal P99/P999, correctness, and resource gates are unchanged. Capacity and recovery inherit the passing formal policy and reject a checkpoint with different thresholds.
+- Explicit 5s reports use v12/v6 for the formal P99 policy and v11/v5 for local paired-P95. The existing v8/v2 formal contract reads the omitted budget with its original waits and config digest. Readers reject relabeled policies and require the explicit canonical budget for the new reports.
 
 - Person-directory projection consumes completed physical UID membership
   groups while other groups are in flight. Both memberships must succeed
