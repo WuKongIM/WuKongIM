@@ -79,8 +79,11 @@ func validReportFormalProtocol(report Report) bool {
 		return true
 	}
 	expected := FormalConfig().Thresholds
-	if report.SchemaVersion == legacyReportSchemaVersion {
+	switch report.SchemaVersion {
+	case legacyReportSchemaVersion:
 		expected.Latency.HotAttemptTimeout = 0
+	case formalFirstAttemptReportSchemaVersion:
+		expected.Latency.FirstAttemptTimeout = firstAttemptBudget
 	}
 	return report.Thresholds == expected && report.Topology.LogicalSlotGroups == formalLogicalSlotGroups &&
 		report.Topology.HashSlots == formalHashSlots && report.Topology.SlotReplicas == formalReplicas && report.Topology.ChannelReplicas == formalReplicas

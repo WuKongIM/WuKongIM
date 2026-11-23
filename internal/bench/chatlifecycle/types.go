@@ -296,15 +296,15 @@ type FailureRateLimit struct {
 // LatencyThresholds bounds hot, cold, and sync operations plus anomaly behavior.
 type LatencyThresholds struct {
 	HotSendACK LatencyLimit `json:"hot_sendack" yaml:"hot_sendack"`
-	// HotAttemptTimeout is the wait budget for each hot SENDACK attempt,
-	// including retries, independently of the P99/P999 latency limits. Current
+	// HotAttemptTimeout is the hot retry wait and the default original hot
+	// SEND wait when FirstAttemptTimeout is omitted. Current
 	// Formal profiles require two seconds. Zero preserves historical reports
 	// and custom local profiles by inheriting HotSendACK.P999; it is omitted
 	// from JSON so legacy configuration digests are never rewritten.
 	HotAttemptTimeout time.Duration `json:"hot_attempt_timeout,omitempty" yaml:"hot_attempt_timeout,omitempty"`
-	// FirstAttemptTimeout optionally sets only the original SEND wait to five
-	// seconds in every local paired-P95 phase and traffic class. Zero preserves
-	// historical hot/cold attempt policies and their configuration digests.
+	// FirstAttemptTimeout optionally sets the original SEND wait to five
+	// seconds across every phase and traffic class in the reviewed profiles.
+	// Zero preserves historical hot/cold policies and configuration digests.
 	// Retries retain HotAttemptTimeout or Cold.P999; percentile gates are separate.
 	FirstAttemptTimeout   time.Duration `json:"first_attempt_timeout,omitempty" yaml:"first_attempt_timeout,omitempty"`
 	Cold                  LatencyLimit  `json:"cold" yaml:"cold"`

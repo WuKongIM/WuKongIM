@@ -54,6 +54,51 @@ func TestCurrentReportRehearsalCommandRequiresV8(t *testing.T) {
 	}
 }
 
+func TestLinuxFirstAttemptBudgetSurvivesTerminalEvidence(t *testing.T) {
+	for _, stage := range []chatlifecycle.Stage{chatlifecycle.StageRehearsal, chatlifecycle.StageFormal} {
+		t.Run(string(stage), func(t *testing.T) {
+			cfg := chatlifecycle.FormalConfig()
+			cfg.Stage, cfg.RunID = stage, "linux-first-attempt"
+			cfg.Thresholds.Latency.FirstAttemptTimeout = 5 * time.Second
+			report, start := terminalReportWithConfig(t, cfg, chatlifecycle.VerdictCauseMessageLoss)
+			if report.SchemaVersion != "wukongim/chat-lifecycle-report/v12" || report.ThresholdVersion != "wukongim/chat-lifecycle-thresholds/v6" {
+				t.Fatalf("unexpected five-second evidence versions: %s / %s", report.SchemaVersion, report.ThresholdVersion)
+			}
+			dir := t.TempDir()
+			startPath := writeJSONFile(t, dir, "run-start.json", start)
+			body, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run := func(wire json.RawMessage) error {
+				t.Helper()
+				path := writeJSONFile(t, t.TempDir(), "final.json", wire)
+				command := newRootCommand(&bytes.Buffer{})
+				if stage == chatlifecycle.StageRehearsal {
+					command.SetArgs([]string{"validate-rehearsal-report", "--report", path, "--run-start", startPath})
+				} else {
+					command.SetArgs([]string{"validate-formal-chain", "--formal-report", path})
+				}
+				return command.Execute()
+			}
+			if err := run(body); err != nil {
+				t.Fatalf("new report reader rejected producer evidence: %v", err)
+			}
+			for _, malformed := range []string{
+				strings.ReplaceAll(string(body), "chat-lifecycle-report/v12", "chat-lifecycle-report/v8"),
+				strings.ReplaceAll(string(body), "chat-lifecycle-thresholds/v6", "chat-lifecycle-thresholds/v2"),
+				strings.ReplaceAll(string(body), `"first_attempt_timeout":5000000000`, `"first_attempt_timeout":0`),
+				strings.ReplaceAll(string(body), `"first_attempt_timeout":5000000000`, `"first_attempt_timeout":5000000000,"first_attempt_timeout":5000000000`),
+				strings.ReplaceAll(string(body), `"hot_attempt_timeout":2000000000`, `"hot_attempt_timeout":5000000000`),
+			} {
+				if malformed == string(body) || run(json.RawMessage(malformed)) == nil {
+					t.Fatal("malformed five-second evidence was not rejected")
+				}
+			}
+		})
+	}
+}
+
 // Historicalv7 never contained the new attempt-budget field. Keep every old
 // case/assertion while removing only that pending key from its wire fixture.
 func currentReportLegacyHotBudgetJSON(t *testing.T, body []byte) []byte {
@@ -177,6 +222,11 @@ func currentTerminalReportFixture(t *testing.T, stage chatlifecycle.Stage, cause
 	t.Helper()
 	cfg := chatlifecycle.FormalConfig()
 	cfg.Stage, cfg.RunID = stage, "current-schema-terminal"
+	return terminalReportWithConfig(t, cfg, cause)
+}
+
+func terminalReportWithConfig(t *testing.T, cfg chatlifecycle.Config, cause chatlifecycle.VerdictCause) (chatlifecycle.Report, chatlifecycle.RunStartReceipt) {
+	t.Helper()
 	start := time.Unix(1_990_000_000, 0)
 	fence := chatlifecycle.WorkerFence{RunID: cfg.RunID, AssignmentID: "schema-assignment", Generation: 1}
 	recorder, err := chatlifecycle.NewCheckpointRecorder(cfg, fence, start)

@@ -11,7 +11,7 @@ import (
 // aged-checkpoint reference.
 func PrepareCapacityConfig(formal Config, checkpoint Report, reference string) (Config, error) {
 	if strings.TrimSpace(reference) == "" || formal.Validate() != nil || formal.Profile != ProfileFormal ||
-		formal.Mode != ModeSoak || formal.Stage != StageFormal || checkpoint.SchemaVersion != ReportSchemaVersion ||
+		formal.Mode != ModeSoak || formal.Stage != StageFormal || !IsCurrentP99ReportSchema(checkpoint.SchemaVersion) ||
 		validateReport(checkpoint) != nil ||
 		checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak || checkpoint.Stage != StageFormal ||
 		checkpoint.Kind != CheckpointFinal || !checkpoint.Final || checkpoint.Continue ||

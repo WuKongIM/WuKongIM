@@ -115,11 +115,19 @@ def read_report(path, directory):
         body = source.read(MAX_FILE_BYTES+1)
     require(0 < len(body) <= MAX_FILE_BYTES)
     report = strict_json(body)
-    # Legacy v7 remains readable as archived diagnostics, not current terminal proof.
-    # Only the current v8 report may anchor this evidence handoff.
-    require(report["schema_version"] == "wukongim/chat-lifecycle-report/v8" and
-            report["threshold_version"] == "wukongim/chat-lifecycle-thresholds/v2" and
-            report["kind"] == "final" and report["final"] is True)
+    # The Go reader owns all numerical gates. Require the same current evidence
+    # envelope here before using a report to anchor the capture window.
+    thresholds = report.get("thresholds", {})
+    require(type(thresholds) is dict)
+    latency = thresholds.get("latency", {})
+    require(type(latency) is dict)
+    original_budget = latency.get("first_attempt_timeout", 0)
+    versions = (report["schema_version"], report["threshold_version"])
+    require(type(original_budget) is int and (*versions, original_budget) in (
+        ("wukongim/chat-lifecycle-report/v8", "wukongim/chat-lifecycle-thresholds/v2", 0),
+        ("wukongim/chat-lifecycle-report/v12", "wukongim/chat-lifecycle-thresholds/v6", 5_000_000_000),
+    ))
+    require(report["kind"] == "final" and report["final"] is True)
     require(report["stage"] == ("rehearsal" if directory == "rehearsal" else "formal"))
     require(report["mode"] == ("capacity" if directory == "capacity" else "soak") and report["verdict"]["terminal"] is True)
     qualification = report["qualification"]
@@ -497,6 +505,8 @@ def main(stage, output, timeout):
             try:
                 cap_report, cap_anchor = read_report(capacity, "capacity")
                 require(cap_report["fence"] == report["fence"])
+                require((cap_report["schema_version"], cap_report["threshold_version"]) ==
+                        (report["schema_version"], report["threshold_version"]))
                 require(epoch(cap_report["window"]["end"]) >= epoch(report["window"]["end"]))
                 reports.append(("capacity", cap_report))
                 anchor = cap_anchor

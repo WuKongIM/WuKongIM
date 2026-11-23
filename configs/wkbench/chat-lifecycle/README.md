@@ -20,13 +20,21 @@ thresholds. Three service nodes and three workers share one local filesystem,
 which is not representative of the four-host cloud topology. It is not formal
 evidence.
 
-Reports use schema `wukongim/chat-lifecycle-report/v7` and threshold contract
-`wukongim/chat-lifecycle-thresholds/v2`. `qualification.scope` distinguishes
+The two Linux profiles set `first_attempt_timeout: 5s` for original SENDs.
+Hot retries wait two seconds, and cold retries wait five seconds. The profiles
+retain the reviewed retry delays and percentile, correctness, and resource
+gates. Capacity and recovery inherit the original formal configuration.
+
+These profiles emit report schema `wukongim/chat-lifecycle-report/v12` and
+threshold contract `wukongim/chat-lifecycle-thresholds/v6`. Reports with the
+original hot/cold attempt budgets retain v8/v2 and their existing interpretation.
+`qualification.scope` distinguishes
 `local_diagnostic`, `rehearsal`, and `formal_protocol`. A formal-protocol report
 still needs matching external Linux deployment and independent-host/disk
 receipts; its profile alone does not prove the operating system or hardware.
-Old reports remain historical evidence and are not accepted as a new capacity
-continuation checkpoint.
+The legacy v7 report remains historical evidence. Capacity requires current
+reports with the exact same configuration, including the original-attempt
+budget, and the same live dataset and Worker generation.
 
 Latency warmup is ten minutes; resource-trend warmup remains two hours in the
 formal and rehearsal profiles. The first valid cumulative cut after latency
