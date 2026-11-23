@@ -61,8 +61,8 @@ func TestQuorumLogReleaseDropsResidentCacheAndReloadsFromDurableStore(t *testing
 		t.Fatalf("Commit() error = %v", err)
 	}
 	state := log.channels[authority.Key]
-	if state == nil || len(state.retained) != 1 || state.retained[proposal.CommandID].proposal.records != nil {
-		t.Fatalf("resident retry cache = %+v, want one payload-free durable receipt", state)
+	if state == nil || len(state.retained) != 1 || state.retained[proposal.CommandID] != state.frontier.Manifest {
+		t.Fatalf("resident retry cache = %+v, want one sealed manifest", state)
 	}
 	stale := authority.ID
 	stale.FenceVersion++

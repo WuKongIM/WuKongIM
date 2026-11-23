@@ -56,6 +56,20 @@
   it samples before Release and joins cleanup. This resource regression proves
   unused-capacity overhead only, not a live workload's complete heap attribution.
 
+- A committed quorum retry retains its verified manifest and rebuilds the original
+  receipt under the installed authority. The pending durability round owns its
+  payload until a definite outcome. The append-route cache also packs exact
+  floors without dropping the latest route on runtime eviction. The floor count
+  still follows distinct identities; no cache limit can discard that evidence
+  without a replacement authority proof.
+- Only person recipient hints populate the append metadata cache. A
+  32,768-entry LRU and 4 MiB identity-byte limit protect its recency and ownership;
+  group batches still read mutable metadata from the authority. Restore drops
+  old entries and advances the fill generation. Sparse idempotency filters hold
+  up to eight committed hash pairs before promoting into their existing Bloom
+  layers. Sharded mailboxes clear borrowed item references on handler exit,
+  including failure and panic, while keeping their reusable batch arrays.
+
 Lifecycle metrics preserve optional block-cache and memtable-reservation byte
 gauges in fixed channel_log/meta/raft order. Missing, duplicate or invalid optional
 values stay unknown and never weaken original required metrics. Only successful,
@@ -2806,6 +2820,9 @@ specification, runbook, report, or module documentation; link to them when neede
   invalid and uses the stopped workers to write both final report formats when
   complete evidence is available. Confirmed correctness failures in that
   evidence retain their original priority.
+  An early terminal formal Soak also writes both final reports from stopped
+  Workers and preserves the frozen cause. A failed formal report cannot enter
+  capacity; the passing boundary still uses the running fence.
   In the worker, a pending person Channel can receive its initial SENDACK before
   it enters the active set. The bounded Channel entry carries this acknowledged
   state into promotion when that SEND was counted as the first create for the row.

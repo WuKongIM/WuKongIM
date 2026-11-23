@@ -87,7 +87,7 @@ func (l *quorumLog) CommitMQTTReplayRetirement(ctx context.Context, q ch.MQTTRep
 	}
 	command := mqttRetirementCommand(decision)
 	if state.pending != nil {
-		p := state.pending.proposal
+		p := *state.pending
 		if p.manifest.CommandID != command {
 			return empty, ch.ErrBackpressured
 		}

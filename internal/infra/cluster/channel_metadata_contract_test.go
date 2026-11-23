@@ -19,9 +19,9 @@ func TestChannelMetadataStoreUpdatesAppendCacheOnlyAfterCommittedMetadataMutatio
 	cache := NewChannelAppendMetadataCache()
 	store := NewChannelMetadataStore(node, cache, nil)
 	channel := metadb.Channel{
-		ChannelID: "g1", ChannelType: 2, Large: 1, SubscriberMutationVersion: 7,
+		ChannelID: "u1@u2", ChannelType: 1, Large: 1, SubscriberMutationVersion: 7,
 	}
-	id := channelappend.ChannelID{ID: "g1", Type: 2}
+	id := channelappend.ChannelID{ID: channel.ChannelID, Type: uint8(channel.ChannelType)}
 
 	if err := store.CreateChannelStrict(context.Background(), channel); !errors.Is(err, commitErr) {
 		t.Fatalf("CreateChannelStrict(rejected) error = %v, want %v", err, commitErr)
@@ -38,7 +38,7 @@ func TestChannelMetadataStoreUpdatesAppendCacheOnlyAfterCommittedMetadataMutatio
 		t.Fatalf("committed create cache = %#v ok=%v", metadata, ok)
 	}
 
-	if err := store.PatchChannelBusinessFlags(context.Background(), "g1", 2, metadb.ChannelBusinessFlags{Ban: 1}); !errors.Is(err, commitErr) {
+	if err := store.PatchChannelBusinessFlags(context.Background(), channel.ChannelID, channel.ChannelType, metadb.ChannelBusinessFlags{Ban: 1}); !errors.Is(err, commitErr) {
 		t.Fatalf("PatchChannelBusinessFlags(rejected) error = %v, want %v", err, commitErr)
 	}
 	if _, ok := cache.Lookup(id); !ok {
@@ -46,7 +46,7 @@ func TestChannelMetadataStoreUpdatesAppendCacheOnlyAfterCommittedMetadataMutatio
 	}
 
 	node.patchErr = nil
-	if err := store.PatchChannelBusinessFlags(context.Background(), "g1", 2, metadb.ChannelBusinessFlags{Ban: 1}); err != nil {
+	if err := store.PatchChannelBusinessFlags(context.Background(), channel.ChannelID, channel.ChannelType, metadb.ChannelBusinessFlags{Ban: 1}); err != nil {
 		t.Fatalf("PatchChannelBusinessFlags() error = %v", err)
 	}
 	if _, ok := cache.Lookup(id); ok {

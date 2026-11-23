@@ -93,7 +93,7 @@ func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlif
 	if formal.SchemaVersion != chatlifecycle.ReportSchemaVersion ||
 		formal.Profile != chatlifecycle.ProfileFormal || formal.Mode != chatlifecycle.ModeSoak ||
 		formal.Stage != chatlifecycle.StageFormal || formal.Kind != chatlifecycle.CheckpointFinal ||
-		!formal.Final || formal.Continue || !formal.Continuous || !formal.Verdict.Terminal {
+		!formal.Final || formal.Continue || !formal.Verdict.Terminal {
 		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
 	}
 	result := formalChainResult{
@@ -104,9 +104,18 @@ func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlif
 		if capacity != nil {
 			return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
 		}
+		// A stopped formal failure carries the complete final Worker set.
+		// Historical live handoff failures remain readable and never continue.
+		if !formal.Continuous {
+			for _, worker := range formal.Workers {
+				if worker.Phase != chatlifecycle.WorkerPhaseFinal {
+					return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
+				}
+			}
+		}
 		return result, nil
 	}
-	if capacity == nil || capacity.SchemaVersion != chatlifecycle.ReportSchemaVersion ||
+	if !formal.Continuous || capacity == nil || capacity.SchemaVersion != chatlifecycle.ReportSchemaVersion ||
 		capacity.Profile != chatlifecycle.ProfileFormal || capacity.Mode != chatlifecycle.ModeCapacity ||
 		capacity.Stage != chatlifecycle.StageFormal || capacity.Kind != chatlifecycle.CheckpointFinal ||
 		!capacity.Final || capacity.Continue || !capacity.Continuous || !capacity.Verdict.Terminal || !capacity.Capacity.Attempted {

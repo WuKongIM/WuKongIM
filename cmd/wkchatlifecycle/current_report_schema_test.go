@@ -78,6 +78,32 @@ func currentReportLegacyHotBudgetJSON(t *testing.T, body []byte) []byte {
 	return result
 }
 
+func TestValidateFormalChainPreservesStoppedHeapFailure(t *testing.T) {
+	report, _ := currentTerminalReportFixture(t, chatlifecycle.StageFormal, chatlifecycle.VerdictCauseHeapGrowth)
+	var output bytes.Buffer
+	command := newRootCommand(&output)
+	reportPath := writeJSONFile(t, t.TempDir(), "final.json", report)
+	command.SetArgs([]string{"validate-formal-chain", "--formal-report", reportPath})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("stopped formal report rejected: %v", err)
+	}
+	var result formalChainResult
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil ||
+		result.Outcome != chatlifecycle.VerdictProductFailure || result.Cause != chatlifecycle.VerdictCauseHeapGrowth ||
+		result.CapacityOutcome != "" || !result.End.Equal(report.Window.End) {
+		t.Fatalf("stopped formal outcome changed: %+v/%v", result, err)
+	}
+
+	report.Workers[0].Phase = chatlifecycle.WorkerPhaseRunning
+	output.Reset()
+	command = newRootCommand(&output)
+	reportPath = writeJSONFile(t, t.TempDir(), "final.json", report)
+	command.SetArgs([]string{"validate-formal-chain", "--formal-report", reportPath})
+	if err := command.Execute(); !errors.Is(err, chatlifecyclerun.ErrInvalidInput) || output.Len() != 0 {
+		t.Fatalf("unfinished Worker accepted: error=%v output=%q", err, output.String())
+	}
+}
+
 func TestCurrentReportFormalChainRequiresV8ForEveryCut(t *testing.T) {
 	formal, capacity := currentFormalChainShapeFixture()
 	for _, test := range []struct {
@@ -144,8 +170,13 @@ func currentFormalChainShapeFixture() (chatlifecycle.Report, chatlifecycle.Repor
 // producer APIs. There is no sleep, process, network, workload or cloud action.
 func currentRehearsalTerminalFixture(t *testing.T) (chatlifecycle.Report, chatlifecycle.RunStartReceipt) {
 	t.Helper()
+	return currentTerminalReportFixture(t, chatlifecycle.StageRehearsal, chatlifecycle.VerdictCauseMessageLoss)
+}
+
+func currentTerminalReportFixture(t *testing.T, stage chatlifecycle.Stage, cause chatlifecycle.VerdictCause) (chatlifecycle.Report, chatlifecycle.RunStartReceipt) {
+	t.Helper()
 	cfg := chatlifecycle.FormalConfig()
-	cfg.Stage, cfg.RunID = chatlifecycle.StageRehearsal, "current-schema-rehearsal"
+	cfg.Stage, cfg.RunID = stage, "current-schema-terminal"
 	start := time.Unix(1_990_000_000, 0)
 	fence := chatlifecycle.WorkerFence{RunID: cfg.RunID, AssignmentID: "schema-assignment", Generation: 1}
 	recorder, err := chatlifecycle.NewCheckpointRecorder(cfg, fence, start)
@@ -165,7 +196,7 @@ func currentRehearsalTerminalFixture(t *testing.T) (chatlifecycle.Report, chatli
 		DatasetDigest: "sha256:" + strings.Repeat("d", 64), TopologyValidated: true,
 		MetaCreate: chatlifecycle.MetaCreateAccountingSnapshot{Checkpoints: 1},
 		Lifecycle:  chatlifecycle.LifecycleProofSnapshot{ReheatLatency: histogram},
-		Verdict:    chatlifecycle.VerdictSnapshot{Terminal: true, Outcome: chatlifecycle.VerdictProductFailure, Cause: chatlifecycle.VerdictCauseMessageLoss},
+		Verdict:    chatlifecycle.VerdictSnapshot{Terminal: true, Outcome: chatlifecycle.VerdictProductFailure, Cause: cause},
 	}
 	for index := range evidence.Resources.Nodes {
 		evidence.Resources.Nodes[index].DataFilesystemBytes = 1_000_000_000_000

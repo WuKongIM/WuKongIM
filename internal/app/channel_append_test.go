@@ -16,14 +16,14 @@ func TestChannelAppendSubscriberMutationObserverRefreshesMetadataCache(t *testin
 
 	observer.ObserveSubscriberMutation(context.Background(), channelusecase.SubscriberMutationEvent{
 		ChannelKey: channelusecase.ChannelKey{
-			ChannelID:   "g1",
-			ChannelType: 2,
+			ChannelID:   "u1@u2",
+			ChannelType: 1,
 		},
 		Large:                     true,
 		SubscriberMutationVersion: 7,
 	})
 
-	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "g1", Type: 2})
+	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "u1@u2", Type: 1})
 	if !ok || !metadata.Large || metadata.SubscriberMutationVersion != 7 {
 		t.Fatalf("metadata cache = %#v ok=%v, want large version 7", metadata, ok)
 	}

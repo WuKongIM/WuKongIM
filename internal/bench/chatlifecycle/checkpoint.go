@@ -162,6 +162,10 @@ func (r *CheckpointRecorder) prepareLocked(
 	switch {
 	case r.cfg.Mode == ModeCapacity && terminal:
 		kind = CheckpointFinal
+	case r.cfg.Stage == StageFormal && terminal && !successfulVerdict(evidence.Verdict):
+		// An early failure can occur on the first qualification cut itself.
+		// It owns the terminal artifact slot even without a qualification report.
+		kind = CheckpointFinal
 	case terminal && processElapsed < checkpointElapsed:
 		kind = CheckpointFinal
 	case !r.qualificationCaptured:

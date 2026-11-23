@@ -112,8 +112,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   maintenance, restart and observed readiness failures invalidate proof. Reuse does not renew the proof window or the Channel data-plane lease; Propose-only overrides
   without live Slot status evidence always perform their writes.
 - When healthy readiness cannot be published, the data-plane lease expires; local Channel leaders reject new writes without discarding admitted work.
-- Slot and Channel metadata are authoritative at their current owners. Caches, hints, codecs and local replicas
-  cannot roll back newer generations or make migration decisions from stale state.
+- Slot and Channel metadata are authoritative at their current owners. Caches, hints, codecs and local replicas cannot roll back newer generations or drive migration from stale state.
+  The Channel append floor retains exact metadata and invalidation across runtime eviction. It packs distinct ordered rosters in one array and stores matching replica and ISR rosters once.
 - Runtime-meta creation uses one supervised owner per logical Slot: duplicate
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision; every create rereads committed versions, including

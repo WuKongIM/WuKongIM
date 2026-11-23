@@ -2229,7 +2229,8 @@ func TestChannelMetaCacheInvalidatesOnlyExactUsedMetadata(t *testing.T) {
 	concurrent.ISR = []ch.NodeID{1, 2}
 	concurrent.LeaseUntil = time.Unix(11, 0).UTC()
 
-	cache := channelMetaCache{items: map[ch.ChannelID]ch.Meta{id: cloneMeta(concurrent)}}
+	var cache channelMetaCache
+	cache.installIfNewer(id, concurrent)
 	require.False(t, cache.invalidateUsedMeta(id, used), "zero-generation invalidation must compare the complete cached metadata")
 	got, ok := cache.get(id)
 	require.True(t, ok)
@@ -2495,8 +2496,9 @@ func TestServiceFailedExplicitApplyMetaCannotRevalidateInvalidatedFloor(t *testi
 
 			require.ErrorIs(t, svc.ApplyMeta(tc.candidate), applyErr)
 			svc.metaCache.mu.RLock()
-			cached := cloneMeta(svc.metaCache.items[id])
-			_, invalidated := svc.metaCache.stale[id]
+			entry := svc.metaCache.items[id]
+			cached := cloneMeta(entry.view(id))
+			invalidated := entry.stale
 			svc.metaCache.mu.RUnlock()
 			require.Equal(t, floor, cached, "a failed runtime apply must not advance the floor")
 			require.True(t, invalidated, "a failed runtime apply must not reactivate the cache")
