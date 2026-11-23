@@ -69,6 +69,10 @@
   up to eight committed hash pairs before promoting into their existing Bloom
   layers. Sharded mailboxes clear borrowed item references on handler exit,
   including failure and panic, while keeping their reusable batch arrays.
+- Diagnostic key and range indexes clear evicted FIFO slots before slicing
+  forward. Live slices can retain the whole allocation, including an evicted
+  key's string backing. The Record/Query regression checks both heap release
+  and lookup of the most recent events.
 
 Lifecycle metrics preserve optional block-cache and memtable-reservation byte
 gauges in fixed channel_log/meta/raft order. Missing, duplicate or invalid optional
