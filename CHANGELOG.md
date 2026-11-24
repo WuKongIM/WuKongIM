@@ -6,9 +6,11 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-## [v3.0.0-beta.28] - 2026-11-24
+## [v3.0.0-beta.29] - 2026-11-24
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Upgrade the Go networking dependencies to fix CVE-2026-78661. / 更新 Go 网络依赖以修复 CVE-2026-78661。
 
 - Bound the node-local cache for Channel routes that can be reloaded from authority, while preserving stale-route and migration checks. / 限制可从权威读取重建的频道路由缓存，保留过期路由和迁移检查。
 
