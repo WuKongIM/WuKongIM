@@ -40,7 +40,7 @@ plugin, migration, message projections, and MQTT session state.
    missing or Slot failures. Exact ordinary-membership batches accept at most
    200 keys for one UID and use one authoritative membership RPC; found rows
    are identity-unique, missing keys remain absent, and read errors fail the batch.
-   Runtime-meta `get_fresh` is a separate bounded version-3 point read: fresh local quorum/apply barrier, derived mapping/leadership recheck, exact identity, and no legacy codec fallback or metadata creation.
+   Runtime-meta `get_fresh` is a separate bounded version-3 point read: fresh local quorum/apply barrier, derived mapping/leadership recheck, exact identity, and no legacy codec fallback or metadata creation. It accepts the ordinary storage key range and a single complete row within the standard node frame limit. Wide callers require matched receiver support; the request and response reject batch and page fields before decoding aggregate collections.
 2. A Multi-Raft worker groups contiguous queued read barriers into one fresh
    quorum round, retaining each caller's cancellation, pending bound and durable
    apply fence. Later arrivals and intervening controls require another round.

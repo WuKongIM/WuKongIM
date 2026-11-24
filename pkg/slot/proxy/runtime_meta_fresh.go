@@ -3,17 +3,23 @@ package proxy
 import (
 	"context"
 	"errors"
-	"strings"
-	"unicode/utf8"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
+const (
+	// Use the ordinary metadata key domain, plus room for point-read framing.
+	runtimeMetaFreshMaxKeyBytes     = 1<<16 - 1
+	runtimeMetaFreshMaxRequestBytes = runtimeMetaFreshMaxKeyBytes + 64
+	// Keep the ordinary node transport's response limit for one complete row.
+	runtimeMetaFreshMaxReplyBytes = 64 << 20
+)
+
 func validRuntimeMetaFreshRequest(req runtimeMetaRPCRequest) bool {
-	return req.SlotID != 0 && len(req.ChannelID) > 0 && len(req.ChannelID) <= 1024 &&
-		utf8.ValidString(req.ChannelID) && !strings.ContainsRune(req.ChannelID, 0) && req.ChannelType > 0 && req.ChannelType <= 255 &&
+	return req.SlotID != 0 && len(req.ChannelID) > 0 && len(req.ChannelID) <= runtimeMetaFreshMaxKeyBytes &&
+		req.ChannelType > 0 && req.ChannelType <= 255 &&
 		len(req.Keys) == 0 && req.After == nil && req.Limit == 0
 }
 
@@ -46,17 +52,10 @@ func (s *Store) GetChannelRuntimeMetaFresh(ctx context.Context, id string, typ i
 			var reply runtimeMetaRPCResponse
 			reply, err = callAuthoritativeRPC(ctx, s, slot, runtimeMetaRPCServiceID, body, func(b []byte) (runtimeMetaRPCResponse, error) {
 				version, ok := runtimeMetaRPCResponseVersion(b)
-				if !ok || version != 3 || len(b) > 16<<10 {
+				if !ok || version != 3 || len(b) > runtimeMetaFreshMaxReplyBytes {
 					return runtimeMetaRPCResponse{}, metadb.ErrCorruptValue
 				}
-				response, decodeErr := decodeRuntimeMetaRPCResponse(b)
-				if decodeErr != nil {
-					return runtimeMetaRPCResponse{}, decodeErr
-				}
-				if len(response.Metas) != 0 || response.Cursor != (metadb.ChannelRuntimeMetaCursor{}) || response.Done {
-					return runtimeMetaRPCResponse{}, metadb.ErrCorruptValue
-				}
-				return response, nil
+				return decodeRuntimeMetaRPCResponseFields(b, true)
 			})
 			if err == nil {
 				switch {

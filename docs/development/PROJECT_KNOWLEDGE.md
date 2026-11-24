@@ -1,5 +1,15 @@
 # Project Knowledge
 
+- Channel append route floors must remain protected across authority reads and
+  runtime apply, including capacity eviction. Recoverable floors share an idle
+  LRU with entry and owned-byte bounds. After eviction, a missing floor must be
+  re-established from Slot authority before accepting route metadata. A wide
+  identity can be evicted only with matching support on all possible Slot
+  owners. Individually oversized reloadable rows keep their exact floor only
+  while callers hold it. Test
+  growth across successive identity cohorts and deliberately delay an older read
+  past invalidation and capacity pressure.
+
 - Recovery probe batching must survive the storage adapter: 64 admitted fresh
   authority promises previously caused 64 synchronous WAL commits. The public
   real-storage regression now requires at most four, including engine overhead,
@@ -59,9 +69,9 @@
 - A committed quorum retry retains its verified manifest and rebuilds the original
   receipt under the installed authority. The pending durability round owns its
   payload until a definite outcome. The append-route cache also packs exact
-  floors without dropping the latest route on runtime eviction. The floor count
-  still follows distinct identities; no cache limit can discard that evidence
-  without a replacement authority proof.
+  floors without dropping the latest route on runtime eviction. Non-reloadable
+  floor counts still follow distinct identities. A discarded floor requires a
+  replacement authority proof.
 - Only person recipient hints populate the append metadata cache. A
   32,768-entry LRU and 4 MiB identity-byte limit protect its recency and ownership;
   group batches still read mutable metadata from the authority. Restore drops

@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Bound the node-local cache for Channel routes that can be reloaded from authority, while preserving stale-route and migration checks. / 限制可从权威读取重建的频道路由缓存，保留过期路由和迁移检查。
+
 - Use a five-second original SEND deadline in the Linux chat-lifecycle rehearsal and formal profiles while retaining the existing retry waits and acceptance thresholds. / Linux 聊天生命周期演练和正式验收的首发 SEND 等待设为五秒，保留原重试等待和验收门禁。
 
 - Preserve the original failure and stopped Worker evidence in both final reports when a formal soak stops early. / 正式长测提前停止时，JSON 和 Markdown 终态报告保留原始失败原因和已停止的 Worker 证据。

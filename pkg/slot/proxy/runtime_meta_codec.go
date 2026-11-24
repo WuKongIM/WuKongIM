@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -70,7 +71,7 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 	}
 	// Bound fresh point-read frames before the shared batch decoder allocates
 	// collections or decodes the channel identity.
-	if op == runtimeMetaRPCGetFresh && (requestVersion != 3 || len(body) > 4096) {
+	if op == runtimeMetaRPCGetFresh && (requestVersion != 3 || len(body) > runtimeMetaFreshMaxRequestBytes) {
 		return runtimeMetaRPCRequest{}, metadb.ErrInvalidArgument
 	}
 	offset++
@@ -87,6 +88,13 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 	if req.ChannelType, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return runtimeMetaRPCRequest{}, err
 	}
+	if req.Op == runtimeMetaRPCGetFresh {
+		// A point request has no keys, cursor or limit.
+		if !bytes.Equal(body[offset:], []byte{0, 0, 0}) || !validRuntimeMetaFreshRequest(req) {
+			return runtimeMetaRPCRequest{}, metadb.ErrInvalidArgument
+		}
+		return req, nil
+	}
 	if req.Keys, offset, err = runtimeMetaReadChannelKeys(body, offset); err != nil {
 		return runtimeMetaRPCRequest{}, err
 	}
@@ -98,9 +106,6 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 	}
 	if offset != len(body) {
 		return runtimeMetaRPCRequest{}, fmt.Errorf("metastore: trailing runtime meta request bytes")
-	}
-	if req.Op == runtimeMetaRPCGetFresh && (requestVersion != 3 || !validRuntimeMetaFreshRequest(req)) {
-		return runtimeMetaRPCRequest{}, metadb.ErrInvalidArgument
 	}
 	return req, nil
 }
@@ -135,6 +140,10 @@ func encodeRuntimeMetaRPCResponseForVersion(resp runtimeMetaRPCResponse, version
 }
 
 func decodeRuntimeMetaRPCResponseBinary(body []byte) (runtimeMetaRPCResponse, error) {
+	return decodeRuntimeMetaRPCResponseFields(body, false)
+}
+
+func decodeRuntimeMetaRPCResponseFields(body []byte, pointOnly bool) (runtimeMetaRPCResponse, error) {
 	responseVersion, ok := runtimeMetaRPCResponseVersion(body)
 	if !ok {
 		return runtimeMetaRPCResponse{}, fmt.Errorf("metastore: invalid runtime meta response codec")
@@ -155,6 +164,13 @@ func decodeRuntimeMetaRPCResponseBinary(body []byte) (runtimeMetaRPCResponse, er
 		includeRouteGeneration: includeRouteGeneration,
 	}); err != nil {
 		return runtimeMetaRPCResponse{}, err
+	}
+	if pointOnly {
+		// A point reply has no additional rows, cursor or page marker.
+		if !bytes.Equal(body[offset:], []byte{0, 0, 0, 0}) {
+			return runtimeMetaRPCResponse{}, metadb.ErrCorruptValue
+		}
+		return resp, nil
 	}
 	if resp.Metas, offset, err = runtimeMetaReadMetas(body, offset, runtimeMetaEncodeOptions{
 		includeWriteFence:      includeWriteFence,

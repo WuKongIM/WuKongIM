@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -50,6 +51,49 @@ func TestMQTTSourceRuntimeFreshMetadataRoutesAndBarriers(t *testing.T) {
 	local.cluster = freshRuntimeBarrierCluster{Cluster: nodes[1].cluster, run: func(context.Context, multiraft.SlotID) error { nodes[1].cluster.layout.version++; return nil }}
 	_, err = local.GetChannelRuntimeMetaFresh(ctx, id, 2)
 	require.ErrorIs(t, err, ErrReadStaleRoute)
+}
+
+func TestRuntimeMetaFreshPreservesOrdinaryPointReadDomain(t *testing.T) {
+	nodes := startTwoNodeHashSlotStores(t, 256)
+	ctx := context.Background()
+	origin := nodes[0].store
+	for _, tc := range []struct {
+		name   string
+		prefix string
+		token  string
+	}{
+		{name: "wide reply", prefix: "wide-field", token: strings.Repeat("x", 17<<10)},
+		{name: "long identity", prefix: strings.Repeat("y", 60000), token: "fixture"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id := ""
+			for i := range 1000 {
+				candidate := fmt.Sprintf("%s-%d", tc.prefix, i)
+				if origin.cluster.SlotForKey(candidate) == 2 {
+					id = candidate
+					break
+				}
+			}
+			require.True(t, id != "", "fixture did not resolve to the remote Slot")
+			record := metadb.ChannelRuntimeMeta{
+				ChannelID: id, ChannelType: 2, ChannelEpoch: 1, LeaderEpoch: 2,
+				RouteGeneration: 7, Leader: 2, Replicas: []uint64{1, 2},
+				ISR: []uint64{1, 2}, MinISR: 2, Status: 1,
+				WriteFenceToken: tc.token, WriteFenceVersion: 1,
+				WriteFenceReason: 1, WriteFenceUntilMS: 10000,
+			}
+			require.NoError(t, origin.UpsertChannelRuntimeMeta(ctx, record))
+			normal, err := origin.GetChannelRuntimeMeta(ctx, id, 2)
+			require.NoError(t, err)
+			owner := nodes[1]
+			before := owner.cluster.nextIndex[2]
+			got, err := origin.GetChannelRuntimeMetaFresh(ctx, id, 2)
+			require.NoError(t, err)
+			require.True(t, got.ChannelID == normal.ChannelID && got.WriteFenceToken == normal.WriteFenceToken &&
+				got.RouteGeneration == normal.RouteGeneration, "fresh read changed the durable route")
+			require.Equal(t, before+1, owner.cluster.nextIndex[2], "embedded authority must still apply its quorum barrier")
+		})
+	}
 }
 
 func TestMQTTSourceRuntimeFreshCodecRejectsDowngradeAndForgedSlot(t *testing.T) {

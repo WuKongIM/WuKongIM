@@ -2160,8 +2160,8 @@ func TestChannelMetaCacheRejectsLateOlderAuthorityFence(t *testing.T) {
 	newer.LeaderEpoch = 9
 
 	var cache channelMetaCache
-	require.Equal(t, newer, cache.installIfNewer(id, newer))
-	require.Equal(t, newer, cache.installIfNewer(id, older), "a late older resolve must retain the newer authority fence")
+	require.Equal(t, newer, cache.installIfNewer(id, newer, 0))
+	require.Equal(t, newer, cache.installIfNewer(id, older, 0), "a late older resolve must retain the newer authority fence")
 
 	got, ok := cache.get(id)
 	require.True(t, ok)
@@ -2170,7 +2170,7 @@ func TestChannelMetaCacheRejectsLateOlderAuthorityFence(t *testing.T) {
 	newEpoch := older
 	newEpoch.Epoch = 5
 	newEpoch.LeaderEpoch = 1
-	require.Equal(t, newEpoch, cache.installIfNewer(id, newEpoch), "channel epoch orders before leader epoch")
+	require.Equal(t, newEpoch, cache.installIfNewer(id, newEpoch, 0), "channel epoch orders before leader epoch")
 }
 
 func TestChannelMetaCacheOrdersCompleteMetadataWithinAuthorityFence(t *testing.T) {
@@ -2189,30 +2189,30 @@ func TestChannelMetaCacheOrdersCompleteMetadataWithinAuthorityFence(t *testing.T
 	lateOld.RetentionThroughSeq = 5
 
 	var cache channelMetaCache
-	require.Equal(t, newer, cache.installIfNewer(id, newer))
-	require.Equal(t, newer, cache.installIfNewer(id, lateOld), "a late lower generation must not roll back retention or the write fence")
+	require.Equal(t, newer, cache.installIfNewer(id, newer, 0))
+	require.Equal(t, newer, cache.installIfNewer(id, lateOld, 0), "a late lower generation must not roll back retention or the write fence")
 
 	conflictingLeader := cloneMeta(newer)
 	conflictingLeader.Leader = 2
 	conflictingLeader.RouteGeneration = 22
-	require.Equal(t, newer, cache.installIfNewer(id, conflictingLeader), "the same epoch fence cannot change leaders")
+	require.Equal(t, newer, cache.installIfNewer(id, conflictingLeader, 0), "the same epoch fence cannot change leaders")
 
 	unknownGeneration := cloneMeta(newer)
 	unknownGeneration.RouteGeneration = 0
-	require.Equal(t, newer, cache.installIfNewer(id, unknownGeneration), "unknown generation cannot replace a known generation")
+	require.Equal(t, newer, cache.installIfNewer(id, unknownGeneration, 0), "unknown generation cannot replace a known generation")
 	higherFenceUnknown := cloneMeta(newer)
 	higherFenceUnknown.LeaderEpoch++
 	higherFenceUnknown.RouteGeneration = 0
-	require.Equal(t, newer, cache.installIfNewer(id, higherFenceUnknown), "unknown generation cannot replace a known generation across authority fences")
+	require.Equal(t, newer, cache.installIfNewer(id, higherFenceUnknown, 0), "unknown generation cannot replace a known generation across authority fences")
 
 	var legacy channelMetaCache
 	legacyBase := cloneMeta(base)
 	legacyBase.RouteGeneration = 0
 	legacyChanged := cloneMeta(legacyBase)
 	legacyChanged.RetentionThroughSeq++
-	require.Equal(t, legacyBase, legacy.installIfNewer(id, legacyBase))
-	require.Equal(t, legacyBase, legacy.installIfNewer(id, legacyChanged), "two unknown generations retain the current complete metadata")
-	require.Equal(t, newer, legacy.installIfNewer(id, newer), "a known generation upgrades unknown metadata")
+	require.Equal(t, legacyBase, legacy.installIfNewer(id, legacyBase, 0))
+	require.Equal(t, legacyBase, legacy.installIfNewer(id, legacyChanged, 0), "two unknown generations retain the current complete metadata")
+	require.Equal(t, newer, legacy.installIfNewer(id, newer, 0), "a known generation upgrades unknown metadata")
 }
 
 func TestChannelMetaCacheInvalidatesOnlyExactUsedMetadata(t *testing.T) {
@@ -2230,7 +2230,7 @@ func TestChannelMetaCacheInvalidatesOnlyExactUsedMetadata(t *testing.T) {
 	concurrent.LeaseUntil = time.Unix(11, 0).UTC()
 
 	var cache channelMetaCache
-	cache.installIfNewer(id, concurrent)
+	cache.installIfNewer(id, concurrent, 0)
 	require.False(t, cache.invalidateUsedMeta(id, used), "zero-generation invalidation must compare the complete cached metadata")
 	got, ok := cache.get(id)
 	require.True(t, ok)
@@ -2250,16 +2250,22 @@ func TestChannelMetaCacheInvalidationRetainsMonotonicFloor(t *testing.T) {
 	newer.WriteFence = ch.WriteFence{Token: "migration-11", Version: 11, Reason: ch.WriteFenceReasonReplicaReplace, Until: time.Unix(11, 0).UTC()}
 
 	var cache channelMetaCache
-	cache.installIfNewer(id, newer)
+	cache.installIfNewer(id, newer, 0)
+	_, startedBeforeInvalidation, ok := cache.pin(id)
+	require.True(t, ok)
+	defer cache.unpin(id)
 	require.True(t, cache.invalidateUsedMeta(id, newer))
-	_, ok := cache.get(id)
+	_, ok = cache.get(id)
 	require.False(t, ok, "invalidated metadata must force a fresh resolve")
 
-	require.Equal(t, newer, cache.installIfNewer(id, older), "a late older resolve must not cross the invalidation floor")
+	require.Zero(t, cache.installIfNewer(id, older, startedBeforeInvalidation), "a late older resolve must not cross the invalidation floor")
 	_, ok = cache.get(id)
 	require.False(t, ok, "an older response must not revalidate the retained floor")
 
-	require.Equal(t, newer, cache.installIfNewer(id, newer))
+	_, startedAfterInvalidation, ok := cache.pin(id)
+	require.True(t, ok)
+	defer cache.unpin(id)
+	require.Equal(t, newer, cache.installIfNewer(id, newer, startedAfterInvalidation))
 	got, ok := cache.get(id)
 	require.True(t, ok, "an exact authoritative refresh should revalidate the floor")
 	require.Equal(t, newer, got)
@@ -2279,7 +2285,7 @@ func TestServiceDelayedOlderResolveCannotRevalidateInvalidatedFloor(t *testing.T
 	source := &countingMetaSource{meta: older}
 	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
 	require.NoError(t, err)
-	svc.metaCache.installIfNewer(id, newer)
+	svc.metaCache.installIfNewer(id, newer, 0)
 	require.True(t, svc.metaCache.invalidateUsedMeta(id, newer))
 
 	_, err = svc.Append(context.Background(), ch.AppendRequest{ChannelID: id})
@@ -2328,7 +2334,7 @@ func TestServiceDelayedOlderResolveCannotExposeInvalidatedRemoteFloor(t *testing
 			forward := &deadlineForwardClient{}
 			svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Forward: forward})
 			require.NoError(t, err)
-			svc.metaCache.installIfNewer(id, newer)
+			svc.metaCache.installIfNewer(id, newer, 0)
 			require.True(t, svc.metaCache.invalidateUsedMeta(id, newer))
 
 			require.ErrorIs(t, tc.run(svc), ch.ErrStaleMeta)
@@ -2352,7 +2358,7 @@ func TestServiceDelayedOlderResolveCanUseNonStaleNewerCache(t *testing.T) {
 	source := &countingMetaSource{meta: older}
 	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source})
 	require.NoError(t, err)
-	svc.metaCache.installIfNewer(id, newer)
+	svc.metaCache.installIfNewer(id, newer, 0)
 
 	selected, ok, err := svc.resolveAppendMetaFresh(context.Background(), id)
 	require.NoError(t, err)
@@ -2377,7 +2383,7 @@ func TestServiceDelayedNonAppendableResolveCannotCrossInvalidatedFloor(t *testin
 	runtime := &fakeRuntime{}
 	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source, Forward: forward})
 	require.NoError(t, err)
-	svc.metaCache.installIfNewer(id, newer)
+	svc.metaCache.installIfNewer(id, newer, 0)
 	require.True(t, svc.metaCache.invalidateUsedMeta(id, newer))
 
 	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{
@@ -2404,16 +2410,16 @@ func TestChannelMetaCacheNonAppendableMetadataRemainsMonotonicFloor(t *testing.T
 	newer.RouteGeneration = 11
 
 	var cache channelMetaCache
-	selected, freshEnough := cache.selectResolved(id, base)
+	selected, freshEnough := cache.selectResolved(id, base, 0)
 	require.Equal(t, base, selected)
 	require.True(t, freshEnough)
 	_, ok := cache.get(id)
 	require.False(t, ok, "non-appendable metadata is a floor, not a hot route")
 
-	selected, freshEnough = cache.selectResolved(id, newer)
+	selected, freshEnough = cache.selectResolved(id, newer, 0)
 	require.Equal(t, newer, selected)
 	require.True(t, freshEnough)
-	selected, freshEnough = cache.selectResolved(id, base)
+	selected, freshEnough = cache.selectResolved(id, base, 0)
 	require.Equal(t, newer, selected, "an older non-appendable response cannot roll back the floor")
 	require.False(t, freshEnough)
 }
@@ -2426,7 +2432,7 @@ func TestChannelMetaCacheExternalInvalidationDoesNotDeleteKnownGeneration(t *tes
 		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive,
 	}
 	var cache channelMetaCache
-	cache.installIfNewer(id, meta)
+	cache.installIfNewer(id, meta, 0)
 	require.False(t, cache.invalidateAuthority(id, meta.Leader, meta.Epoch, meta.LeaderEpoch, meta.RouteGeneration+1))
 	require.False(t, cache.invalidateAuthority(id, meta.Leader, meta.Epoch, meta.LeaderEpoch, 0), "unknown generation must not delete known complete metadata")
 	got, ok := cache.get(id)
@@ -2436,7 +2442,7 @@ func TestChannelMetaCacheExternalInvalidationDoesNotDeleteKnownGeneration(t *tes
 	legacyMeta := cloneMeta(meta)
 	legacyMeta.RouteGeneration = 0
 	var legacy channelMetaCache
-	legacy.installIfNewer(id, legacyMeta)
+	legacy.installIfNewer(id, legacyMeta, 0)
 	require.True(t, legacy.invalidateAuthority(id, legacyMeta.Leader, legacyMeta.Epoch, legacyMeta.LeaderEpoch, 0), "unknown generation keeps tuple-only invalidation for an unknown cached entry")
 }
 
@@ -2491,14 +2497,14 @@ func TestServiceFailedExplicitApplyMetaCannotRevalidateInvalidatedFloor(t *testi
 			runtime := &fakeRuntime{applyErr: applyErr}
 			svc, err := NewService(Config{Runtime: runtime, LocalNode: 1})
 			require.NoError(t, err)
-			svc.metaCache.installIfNewer(id, floor)
+			svc.metaCache.installIfNewer(id, floor, 0)
 			require.True(t, svc.metaCache.invalidateUsedMeta(id, floor))
 
 			require.ErrorIs(t, svc.ApplyMeta(tc.candidate), applyErr)
 			svc.metaCache.mu.RLock()
 			entry := svc.metaCache.items[id]
-			cached := cloneMeta(entry.view(id))
-			invalidated := entry.stale
+			cached := cloneMeta(entry.floor.view(id))
+			invalidated := entry.floor.stale
 			svc.metaCache.mu.RUnlock()
 			require.Equal(t, floor, cached, "a failed runtime apply must not advance the floor")
 			require.True(t, invalidated, "a failed runtime apply must not reactivate the cache")
@@ -2556,7 +2562,7 @@ func TestServiceOldCachedAppendErrorDoesNotDeleteConcurrentHigherGeneration(t *t
 	source := &countingMetaSource{meta: old}
 	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
 	require.NoError(t, err)
-	runtime.onFirstBatch = func() { svc.metaCache.installIfNewer(id, newer) }
+	runtime.onFirstBatch = func() { svc.metaCache.installIfNewer(id, newer, 0) }
 
 	_, err = svc.ResolveAppendAuthority(context.Background(), id)
 	require.NoError(t, err)

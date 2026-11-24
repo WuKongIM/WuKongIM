@@ -152,8 +152,11 @@ type DataNodeProvider interface {
 	PlacementDataNodes(context.Context, uint64) ([]uint64, error)
 }
 
-// SlotMetaSourceOptions configures first-append metadata creation.
+// SlotMetaSourceOptions configures Slot reads and first-append metadata creation.
 type SlotMetaSourceOptions struct {
+	// WideFreshIDs permits eviction outside the legacy fresh-read identity range.
+	// Enable only when every eligible Slot leader supports the full key range.
+	WideFreshIDs bool
 	// DefaultReplicas are the initial Channel replicas when metadata is missing.
 	DefaultReplicas []ch.NodeID
 	// DefaultMinISR is the initial write quorum; defaults to 1 when replicas exist.

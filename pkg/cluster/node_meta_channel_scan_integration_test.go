@@ -5,6 +5,7 @@ package cluster
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,5 +117,37 @@ func TestClusterFollowerReadsChannelRuntimeMetaFromSlotLeader(t *testing.T) {
 	want := metadb.NormalizeChannelRuntimeMeta(meta)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("GetChannelRuntimeMeta(follower=%d) = %#v, want %#v", queryNode.NodeID(), got, want)
+	}
+}
+
+func TestClusterFollowerFreshReadWideRuntimeMeta(t *testing.T) {
+	nodes := newDefaultThreeNodeCluster(t)
+	for _, node := range nodes {
+		node.cfg.Slots.HashSlotCount = 256
+	}
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
+	waitClusterReady(t, nodes...)
+
+	id := strings.Repeat("wide-key", 7500)
+	route := waitRouteKeyLeaderConverged(t, nodes, id)
+	follower := firstNonLeaderNode(t, nodes, route.Leader)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	row := metadb.ChannelRuntimeMeta{
+		ChannelID: id, ChannelType: 2, ChannelEpoch: 3, LeaderEpoch: 2, RouteGeneration: 9,
+		Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2, 3}, Leader: route.Leader, MinISR: 2,
+		Status: uint8(channelruntime.StatusActive), WriteFenceVersion: 4, WriteFenceReason: 1,
+		WriteFenceUntilMS: 10_000, WriteFenceToken: strings.Repeat("x", 17<<10),
+	}
+	if err := (defaultChannelRuntimeMetaStore{node: nodes[0]}).UpsertChannelRuntimeMeta(ctx, row); err != nil {
+		t.Fatalf("persist wide metadata: %v", err)
+	}
+	got, err := follower.GetChannelRuntimeMetaFresh(ctx, id, row.ChannelType)
+	if err != nil {
+		t.Fatalf("fresh read from follower: %v", err)
+	}
+	if !reflect.DeepEqual(got, metadb.NormalizeChannelRuntimeMeta(row)) {
+		t.Fatal("remote quorum read changed the persisted route")
 	}
 }

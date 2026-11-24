@@ -387,7 +387,7 @@ func NewService(cfg Config) (*Service, error) {
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
 	commitRefresh, _ := cfg.QuorumLog.(replication.CommittedReplicaRefresher)
-	return &Service{willReceiptReads: make(chan struct{}, willReceiptConcurrent), mqttConsumerReads: make(chan struct{}, mqttConsumerConcurrent), mqttRepairReceivers: make(chan struct{}, mqttRepairConcurrent), mqttRepairDonors: make(chan struct{}, mqttRepairConcurrent), mqttCopyCoordinators: make(chan struct{}, mqttCopyConcurrent), mqttCopyReceivers: make(chan struct{}, mqttCopyConcurrent), persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, replicaCommitRefresh: commitRefresh, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
+	return &Service{willReceiptReads: make(chan struct{}, willReceiptConcurrent), mqttConsumerReads: make(chan struct{}, mqttConsumerConcurrent), mqttRepairReceivers: make(chan struct{}, mqttRepairConcurrent), mqttRepairDonors: make(chan struct{}, mqttRepairConcurrent), mqttCopyCoordinators: make(chan struct{}, mqttCopyConcurrent), mqttCopyReceivers: make(chan struct{}, mqttCopyConcurrent), persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, replicaCommitRefresh: commitRefresh, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines, metaCache: channelMetaCache{canReload: appendMetaReloadability(cfg.MetaSource)}}, nil
 }
 
 // Runtime returns the Channel public cluster surface.
@@ -1860,8 +1860,25 @@ func (s *Service) applyRuntimeMetaWith(ctx context.Context, meta ch.Meta, author
 	}
 	defer shard.release(meta.ID)
 
+	cold, readStarted, ok := s.metaCache.pin(meta.ID)
+	if !ok {
+		return ch.ErrNotReady
+	}
+	defer s.metaCache.unpin(meta.ID)
+	if cold {
+		current, err := s.readEvictedAppendMeta(ctx, meta.ID)
+		if err != nil {
+			return err
+		}
+		if !sameCompleteAppendMeta(current, meta) {
+			return ch.ErrStaleMeta
+		}
+	}
 	candidate := cloneMeta(meta)
-	selected, _ := s.metaCache.preferCurrent(meta.ID, candidate)
+	selected, ok := s.metaCache.selectForApply(meta.ID, candidate, readStarted)
+	if !ok {
+		return ch.ErrStaleMeta
+	}
 	if err := apply(selected); err != nil {
 		return err
 	}
@@ -1869,7 +1886,7 @@ func (s *Service) applyRuntimeMetaWith(ctx context.Context, meta ch.Meta, author
 		// Keep the original authoritative candidate as provenance. A retained
 		// newer floor selected for runtime safety must not impersonate an exact
 		// refresh and reactivate an invalidated cache entry.
-		s.metaCache.installIfNewer(candidate.ID, candidate)
+		s.metaCache.installIfNewer(candidate.ID, candidate, readStarted)
 	}
 	return nil
 }
@@ -1984,16 +2001,58 @@ func (s *Service) resolveAppendMetaCached(ctx context.Context, id ch.ChannelID) 
 }
 
 func (s *Service) resolveAppendMetaFresh(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, error) {
-	meta, ok, err := s.resolveAppendMeta(ctx, id)
+	if s.ensurer == nil && s.metaSource == nil {
+		return ch.Meta{}, false, nil
+	}
+	cold, readStarted, pinned := s.metaCache.pin(id)
+	if !pinned {
+		return ch.Meta{}, false, ch.ErrNotReady
+	}
+	defer s.metaCache.unpin(id)
+	meta, ok, err := s.loadAppendMeta(ctx, id, cold)
 	if err != nil || !ok {
 		return meta, ok, err
 	}
 	var freshEnough bool
-	meta, freshEnough = s.metaCache.selectResolved(id, meta)
+	meta, freshEnough = s.metaCache.selectResolved(id, meta, readStarted)
 	if !freshEnough {
 		return meta, true, ch.ErrStaleMeta
 	}
 	return meta, ok, nil
+}
+
+func (s *Service) loadAppendMeta(ctx context.Context, id ch.ChannelID, cold bool) (ch.Meta, bool, error) {
+	if !cold {
+		return s.resolveAppendMeta(ctx, id)
+	}
+	meta, err := s.readEvictedAppendMeta(ctx, id)
+	if s.ensurer == nil || !channelErrorMatches(err, ch.ErrChannelNotFound) {
+		return meta, true, err
+	}
+	if _, err := s.ensurer.EnsureChannelMeta(ctx, id); err != nil {
+		return ch.Meta{}, true, err
+	}
+	meta, err = s.readEvictedAppendMeta(ctx, id)
+	return meta, true, err
+}
+
+// readEvictedAppendMeta rebuilds a discarded floor from the authority. Modern
+// Slot adapters use an applied quorum read; embedders supply their authority
+// through ChannelMetaSource.
+func (s *Service) readEvictedAppendMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
+	if s.metaSource == nil {
+		return ch.Meta{}, ch.ErrStaleMeta
+	}
+	resolve := s.metaSource.ResolveChannelMeta
+	if source, ok := s.metaSource.(FreshChannelMetaSource); ok {
+		resolve = source.ResolveChannelMetaFresh
+	}
+	meta, err := resolve(ctx, id)
+	if err != nil {
+		return ch.Meta{}, err
+	}
+	meta, _, err = normalizeAppendMeta(id, meta)
+	return meta, err
 }
 
 func unavailableAppendMetaError(meta ch.Meta) error {

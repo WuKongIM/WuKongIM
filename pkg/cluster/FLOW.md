@@ -113,7 +113,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   without live Slot status evidence always perform their writes.
 - When healthy readiness cannot be published, the data-plane lease expires; local Channel leaders reject new writes without discarding admitted work.
 - Slot and Channel metadata are authoritative at their current owners. Caches, hints, codecs and local replicas cannot roll back newer generations or drive migration from stale state.
-  The Channel append floor retains exact metadata and invalidation across runtime eviction. It packs distinct ordered rosters in one array and stores matching replica and ISR rosters once.
+  The Channel append cache retains reloadable floors under a 32,768-entry and 16 MiB accounting bound. Authority reads and runtime applies pin their exact Channel across publication. Idle floors are evicted in least-recent-use order. A missing floor after eviction is rebuilt from authority, and delayed results cannot cross a newer invalidated floor. A reloadable row that individually exceeds the budget retains its payload outside the byte accounting only while pinned and requires a fresh read on the next miss. Slot embeddings opt in to wide identity eviction only after all eligible Slot owners can serve it. Sources or identities outside the supported fresh Slot read keep their existing floors and are outside this accounting bound. Matching replica and ISR rosters share one array.
 - Runtime-meta creation uses one supervised owner per logical Slot: duplicate
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision; every create rereads committed versions, including

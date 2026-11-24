@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
@@ -25,6 +27,34 @@ type SlotMetaSource struct {
 	batcher  *metaCreateBatcher
 	batchErr error
 	opts     SlotMetaSourceOptions
+}
+
+// appendMetaReloadability preserves floors for embeddings and identities that
+// cannot be reloaded with the Slot fresh-read contract.
+func appendMetaReloadability(source ChannelMetaSource) func(ch.ChannelID) bool {
+	never := func(ch.ChannelID) bool { return false }
+	if source == nil {
+		return never
+	}
+	slot, isSlot := source.(*SlotMetaSource)
+	if !isSlot {
+		return nil
+	}
+	if slot == nil {
+		return never
+	}
+	if _, ok := slot.reader.(RuntimeMetaFreshReader); !ok {
+		return never
+	}
+	if slot.opts.WideFreshIDs {
+		return func(id ch.ChannelID) bool {
+			return id.Type != 0 && len(id.ID) > 0 && len(id.ID) <= 1<<16-1
+		}
+	}
+	return func(id ch.ChannelID) bool {
+		return id.Type != 0 && len(id.ID) > 0 && len(id.ID) <= 1024 &&
+			utf8.ValidString(id.ID) && !strings.ContainsRune(id.ID, 0)
+	}
 }
 
 // NewSlotMetaSource creates a Slot-backed ChannelMetaSource.

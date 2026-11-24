@@ -39,7 +39,7 @@ func (s *Service) resolvePreparedAppendMeta(ctx context.Context, id ch.ChannelID
 // the old request but cannot change the authority carried by that request.
 func (s *Service) applyAppendMeta(ctx context.Context, meta ch.Meta, route uint64) error {
 	if route == 0 {
-		return s.applyRuntimeMeta(meta, false)
+		return s.applyRuntimeMetaContext(ctx, meta, false, false)
 	}
 	if err := s.applyRequestMetaContext(ctx, meta); err != nil {
 		return err
